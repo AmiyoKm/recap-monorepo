@@ -43,24 +43,26 @@ jobs:
               ;;
           esac
 
-      - uses: actions/checkout@v7
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
 
-      - uses: google-github-actions/auth@v3
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SA }}
-      - uses: google-github-actions/setup-gcloud@v3
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Set image name
         id: image
         run: echo "ref=$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/recap/api-${{ steps.target.outputs.env }}:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
       - run: gcloud auth configure-docker "$GCP_REGION-docker.pkg.dev" --quiet
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: apps/api/Dockerfile
@@ -69,7 +71,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - uses: google-github-actions/get-secretmanager-secrets@v3
+      - uses: google-github-actions/get-secretmanager-secrets@bc9c54b29fdffb8a47776820a7d26e77b379d262 # v3.0.0
         id: secrets
         with:
           secrets: |-
@@ -91,7 +93,7 @@ jobs:
             --memory 512Mi \
             --cpu-throttling \
             --no-cpu-boost \
-            --set-env-vars "WEB_ORIGIN=https://${{ steps.target.outputs.web_host }},BETTER_AUTH_URL=https://${{ steps.target.outputs.api_host }},COOKIE_DOMAIN=.$APP_DOMAIN,COOKIE_PREFIX=recap-${{ steps.target.outputs.env }},REDIS_KEY_PREFIX=${{ steps.target.outputs.env }}:" \
+            --set-env-vars "WEB_ORIGIN=https://${{ steps.target.outputs.web_host }},BETTER_AUTH_URL=https://${{ steps.target.outputs.api_host }},REDIS_KEY_PREFIX=${{ steps.target.outputs.env }}:" \
             --set-secrets "DATABASE_URL=recap-${{ steps.target.outputs.env }}-database-url:latest,BETTER_AUTH_SECRET=recap-${{ steps.target.outputs.env }}-auth-secret:latest,REDIS_URL=recap-redis-url:latest" \
             --quiet
 
