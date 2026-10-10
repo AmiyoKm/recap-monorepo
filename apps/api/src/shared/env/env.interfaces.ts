@@ -7,6 +7,7 @@ export interface IAuthEnv {
   secret: string;
   baseUrl: string;
   cookieDomain: string | undefined;
+  cookiePrefix: string | undefined;
   google: IGoogleAuthEnv;
 }
 
@@ -14,6 +15,7 @@ export interface IEnv {
   port: number;
   databaseUrl: string;
   redisUrl: string;
+  redisKeyPrefix: string;
   webOrigin: string;
   auth: IAuthEnv;
 }
