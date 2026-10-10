@@ -27,14 +27,14 @@ jobs:
           case "$GITHUB_REF_NAME" in
             development)
               echo "env=dev" >> "$GITHUB_OUTPUT"
-              echo "web_host=dev.$APP_DOMAIN" >> "$GITHUB_OUTPUT"
-              echo "api_host=dev-api.$APP_DOMAIN" >> "$GITHUB_OUTPUT"
+              echo "web_host=dev.recap.$APP_DOMAIN" >> "$GITHUB_OUTPUT"
+              echo "api_host=recap-api-dev.$APP_DOMAIN" >> "$GITHUB_OUTPUT"
               echo "worker=recap-web-dev" >> "$GITHUB_OUTPUT"
               ;;
             prod)
               echo "env=prod" >> "$GITHUB_OUTPUT"
-              echo "web_host=app.$APP_DOMAIN" >> "$GITHUB_OUTPUT"
-              echo "api_host=api.$APP_DOMAIN" >> "$GITHUB_OUTPUT"
+              echo "web_host=recap.$APP_DOMAIN" >> "$GITHUB_OUTPUT"
+              echo "api_host=recap-api-prod.$APP_DOMAIN" >> "$GITHUB_OUTPUT"
               echo "worker=recap-web" >> "$GITHUB_OUTPUT"
               ;;
             *)
