@@ -1,11 +1,11 @@
-name: deploy
+name: prod-deploy
 
 on:
   push:
-    branches: [development, prod]
+    branches: [prod]
 
 concurrency:
-  group: deploy-${{ github.ref_name }}
+  group: prod-deploy
   cancel-in-progress: false
 
 permissions:
@@ -17,32 +17,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
+      DEPLOY_ENV: prod
+      WEB_HOST: recap.${{ vars.APP_DOMAIN }}
+      API_HOST: recap-api-prod.${{ vars.APP_DOMAIN }}
+      WORKER: recap-web
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
       GCP_REGION: ${{ vars.GCP_REGION }}
-      APP_DOMAIN: ${{ vars.APP_DOMAIN }}
     steps:
-      - name: Select environment
-        id: target
-        run: |
-          case "$GITHUB_REF_NAME" in
-            development)
-              echo "env=dev" >> "$GITHUB_OUTPUT"
-              echo "web_host=dev.recap.$APP_DOMAIN" >> "$GITHUB_OUTPUT"
-              echo "api_host=recap-api-dev.$APP_DOMAIN" >> "$GITHUB_OUTPUT"
-              echo "worker=recap-web-dev" >> "$GITHUB_OUTPUT"
-              ;;
-            prod)
-              echo "env=prod" >> "$GITHUB_OUTPUT"
-              echo "web_host=recap.$APP_DOMAIN" >> "$GITHUB_OUTPUT"
-              echo "api_host=recap-api-prod.$APP_DOMAIN" >> "$GITHUB_OUTPUT"
-              echo "worker=recap-web" >> "$GITHUB_OUTPUT"
-              ;;
-            *)
-              echo "No environment for branch $GITHUB_REF_NAME" >&2
-              exit 1
-              ;;
-          esac
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -59,7 +40,7 @@ jobs:
 
       - name: Set image name
         id: image
-        run: echo "ref=$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/recap/api-${{ steps.target.outputs.env }}:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+        run: echo "ref=$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/recap/api-${{ env.DEPLOY_ENV }}:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
       - run: gcloud auth configure-docker "$GCP_REGION-docker.pkg.dev" --quiet
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
@@ -75,14 +56,14 @@ jobs:
         id: secrets
         with:
           secrets: |-
-            database_url:${{ vars.GCP_PROJECT_ID }}/recap-${{ steps.target.outputs.env }}-database-url
+            database_url:${{ vars.GCP_PROJECT_ID }}/recap-${{ env.DEPLOY_ENV }}-database-url
       - run: bun run db:migrate
         env:
           DATABASE_URL: ${{ steps.secrets.outputs.database_url }}
 
       - name: Deploy API
         run: |
-          gcloud run deploy "recap-api-${{ steps.target.outputs.env }}" \
+          gcloud run deploy "recap-api-${{ env.DEPLOY_ENV }}" \
             --image "${{ steps.image.outputs.ref }}" \
             --region "$GCP_REGION" \
             --service-account "${{ vars.GCP_RUNTIME_SA }}" \
@@ -93,21 +74,21 @@ jobs:
             --memory 512Mi \
             --cpu-throttling \
             --no-cpu-boost \
-            --set-env-vars "WEB_ORIGIN=https://${{ steps.target.outputs.web_host }},BETTER_AUTH_URL=https://${{ steps.target.outputs.api_host }},REDIS_KEY_PREFIX=${{ steps.target.outputs.env }}:" \
-            --set-secrets "DATABASE_URL=recap-${{ steps.target.outputs.env }}-database-url:latest,BETTER_AUTH_SECRET=recap-${{ steps.target.outputs.env }}-auth-secret:latest,REDIS_URL=recap-redis-url:latest" \
+            --set-env-vars "WEB_ORIGIN=https://${{ env.WEB_HOST }},BETTER_AUTH_URL=https://${{ env.API_HOST }},REDIS_KEY_PREFIX=${{ env.DEPLOY_ENV }}:" \
+            --set-secrets "DATABASE_URL=recap-${{ env.DEPLOY_ENV }}-database-url:latest,BETTER_AUTH_SECRET=recap-${{ env.DEPLOY_ENV }}-auth-secret:latest,REDIS_URL=recap-redis-url:latest" \
             --quiet
 
       - name: Check API health
         run: |
-          url=$(gcloud run services describe "recap-api-${{ steps.target.outputs.env }}" --region "$GCP_REGION" --format 'value(status.url)')
+          url=$(gcloud run services describe "recap-api-${{ env.DEPLOY_ENV }}" --region "$GCP_REGION" --format 'value(status.url)')
           curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 5 "$url/health"
 
       - run: bun --filter @recap/web build
         env:
-          VITE_API_URL: https://${{ steps.target.outputs.api_host }}
+          VITE_API_URL: https://${{ env.API_HOST }}
       - name: Deploy web
         working-directory: apps/web
-        run: bunx wrangler deploy --name "${{ steps.target.outputs.worker }}" --domain "${{ steps.target.outputs.web_host }}"
+        run: bunx wrangler deploy --name "${{ env.WORKER }}" --domain "${{ env.WEB_HOST }}"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
