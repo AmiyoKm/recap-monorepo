@@ -2,7 +2,7 @@
 FROM oven/bun:1.4 AS build
 WORKDIR /repo
 COPY . .
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --ignore-scripts
 RUN bun --filter @recap/api build
 
 FROM gcr.io/distroless/base-debian12

@@ -1,0 +1,111 @@
+name: deploy
+
+on:
+  push:
+    branches: [development, prod]
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      APP_DOMAIN: ${{ vars.APP_DOMAIN }}
+    steps:
+      - name: Select environment
+        id: target
+        run: |
+          case "$GITHUB_REF_NAME" in
+            development)
+              echo "env=dev" >> "$GITHUB_OUTPUT"
+              echo "web_host=dev.$APP_DOMAIN" >> "$GITHUB_OUTPUT"
+              echo "api_host=dev-api.$APP_DOMAIN" >> "$GITHUB_OUTPUT"
+              echo "worker=recap-web-dev" >> "$GITHUB_OUTPUT"
+              ;;
+            prod)
+              echo "env=prod" >> "$GITHUB_OUTPUT"
+              echo "web_host=app.$APP_DOMAIN" >> "$GITHUB_OUTPUT"
+              echo "api_host=api.$APP_DOMAIN" >> "$GITHUB_OUTPUT"
+              echo "worker=recap-web" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "No environment for branch $GITHUB_REF_NAME" >&2
+              exit 1
+              ;;
+          esac
+
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Set image name
+        id: image
+        run: echo "ref=$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/recap/api-${{ steps.target.outputs.env }}:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+      - run: gcloud auth configure-docker "$GCP_REGION-docker.pkg.dev" --quiet
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: ${{ steps.image.outputs.ref }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - uses: google-github-actions/get-secretmanager-secrets@v3
+        id: secrets
+        with:
+          secrets: |-
+            database_url:${{ vars.GCP_PROJECT_ID }}/recap-${{ steps.target.outputs.env }}-database-url
+      - run: bun run db:migrate
+        env:
+          DATABASE_URL: ${{ steps.secrets.outputs.database_url }}
+
+      - name: Deploy API
+        run: |
+          gcloud run deploy "recap-api-${{ steps.target.outputs.env }}" \
+            --image "${{ steps.image.outputs.ref }}" \
+            --region "$GCP_REGION" \
+            --service-account "${{ vars.GCP_RUNTIME_SA }}" \
+            --allow-unauthenticated \
+            --min-instances 0 \
+            --max-instances 1 \
+            --cpu 1 \
+            --memory 512Mi \
+            --cpu-throttling \
+            --no-cpu-boost \
+            --set-env-vars "WEB_ORIGIN=https://${{ steps.target.outputs.web_host }},BETTER_AUTH_URL=https://${{ steps.target.outputs.api_host }},COOKIE_DOMAIN=.$APP_DOMAIN,COOKIE_PREFIX=recap-${{ steps.target.outputs.env }},REDIS_KEY_PREFIX=${{ steps.target.outputs.env }}:" \
+            --set-secrets "DATABASE_URL=recap-${{ steps.target.outputs.env }}-database-url:latest,BETTER_AUTH_SECRET=recap-${{ steps.target.outputs.env }}-auth-secret:latest,REDIS_URL=recap-redis-url:latest" \
+            --quiet
+
+      - name: Check API health
+        run: |
+          url=$(gcloud run services describe "recap-api-${{ steps.target.outputs.env }}" --region "$GCP_REGION" --format 'value(status.url)')
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 5 "$url/health"
+
+      - run: bun --filter @recap/web build
+        env:
+          VITE_API_URL: https://${{ steps.target.outputs.api_host }}
+      - name: Deploy web
+        working-directory: apps/web
+        run: bunx wrangler deploy --name "${{ steps.target.outputs.worker }}" --domain "${{ steps.target.outputs.web_host }}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
