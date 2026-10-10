@@ -1,0 +1,17 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsStringLiteralExpression() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:!-])(?:bg|text|border(?:-[xytblrse])?|ring|ring-offset|outline|fill|stroke|from|via|to|decoration|divide|accent|caret|placeholder)-\[(?:#|rgba?\(|hsla?\(|color:).*",
+    register_diagnostic(span=$literal, message="Use a theme color token from src/index.css, not an arbitrary color value.")
+  },
+  JsxString() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:!-])(?:bg|text|border(?:-[xytblrse])?|ring|ring-offset|outline|fill|stroke|from|via|to|decoration|divide|accent|caret|placeholder)-\[(?:#|rgba?\(|hsla?\(|color:).*",
+    register_diagnostic(span=$literal, message="Use a theme color token from src/index.css, not an arbitrary color value.")
+  },
+  JsTemplateChunkElement() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:!-])(?:bg|text|border(?:-[xytblrse])?|ring|ring-offset|outline|fill|stroke|from|via|to|decoration|divide|accent|caret|placeholder)-\[(?:#|rgba?\(|hsla?\(|color:).*",
+    register_diagnostic(span=$literal, message="Use a theme color token from src/index.css, not an arbitrary color value.")
+  }
+}

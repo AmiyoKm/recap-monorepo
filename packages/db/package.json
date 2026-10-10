@@ -1,0 +1,25 @@
+{
+  "name": "@recap/db",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts"
+  },
+  "scripts": {
+    "generate": "drizzle-kit generate",
+    "migrate": "bun src/migrate.ts",
+    "studio": "bun --bun drizzle-kit studio",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "drizzle-orm": "catalog:"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.11"
+  },
+  "imports": {
+    "#db/schema": "./src/schema/index.ts",
+    "#db/*": "./src/*.ts"
+  }
+}

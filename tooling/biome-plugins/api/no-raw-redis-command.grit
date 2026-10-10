@@ -1,0 +1,15 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+pattern raw_string() {
+  or {
+    JsStringLiteralExpression(),
+    JsTemplateExpression() as $template where { $template <: contains JsTemplateChunkElement() }
+  }
+}
+
+`$client.send($command, $arguments)` where {
+  $arguments <: JsArrayExpression(),
+  or { $command <: raw_string() as $literal, $arguments <: contains raw_string() as $literal },
+  register_diagnostic(span=$literal, message="Redis commands and options come from ERedisCommand or ERedisSetOption in #api/shared/redis/redis.enums, not string literals.")
+}

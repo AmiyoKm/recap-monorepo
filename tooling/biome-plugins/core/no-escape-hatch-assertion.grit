@@ -1,0 +1,10 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  `$value as unknown as $target`,
+  `$value as never`,
+  `$value as never[]`
+} as $assertion where {
+  register_diagnostic(span=$assertion, message="`as unknown as` and `as never` switch type checking off. Narrow the value, give it the right type at its source, or validate it into the target type.")
+}

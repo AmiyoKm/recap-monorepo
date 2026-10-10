@@ -1,0 +1,12 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsStringLiteralExpression() as $literal,
+  JsxText() as $literal,
+  JsxString() as $literal,
+  JsTemplateChunkElement() as $literal
+} where {
+  $literal <: r"(?s).*\x{2014}.*",
+  register_diagnostic(span=$literal, message="Do not use an em dash in text. Use a comma, a colon, parentheses or two sentences.")
+}

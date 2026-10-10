@@ -1,0 +1,17 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsStringLiteralExpression() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:!-])z-\[[^\]]+\].*",
+    register_diagnostic(span=$literal, message="Use a Tailwind z-index step (z-0 to z-50), not an arbitrary z-[N] value.")
+  },
+  JsxString() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:!-])z-\[[^\]]+\].*",
+    register_diagnostic(span=$literal, message="Use a Tailwind z-index step (z-0 to z-50), not an arbitrary z-[N] value.")
+  },
+  JsTemplateChunkElement() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:!-])z-\[[^\]]+\].*",
+    register_diagnostic(span=$literal, message="Use a Tailwind z-index step (z-0 to z-50), not an arbitrary z-[N] value.")
+  }
+}

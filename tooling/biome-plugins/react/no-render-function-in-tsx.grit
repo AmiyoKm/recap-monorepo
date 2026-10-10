@@ -1,0 +1,41 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  `function render$name($...) { $... }` as $render where {
+    $filename <: r".*\.tsx$",
+    register_diagnostic(span=$render, message="renderX functions are not allowed in TSX files. Extract a component or helper instead.")
+  },
+  `function $name($...) { $... }` as $render where {
+    $name <: r"^render[A-Z]",
+    $filename <: r".*\.tsx$",
+    register_diagnostic(span=$render, message="renderX functions are not allowed in TSX files. Extract a component or helper instead.")
+  },
+  `const render$name = ($...) => $body` as $render where {
+    $filename <: r".*\.tsx$",
+    register_diagnostic(span=$render, message="renderX functions are not allowed in TSX files. Extract a component or helper instead.")
+  },
+  `const $name = ($...) => $body` as $render where {
+    $name <: r"^render[A-Z]",
+    $filename <: r".*\.tsx$",
+    register_diagnostic(span=$render, message="renderX functions are not allowed in TSX files. Extract a component or helper instead.")
+  },
+  `const render$name = () => $body` as $render where {
+    $filename <: r".*\.tsx$",
+    register_diagnostic(span=$render, message="renderX functions are not allowed in TSX files. Extract a component or helper instead.")
+  },
+  `const $name = () => $body` as $render where {
+    $name <: r"^render[A-Z]",
+    $filename <: r".*\.tsx$",
+    register_diagnostic(span=$render, message="renderX functions are not allowed in TSX files. Extract a component or helper instead.")
+  },
+  `const render$name = function ($...) { $... }` as $render where {
+    $filename <: r".*\.tsx$",
+    register_diagnostic(span=$render, message="renderX functions are not allowed in TSX files. Extract a component or helper instead.")
+  },
+  `const $name = function ($...) { $... }` as $render where {
+    $name <: r"^render[A-Z]",
+    $filename <: r".*\.tsx$",
+    register_diagnostic(span=$render, message="renderX functions are not allowed in TSX files. Extract a component or helper instead.")
+  }
+}

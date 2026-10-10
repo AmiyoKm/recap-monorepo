@@ -1,0 +1,157 @@
+ls:
+  tooling/biome-plugins/*:
+    .dir: kebab-case
+    .grit: kebab-case
+
+  apps/api:
+    .ts: exists:0
+    .*.ts: kebab-case
+
+  packages/db/src/schema:
+    .ts: kebab-case
+
+  apps/api/src:
+    .ts: regex:index|app
+    .*.ts: exists:0
+    .types.ts: regex:app
+    .interfaces.ts: regex:app
+
+  apps/api/src/*:
+    .dir: regex:modules|shared
+    .ts: exists:0
+    .*.ts: exists:0
+
+  apps/api/src/modules/*:
+    .dir: kebab-case
+    .ts: exists:0
+    .*.ts: exists:0
+    .module.ts: regex:${0}
+    .service.ts: regex:${0}
+    .model.ts: regex:${0}
+    .types.ts: regex:${0}
+    .interfaces.ts: regex:${0}
+    .enums.ts: regex:${0}
+    .constants.ts: regex:${0}
+    .helpers.ts: regex:${0}
+
+  apps/api/src/shared/*:
+    .dir: kebab-case
+    .ts: exists:0
+    .*.ts: exists:0
+    .module.ts: regex:${0}
+    .service.ts: regex:${0}
+    .model.ts: regex:${0}
+    .types.ts: regex:${0}
+    .interfaces.ts: regex:${0}
+    .enums.ts: regex:${0}
+    .constants.ts: regex:${0}
+    .helpers.ts: regex:${0}
+
+  packages/db/src:
+    .ts: regex:index|migrate
+    .*.ts: exists:0
+    .helpers.ts: regex:db
+    .types.ts: regex:db
+    .enums.ts: regex:db
+    .interfaces.ts: regex:db
+    .constants.ts: regex:db
+
+  apps/web/src:
+    .ts: exists:0
+    .*.ts: exists:0
+    .gen.ts: regex:routeTree
+    .tsx: regex:main
+    .css: regex:index
+
+  apps/web/src/*:
+    .dir: regex:api|features|shared|routes|components|hooks|lib
+
+  apps/web/src/api/*:
+    .dir: kebab-case
+    .ts: regex:index
+    .*.ts: exists:0
+    .keys.ts: regex:${0}
+    .queries.ts: regex:${0}
+    .mutations.ts: regex:${0}
+    .types.ts: regex:${0}
+    .interfaces.ts: regex:${0}
+    .enums.ts: regex:${0}
+    .constants.ts: regex:${0}
+    .helpers.ts: regex:${0}
+    .d.ts: regex:${0}
+
+  apps/web/src/shared/*:
+    .dir: kebab-case
+    .ts: regex:index
+    .*.ts: exists:0
+    .keys.ts: regex:${0}
+    .queries.ts: regex:${0}
+    .mutations.ts: regex:${0}
+    .types.ts: regex:${0}
+    .interfaces.ts: regex:${0}
+    .enums.ts: regex:${0}
+    .constants.ts: regex:${0}
+    .helpers.ts: regex:${0}
+    .d.ts: regex:${0}
+
+  apps/web/src/features/*:
+    .dir: kebab-case
+    .ts: exists:0
+    .tsx: exists:0
+    .*.ts: exists:0
+    .types.ts: regex:${0}
+    .interfaces.ts: regex:${0}
+    .enums.ts: regex:${0}
+    .constants.ts: regex:${0}
+    .helpers.ts: regex:${0}
+
+  apps/web/src/features/*/*:
+    .dir: regex:components|containers
+    .ts: exists:0
+    .tsx: exists:0
+    .*.ts: exists:0
+
+  apps/web/src/features/*/components/**:
+    .dir: PascalCase | regex:components|containers|__tests__
+    .tsx: regex:${0}
+    .ts: regex:index
+    .*.ts: exists:0
+    .*.tsx: exists:0
+    .hooks.ts: regex:${0}
+    .helpers.ts: regex:${0}
+    .types.ts: regex:${0}
+    .interfaces.ts: regex:${0}
+    .enums.ts: regex:${0}
+    .constants.ts: regex:${0}
+    .test.ts: PascalCase
+    .test.tsx: PascalCase
+    .*.test.ts: PascalCase
+
+  apps/web/src/features/*/containers/**:
+    .dir: PascalCase | regex:components|containers|__tests__
+    .tsx: regex:${0}
+    .ts: regex:index
+    .*.ts: exists:0
+    .*.tsx: exists:0
+    .hooks.ts: regex:${0}
+    .helpers.ts: regex:${0}
+    .types.ts: regex:${0}
+    .interfaces.ts: regex:${0}
+    .enums.ts: regex:${0}
+    .constants.ts: regex:${0}
+    .test.ts: PascalCase
+    .test.tsx: PascalCase
+    .*.test.ts: PascalCase
+
+ignore:
+  - .git
+  - "**/node_modules"
+  - "**/dist"
+  - "**/.wrangler"
+  - "**/.tanstack"
+  - apps/web/src/routes
+  - apps/web/src/components/ui
+  - apps/web/src/hooks
+  - apps/web/src/lib
+  - apps/web/public
+  - packages/db/migrations

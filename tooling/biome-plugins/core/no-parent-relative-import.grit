@@ -1,0 +1,7 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+JsModuleSource() as $source where {
+  $source <: r"[\"']\.\./.*[\"']",
+  register_diagnostic(span=$source, message="Use the package alias (@/ in apps/web, #api/ in apps/api, #db/ in packages/db) instead of a parent-relative import.")
+}

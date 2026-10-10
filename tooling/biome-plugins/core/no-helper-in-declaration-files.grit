@@ -1,0 +1,17 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsFunctionDeclaration() as $helper,
+  JsVariableDeclarator(initializer=JsInitializerClause(expression=or {
+    JsArrowFunctionExpression(),
+    JsFunctionExpression()
+  })) as $helper,
+  JsMethodObjectMember() as $helper,
+  JsPropertyObjectMember(value=or {
+    JsArrowFunctionExpression(),
+    JsFunctionExpression()
+  }) as $helper
+} where {
+  register_diagnostic(span=$helper, message="Functions do not belong in .constants.ts, .enums.ts, .types.ts or .interfaces.ts files. Move them to the sibling .helpers.ts file.")
+}

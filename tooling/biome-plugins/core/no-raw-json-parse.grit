@@ -1,0 +1,10 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+`JSON.parse($text)` as $call where {
+  not $call <: within or {
+    `const $name: unknown = $value`,
+    `let $name: unknown = $value`
+  },
+  register_diagnostic(span=$call, message="JSON.parse returns any. Assign it to a variable typed unknown and validate it with a schema before use.")
+}

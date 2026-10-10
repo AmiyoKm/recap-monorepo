@@ -1,0 +1,916 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!**/routeTree.gen.ts",
+      "!**/migrations",
+      "!**/worker-configuration.d.ts",
+      "!**/__fixtures__",
+      "!**/apps/web/src/components/ui",
+      "!**/apps/web/src/hooks",
+      "!**/apps/web/src/lib"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "jsxQuoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always",
+      "bracketSpacing": true
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": {
+          "level": "on",
+          "options": {
+            "groups": [
+              [":BUN:", ":NODE:"],
+              ":BLANK_LINE:",
+              [":PACKAGE:", ":PACKAGE_WITH_PROTOCOL:", "!@recap/**"],
+              ":BLANK_LINE:",
+              ["@recap/**"],
+              ":BLANK_LINE:",
+              ["#api/**", "#db/**", "@/**", ":ALIAS:"],
+              ":BLANK_LINE:",
+              ":PATH:"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "plugins": [
+    {
+      "path": "./tooling/biome-plugins/core/no-escape-hatch-assertion.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/packages/*/src/**/*.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-inline-object-type-assertion.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/packages/*/src/**/*.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-raw-json-parse.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/packages/*/src/**/*.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-parent-relative-import.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/packages/*/src/**/*.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-index-import.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/packages/*/src/**/*.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-em-dash-literal.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/packages/*/src/**/*.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-literal-error-message.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/packages/*/src/**/*.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-interface-name-without-prefix.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/packages/*/src/**/*.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-type-name-without-prefix.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/packages/*/src/**/*.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-enum-name-without-prefix.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/packages/*/src/**/*.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-interface-outside-interfaces-file.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/packages/*/src/**/*.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-type-outside-types-file.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/packages/*/src/**/*.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-enum-outside-enums-file.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/packages/*/src/**/*.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-constant-outside-constants-file.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/packages/*/src/**/*.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-helper-in-declaration-files.grit",
+      "includes": [
+        "apps/*/src/**/*.constants.ts",
+        "apps/*/src/**/*.enums.ts",
+        "apps/*/src/**/*.types.ts",
+        "apps/*/src/**/*.interfaces.ts",
+        "packages/*/src/**/*.constants.ts",
+        "packages/*/src/**/*.enums.ts",
+        "packages/*/src/**/*.types.ts",
+        "packages/*/src/**/*.interfaces.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-types-in-constants-files.grit",
+      "includes": [
+        "**/apps/*/src/**/*.constants.ts",
+        "**/packages/*/src/**/*.constants.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/one-jsx-component-per-file.grit",
+      "includes": [
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-render-function-in-tsx.grit",
+      "includes": [
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-template-literal-classname.grit",
+      "includes": [
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-static-inline-style.grit",
+      "includes": [
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-internal-anchor.grit",
+      "includes": [
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-arbitrary-color-class.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-arbitrary-font-size.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-arbitrary-size.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-arbitrary-typography.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-arbitrary-z-index.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-flat-component-file.grit",
+      "includes": [
+        "**/apps/web/src/features/**/components/*.tsx",
+        "**/apps/web/src/features/**/containers/*.tsx",
+        "**/apps/web/src/features/*.tsx"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/web/no-inline-query-key.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/api/model-string-bounds.grit",
+      "includes": ["**/apps/api/src/**/*.model.ts"]
+    },
+    {
+      "path": "./tooling/biome-plugins/api/no-raw-redis-command.grit",
+      "includes": ["**/apps/api/src/**/*.ts", "!**/__tests__/**", "!**/*.test.*"]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-inverted-guard.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/packages/*/src/**/*.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/core/no-else.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/packages/*/src/**/*.ts",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    }
+  ],
+  "linter": {
+    "enabled": true,
+    "domains": {
+      "react": "recommended",
+      "project": "recommended",
+      "test": "recommended"
+    },
+    "rules": {
+      "preset": "recommended",
+      "complexity": {
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": {
+            "maxAllowedComplexity": 15
+          }
+        },
+        "noBannedTypes": "error",
+        "noUselessStringConcat": "error",
+        "noForEach": "error",
+        "useLiteralKeys": "off",
+        "useSimplifiedLogicExpression": "error"
+      },
+      "correctness": {
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error",
+        "noUnusedFunctionParameters": "error",
+        "noUnusedPrivateClassMembers": "error",
+        "noUndeclaredVariables": "error",
+        "noUndeclaredDependencies": "error",
+        "useExhaustiveDependencies": "error",
+        "useHookAtTopLevel": "error",
+        "noNestedComponentDefinitions": "error"
+      },
+      "performance": {
+        "noAccumulatingSpread": "error",
+        "noBarrelFile": "error",
+        "noReExportAll": "error",
+        "noNamespaceImport": "error",
+        "noDelete": "error"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "error"
+      },
+      "style": {
+        "noDefaultExport": "error",
+        "noNonNullAssertion": "error",
+        "noNestedTernary": "error",
+        "noParameterAssign": "error",
+        "noUselessElse": "error",
+        "noMagicNumbers": "error",
+        "noProcessEnv": "error",
+        "noCommonJs": "error",
+        "noYodaExpression": "error",
+        "noNegationElse": "error",
+        "useBlockStatements": "error",
+        "useCollapsedElseIf": "error",
+        "useConsistentArrayType": {
+          "level": "error",
+          "options": {
+            "syntax": "shorthand"
+          }
+        },
+        "useConsistentTypeDefinitions": {
+          "level": "error",
+          "options": {
+            "style": "interface"
+          }
+        },
+        "useEnumInitializers": "error",
+        "useExplicitLengthCheck": "error",
+        "useExportType": "error",
+        "useImportType": "error",
+        "useNodejsImportProtocol": "error",
+        "useThrowOnlyError": "error",
+        "useReactFunctionComponents": "error",
+        "useConst": "error",
+        "useTemplate": "error"
+      },
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noTsIgnore": "error",
+        "noShadow": "error",
+        "noConstEnum": "error",
+        "noEvolvingTypes": "error",
+        "noArrayIndexKey": "error",
+        "noEmptyBlockStatements": "error",
+        "noSkippedTests": "error",
+        "noFocusedTests": "error",
+        "noImportCycles": "error",
+        "noVar": "error",
+        "useAwait": "error",
+        "noConsole": {
+          "level": "error",
+          "options": {
+            "allow": ["error", "warn", "info"]
+          }
+        }
+      },
+      "nursery": {
+        "noFloatingPromises": "error",
+        "noMisusedPromises": "error",
+        "useExhaustiveSwitchCases": "error",
+        "useImportsFirst": "error"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.config.ts", "**/*.config.mts", "**/apps/web/vite.config.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDefaultExport": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/index.ts"],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noBarrelFile": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/packages/db/src/**"],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noNamespaceImport": "off",
+            "noReExportAll": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "**/apps/api/src/index.ts",
+        "**/packages/db/src/migrate.ts",
+        "scripts/**",
+        "**/*.config.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noProcessEnv": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "**/apps/*/src/**",
+        "**/packages/*/src/**",
+        "!**/packages/db/src/schema/auth.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "Date": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers)."
+                }
+              }
+            },
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "dayjs": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "date-fns": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "moment": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "luxon": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers)."
+                },
+                "patterns": [
+                  {
+                    "group": ["dayjs/**", "date-fns/**", "@date-fns/**"],
+                    "message": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/apps/web/src/**", "!**/apps/web/src/api/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["dayjs/**", "date-fns/**", "@date-fns/**"],
+                    "message": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers)."
+                  }
+                ],
+                "paths": {
+                  "dayjs": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "date-fns": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "moment": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "luxon": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "@elysia/eden": "Only src/api/client creates the Eden client. Import hooks from src/api/<domain>.",
+                  "better-auth/react": "Only src/api/client creates the auth client. Import authClient from @/api/client.",
+                  "@/api/client": {
+                    "importNames": ["api"],
+                    "message": "Call the API only from src/api/<domain>/<domain>.queries.ts or .mutations.ts."
+                  },
+                  "@tanstack/react-query": {
+                    "importNames": [
+                      "useQuery",
+                      "useSuspenseQuery",
+                      "useInfiniteQuery",
+                      "useMutation",
+                      "queryOptions",
+                      "infiniteQueryOptions",
+                      "mutationOptions"
+                    ],
+                    "message": "Data hooks live in src/api/<domain>/<domain>.queries.ts or .mutations.ts. Import the hook from there."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/apps/web/src/routes/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "dayjs": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "date-fns": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "moment": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "luxon": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "@elysia/eden": "Only src/api/client creates the Eden client. Import hooks from src/api/<domain>.",
+                  "better-auth/react": "Only src/api/client creates the auth client. Import authClient from @/api/client.",
+                  "@/api/client": {
+                    "importNames": ["api"],
+                    "message": "Call the API only from src/api/<domain>/<domain>.queries.ts or .mutations.ts."
+                  },
+                  "@tanstack/react-query": {
+                    "importNames": [
+                      "useQuery",
+                      "useSuspenseQuery",
+                      "useInfiniteQuery",
+                      "useMutation",
+                      "queryOptions",
+                      "infiniteQueryOptions",
+                      "mutationOptions"
+                    ],
+                    "message": "Data hooks live in src/api/<domain>/<domain>.queries.ts or .mutations.ts. Import the hook from there."
+                  }
+                },
+                "patterns": [
+                  {
+                    "group": ["dayjs/**", "date-fns/**", "@date-fns/**"],
+                    "message": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers)."
+                  },
+                  {
+                    "group": ["@/features/*/components/**", "@/components/**", "@/api/**"],
+                    "message": "Routes stay thin. Import one container from @/features/<feature>/containers/<Name>Container."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/apps/api/src/modules/**/*.module.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["dayjs/**", "date-fns/**", "@date-fns/**"],
+                    "message": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers)."
+                  }
+                ],
+                "paths": {
+                  "dayjs": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "date-fns": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "moment": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "luxon": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "drizzle-orm": "Modules only define routes. Put database access in the <feature>.service.ts file.",
+                  "@recap/db": "Modules only define routes. Put database access in the <feature>.service.ts file."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/shared/date/date.helpers.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": "off"
+          }
+        }
+      }
+    }
+  ]
+}

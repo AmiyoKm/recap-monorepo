@@ -1,0 +1,7 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+JsModuleSource() as $source where {
+  $source <: r"[\"'](?:.*/)?index[\"']",
+  register_diagnostic(span=$source, message="Import the folder, not its index file.")
+}

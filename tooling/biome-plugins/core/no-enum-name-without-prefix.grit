@@ -1,0 +1,7 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+TsEnumDeclaration(id=$name) where {
+  not $name <: r"E[A-Z][A-Za-z0-9]*",
+  register_diagnostic(span=$name, message="Enum names must start with E followed by a PascalCase name.")
+}

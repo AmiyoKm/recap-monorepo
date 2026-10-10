@@ -1,0 +1,16 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+pattern main_path_in_if() {
+  JsIfStatement(test=$test, consequent=JsBlockStatement(statements=[
+    $_, ..., JsReturnStatement(argument=.)
+  ]), else_clause=.) where { not $test <: `!$_` }
+}
+
+or {
+  JsFunctionBody(statements=$statements),
+  JsBlockStatement(statements=$statements)
+} where {
+  $statements <: [..., main_path_in_if() as $inverted, $_, ...],
+  register_diagnostic(span=$inverted, message="Invert this if: check the short case with a negated condition, return early, and keep the main path unindented after it.")
+}

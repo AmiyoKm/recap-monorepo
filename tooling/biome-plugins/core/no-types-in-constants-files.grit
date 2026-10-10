@@ -1,0 +1,9 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  TsInterfaceDeclaration() as $declaration,
+  TsTypeAliasDeclaration() as $declaration
+} where {
+  register_diagnostic(span=$declaration, message="Interfaces and types do not belong in .constants.ts files. Declare them in the sibling .interfaces.ts or .types.ts file.")
+}

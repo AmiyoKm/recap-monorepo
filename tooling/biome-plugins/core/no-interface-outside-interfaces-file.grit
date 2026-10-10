@@ -1,0 +1,7 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+TsInterfaceDeclaration() as $interface where {
+  not $filename <: r".*[/.]interfaces\.ts",
+  register_diagnostic(span=$interface, message="Interfaces must be declared only in .interfaces.ts files.")
+}

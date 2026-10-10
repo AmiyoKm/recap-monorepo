@@ -1,0 +1,6 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+JsElseClause() as $else where {
+  register_diagnostic(span=$else, message="Do not use else. Return early from the if, or use a lookup object or switch for several cases.")
+}

@@ -1,0 +1,50 @@
+{
+  "name": "recap",
+  "private": true,
+  "type": "module",
+  "workspaces": {
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ],
+    "catalog": {
+      "@biomejs/biome": "^2.5.15",
+      "@types/bun": "^1.4.2",
+      "better-auth": "^1.7.7",
+      "dayjs": "^1.11.23",
+      "drizzle-orm": "^0.45.4",
+      "elysia": "^1.4.30",
+      "typescript": "^7.0.2"
+    }
+  },
+  "scripts": {
+    "dev:api": "bun --filter @recap/api dev",
+    "dev:web": "bun --filter @recap/web dev",
+    "build": "bun --filter '*' build",
+    "typecheck": "tsc --noEmit -p tsconfig.json && bun --filter '*' typecheck",
+    "lint": "biome ci . --error-on-warnings",
+    "lint:files": "ls-lint",
+    "lint:comments": "bun scripts/lint-comments.ts",
+    "lint:fallow": "fallow",
+    "format": "biome check --write .",
+    "check": "bun run lint && bun run lint:files && bun run lint:comments && bun run lint:fallow && bun run typecheck && bun run build",
+    "services:up": "docker compose up -d --wait",
+    "services:down": "docker compose down",
+    "db:generate": "bun --filter @recap/db generate",
+    "db:migrate": "bun --filter @recap/db migrate",
+    "db:studio": "bun --filter @recap/db studio",
+    "prepare": "lefthook install"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@commitlint/cli": "21.2.3",
+    "@commitlint/config-conventional": "21.2.3",
+    "@ls-lint/ls-lint": "2.3.1",
+    "@types/bun": "catalog:",
+    "fallow": "3.33.1",
+    "lefthook": "2.2.1",
+    "oxc-parser": "0.153.0",
+    "typescript": "catalog:"
+  },
+  "packageManager": "bun@1.4.2"
+}

@@ -1,0 +1,19 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+pattern constant_declaration() {
+  or {
+    `const $name = $value` as $constant where { $name <: r"[A-Z][A-Z0-9_]*" },
+    `const $name: $type = $value` as $constant where { $name <: r"[A-Z][A-Z0-9_]*" },
+    `export const $name = { $... }` as $constant,
+    `export const $name: $type = { $... }` as $constant,
+    `export const $name = [$...]` as $constant,
+    `export const $name: $type = [$...]` as $constant
+  }
+}
+
+file(body=$program) where {
+  $program <: contains constant_declaration() as $constant,
+  not $filename <: r".*[/.](?:constants|keys|model)\.ts",
+  register_diagnostic(span=$constant, message="Constants must be declared only in .constants.ts files (query keys in .keys.ts, Elysia models in .model.ts).")
+}

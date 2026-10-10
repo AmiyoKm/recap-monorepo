@@ -1,0 +1,7 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+TsAsExpression() as $assertion where {
+  $assertion <: contains TsObjectType(),
+  register_diagnostic(span=$assertion, message="Use a named type or interface instead of an inline object type assertion.")
+}

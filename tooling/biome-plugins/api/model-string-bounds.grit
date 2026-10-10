@@ -1,0 +1,12 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  `t.String()` as $call,
+  `t.String($options)` as $call where {
+    $options <: JsObjectExpression(),
+    not $options <: r"(?s).*\b(?:maxLength|format|pattern)\b.*"
+  }
+} where {
+  register_diagnostic(span=$call, message="t.String() in a model needs maxLength, format or pattern. Without it the request accepts unbounded input.")
+}

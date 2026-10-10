@@ -1,0 +1,13 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+JsxAttribute(name=`style`, initializer=JsxAttributeInitializerClause(value=JsxExpressionAttributeValue(expression=$expression))) where {
+  $expression <: JsObjectExpression(members=$members),
+  $members <: some JsPropertyObjectMember(),
+  $members <: every JsPropertyObjectMember(value=or {
+    JsStringLiteralExpression(),
+    JsNumberLiteralExpression(),
+    JsUnaryExpression(argument=JsNumberLiteralExpression())
+  }),
+  register_diagnostic(span=$expression, message="Static inline styles must be Tailwind classes. Keep style={{...}} only for values computed at runtime.")
+}

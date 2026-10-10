@@ -1,0 +1,19 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+pattern literal_message() {
+  or {
+    JsStringLiteralExpression(),
+    JsTemplateExpression() as $template where { $template <: contains JsTemplateChunkElement() }
+  }
+}
+
+or {
+  `new $error($message, $...)` where {
+    $error <: r"[A-Za-z]*(?:Exception|Error)",
+    $message <: literal_message()
+  },
+  `status($code, $message)` where { $message <: literal_message() }
+} where {
+  register_diagnostic(span=$message, message="Error messages must come from the E<Name>Messages enum in the sibling .enums.ts file, not a string literal.")
+}

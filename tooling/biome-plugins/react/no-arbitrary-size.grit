@@ -1,0 +1,17 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsStringLiteralExpression() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:!-])(?:w|h|size|min-w|min-h|max-w|max-h|p[xytblrse]?|m[xytblrse]?|gap(?:-[xy])?|space-[xy]|top|left|right|bottom|inset(?:-[xy])?|start|end|translate-[xy]|basis|scroll-[mp][xytblrse]?)-\[-?[0-9.]+(?:px|rem|em)\].*",
+    register_diagnostic(span=$literal, message="Use a Tailwind spacing step or a spacing token from src/index.css, not an arbitrary px, rem or em size.")
+  },
+  JsxString() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:!-])(?:w|h|size|min-w|min-h|max-w|max-h|p[xytblrse]?|m[xytblrse]?|gap(?:-[xy])?|space-[xy]|top|left|right|bottom|inset(?:-[xy])?|start|end|translate-[xy]|basis|scroll-[mp][xytblrse]?)-\[-?[0-9.]+(?:px|rem|em)\].*",
+    register_diagnostic(span=$literal, message="Use a Tailwind spacing step or a spacing token from src/index.css, not an arbitrary px, rem or em size.")
+  },
+  JsTemplateChunkElement() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:!-])(?:w|h|size|min-w|min-h|max-w|max-h|p[xytblrse]?|m[xytblrse]?|gap(?:-[xy])?|space-[xy]|top|left|right|bottom|inset(?:-[xy])?|start|end|translate-[xy]|basis|scroll-[mp][xytblrse]?)-\[-?[0-9.]+(?:px|rem|em)\].*",
+    register_diagnostic(span=$literal, message="Use a Tailwind spacing step or a spacing token from src/index.css, not an arbitrary px, rem or em size.")
+  }
+}

@@ -1,0 +1,7 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+JsxAttribute(name=`className`, initializer=JsxAttributeInitializerClause(value=JsxExpressionAttributeValue(expression=$expression))) where {
+  $expression <: JsTemplateExpression(),
+  register_diagnostic(span=$expression, message="Compose class names with cn() from @/lib/utils, not a template literal.")
+}

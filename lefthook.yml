@@ -1,0 +1,22 @@
+pre-commit:
+  parallel: true
+  commands:
+    biome:
+      glob: "*.{js,jsx,ts,tsx,json,jsonc,css}"
+      run: bunx biome check --write --error-on-warnings --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+      stage_fixed: true
+    ls-lint:
+      run: bun run lint:files
+    comments:
+      glob: "*.{js,jsx,ts,tsx}"
+      run: bun run lint:comments
+
+commit-msg:
+  commands:
+    commitlint:
+      run: bunx commitlint --edit {1}
+
+pre-push:
+  commands:
+    check:
+      run: bun run check

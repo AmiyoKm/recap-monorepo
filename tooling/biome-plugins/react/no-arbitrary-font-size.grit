@@ -1,0 +1,17 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsStringLiteralExpression() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:!-])text-\[[0-9.]+(?:px|rem|em)\].*",
+    register_diagnostic(span=$literal, message="Use a font size from the Tailwind scale (text-xs, text-sm, text-base, ...), not an arbitrary text-[Npx] value.")
+  },
+  JsxString() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:!-])text-\[[0-9.]+(?:px|rem|em)\].*",
+    register_diagnostic(span=$literal, message="Use a font size from the Tailwind scale (text-xs, text-sm, text-base, ...), not an arbitrary text-[Npx] value.")
+  },
+  JsTemplateChunkElement() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:!-])text-\[[0-9.]+(?:px|rem|em)\].*",
+    register_diagnostic(span=$literal, message="Use a font size from the Tailwind scale (text-xs, text-sm, text-base, ...), not an arbitrary text-[Npx] value.")
+  }
+}

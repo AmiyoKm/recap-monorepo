@@ -1,0 +1,154 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  "minimumVersion": "3.33.1",
+  "entry": [
+    "apps/api/src/index.ts",
+    "apps/web/src/main.tsx",
+    "apps/web/src/routes/**/*.tsx",
+    "packages/db/src/migrate.ts",
+    "packages/db/drizzle.config.ts",
+    "commitlint.config.ts",
+    "apps/web/src/components/ui/*.tsx",
+    "apps/web/src/hooks/*.ts",
+    "apps/web/src/lib/*.ts",
+    "apps/*/src/shared/date/date.helpers.ts"
+  ],
+  "ignorePatterns": [
+    "packages/db/migrations/**",
+    "apps/web/src/routeTree.gen.ts",
+    "tooling/biome-plugins/**"
+  ],
+  "duplicates": {
+    "enabled": true,
+    "mode": "mild",
+    "minTokens": 50,
+    "minLines": 5,
+    "minOccurrences": 2,
+    "threshold": 3,
+    "ignore": [
+      "**/__tests__/**",
+      "**/*.test.*",
+      "packages/db/src/schema/auth.ts",
+      "apps/web/src/components/ui/**"
+    ]
+  },
+  "health": {
+    "maxCyclomatic": 20,
+    "maxCognitive": 15,
+    "maxCrap": 0,
+    "ignore": [
+      "**/*.config.*",
+      "packages/db/src/schema/auth.ts",
+      "apps/web/src/components/ui/**",
+      "apps/web/src/hooks/**"
+    ]
+  },
+  "boundaries": {
+    "zones": [
+      {
+        "name": "api-entry",
+        "patterns": ["apps/api/src/index.ts", "apps/api/src/app.ts", "apps/api/src/app.*.ts"]
+      },
+      {
+        "name": "api-modules",
+        "patterns": ["apps/api/src/modules/**"]
+      },
+      {
+        "name": "api-shared",
+        "patterns": ["apps/api/src/shared/**"]
+      },
+      {
+        "name": "db",
+        "patterns": ["packages/db/src/**", "packages/db/drizzle.config.ts"]
+      },
+      {
+        "name": "web-entry",
+        "patterns": ["apps/web/src/main.tsx", "apps/web/index.html", "apps/web/src/index.css"]
+      },
+      {
+        "name": "web-routes",
+        "patterns": ["apps/web/src/routes/**", "apps/web/src/routeTree.gen.ts"]
+      },
+      {
+        "name": "web-features",
+        "patterns": ["apps/web/src/features/**"]
+      },
+      {
+        "name": "web-api",
+        "patterns": ["apps/web/src/api/**"]
+      },
+      {
+        "name": "web-shared",
+        "patterns": ["apps/web/src/shared/**"]
+      },
+      {
+        "name": "web-ui",
+        "patterns": ["apps/web/src/components/**", "apps/web/src/hooks/**", "apps/web/src/lib/**"]
+      }
+    ],
+    "rules": [
+      {
+        "from": "db",
+        "allow": []
+      },
+      {
+        "from": "api-shared",
+        "allow": ["db"]
+      },
+      {
+        "from": "api-modules",
+        "allow": ["api-shared", "db"]
+      },
+      {
+        "from": "api-entry",
+        "allow": ["api-modules", "api-shared", "db"]
+      },
+      {
+        "from": "web-ui",
+        "allow": []
+      },
+      {
+        "from": "web-shared",
+        "allow": ["web-routes"]
+      },
+      {
+        "from": "web-api",
+        "allow": ["web-shared", "api-entry"]
+      },
+      {
+        "from": "web-features",
+        "allow": ["web-api", "web-shared", "web-ui"]
+      },
+      {
+        "from": "web-routes",
+        "allow": ["web-features", "web-shared"]
+      },
+      {
+        "from": "web-entry",
+        "allow": ["web-shared"]
+      }
+    ],
+    "coverage": {
+      "requireAllFiles": true,
+      "allowUnmatched": [
+        "scripts/**",
+        "tooling/**",
+        "commitlint.config.ts",
+        "apps/web/vite.config.ts",
+        "apps/web/public/**"
+      ]
+    }
+  },
+  "ignoreExports": [
+    {
+      "file": "apps/web/src/api/client/index.ts",
+      "exports": ["authClient"]
+    }
+  ],
+  "usedClassMembers": [
+    {
+      "implements": "SecondaryStorage",
+      "members": ["get", "getAndDelete", "increment", "set", "delete"]
+    }
+  ]
+}

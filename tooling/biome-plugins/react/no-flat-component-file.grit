@@ -1,0 +1,53 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+pattern component_expression() {
+  or {
+    JsArrowFunctionExpression(),
+    JsFunctionExpression(),
+    JsCallExpression(callee=$callee) where {
+      $callee <: or {
+        `memo`,
+        `forwardRef`,
+        `React.memo`,
+        `React.forwardRef`
+      }
+    },
+    JsParenthesizedExpression(expression=component_expression()),
+    TsAsExpression(expression=component_expression()),
+    TsSatisfiesExpression(expression=component_expression())
+  }
+}
+
+pattern jsx_component() {
+  or {
+    JsFunctionDeclaration(id=$name, body=$body) where {
+      $name <: r"^[A-Z].*",
+      $body <: contains JsxTagExpression()
+    },
+    JsFunctionExportDefaultDeclaration(body=$body) where { $body <: contains JsxTagExpression() },
+    JsVariableDeclarator(id=$name, initializer=JsInitializerClause(expression=$initializer)) where {
+      $name <: r"^[A-Z].*",
+      $initializer <: component_expression(),
+      $initializer <: contains JsxTagExpression()
+    },
+    JsExportDefaultExpressionClause(expression=$expression) where {
+      $expression <: component_expression(),
+      $expression <: contains JsxTagExpression()
+    },
+    JsClassDeclaration(id=$name) as $class where {
+      $name <: r"^[A-Z].*",
+      $class <: contains JsMethodClassMember(name=`render`),
+      $class <: contains JsxTagExpression()
+    },
+    JsClassExportDefaultDeclaration() as $class where {
+      $class <: contains JsMethodClassMember(name=`render`),
+      $class <: contains JsxTagExpression()
+    }
+  }
+}
+
+file(body=$program) where {
+  $program <: contains jsx_component() as $component,
+  register_diagnostic(span=$component, message="Put each component in its own folder with an index.ts barrel, for example components/Foo/Foo.tsx.")
+}

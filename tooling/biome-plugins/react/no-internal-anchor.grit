@@ -1,0 +1,7 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+JsxAttribute(name=`href`, initializer=JsxAttributeInitializerClause(value=$target)) where {
+  $target <: r"[\"'{`]*/.*",
+  register_diagnostic(span=$target, message="Use the TanStack Router <Link to=...> for internal pages. A plain <a href> reloads the whole app.")
+}

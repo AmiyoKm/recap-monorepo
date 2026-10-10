@@ -1,0 +1,7 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+TsInterfaceDeclaration(id=$name) as $interface where {
+  not $name <: r"I[A-Z][A-Za-z0-9]*",
+  register_diagnostic(span=$name, message="Interface names must start with I followed by a PascalCase name.")
+}

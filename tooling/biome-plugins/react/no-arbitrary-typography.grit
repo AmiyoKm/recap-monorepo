@@ -1,0 +1,17 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsStringLiteralExpression() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:!-])(?:font-\[[0-9]+\]|(?:leading|tracking)-\[-?[0-9.]+(?:px|rem|em)?\]).*",
+    register_diagnostic(span=$literal, message="Use a Tailwind font weight, leading or tracking step, not an arbitrary value.")
+  },
+  JsxString() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:!-])(?:font-\[[0-9]+\]|(?:leading|tracking)-\[-?[0-9.]+(?:px|rem|em)?\]).*",
+    register_diagnostic(span=$literal, message="Use a Tailwind font weight, leading or tracking step, not an arbitrary value.")
+  },
+  JsTemplateChunkElement() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:!-])(?:font-\[[0-9]+\]|(?:leading|tracking)-\[-?[0-9.]+(?:px|rem|em)?\]).*",
+    register_diagnostic(span=$literal, message="Use a Tailwind font weight, leading or tracking step, not an arbitrary value.")
+  }
+}

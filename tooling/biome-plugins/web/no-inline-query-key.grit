@@ -1,0 +1,11 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+JsPropertyObjectMember(name=$key, value=$value) where {
+  $key <: or {
+    `queryKey`,
+    `mutationKey`
+  },
+  $value <: JsArrayExpression(),
+  register_diagnostic(span=$value, message="Query and mutation keys must come from the `<domain>Keys` factory in src/api/<domain>/<domain>.keys.ts.")
+}

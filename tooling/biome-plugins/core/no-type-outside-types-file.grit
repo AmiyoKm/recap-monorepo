@@ -1,0 +1,7 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+TsTypeAliasDeclaration() as $type where {
+  not $filename <: r".*[/.]types\.ts",
+  register_diagnostic(span=$type, message="Type aliases must be declared only in .types.ts files.")
+}

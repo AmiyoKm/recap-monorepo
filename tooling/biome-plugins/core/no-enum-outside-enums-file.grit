@@ -1,0 +1,7 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+TsEnumDeclaration() as $enum where {
+  not $filename <: r".*[/.]enums\.ts",
+  register_diagnostic(span=$enum, message="Enums must be declared only in .enums.ts files.")
+}

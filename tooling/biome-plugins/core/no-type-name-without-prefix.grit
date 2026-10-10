@@ -1,0 +1,7 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+TsTypeAliasDeclaration(binding_identifier=$name) where {
+  not $name <: r"T[A-Z][A-Za-z0-9]*",
+  register_diagnostic(span=$name, message="Type alias names must start with T followed by a PascalCase name.")
+}
