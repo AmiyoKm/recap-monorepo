@@ -11,7 +11,7 @@ import { RedisStorageService } from "#api/shared/redis/redis.service";
 export function createApp({ db, redis, env }: IAppDeps) {
   const auth = createAuth({
     db,
-    storage: new RedisStorageService(redis),
+    storage: new RedisStorageService(redis, env.redisKeyPrefix),
     config: env.auth,
     trustedOrigins: [env.webOrigin],
   });

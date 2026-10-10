@@ -37,7 +37,7 @@ This first session set up the monorepo, auth and coding standards only. There is
 - **Comment check**: `scripts/lint-comments.ts` allows only `TODO:` and tool directives.
 - **fallow** (`.fallowrc.json`): dead code, duplicates, complexity and boundary zones. `usedClassMembers` exempts `SecondaryStorage` methods.
 - **Git**: lefthook (Biome, ls-lint and comments on commit; commitlint on the message; `bun run check` on push). Commit scopes: `api`, `web`, `db`, `infra`, `deps`, `repo`, `tooling`.
-- **CI**: `.github/workflows/quality.yml` runs `bun run check`.
+- **CI**: `.github/workflows/ci.yml` runs on PRs to `development`: lint, typecheck, web build, API build and API Docker image build.
 
 Main conventions (full list in `AGENTS.md`):
 

@@ -19,6 +19,7 @@ export function loadEnv(source: NodeJS.ProcessEnv): IEnv {
     port: Number(source["PORT"] ?? DEFAULT_PORT),
     databaseUrl: readRequired(source, "DATABASE_URL"),
     redisUrl: readRequired(source, "REDIS_URL"),
+    redisKeyPrefix: readOptional(source, "REDIS_KEY_PREFIX") ?? "",
     webOrigin: readRequired(source, "WEB_ORIGIN"),
     auth: {
       secret: readRequired(source, "BETTER_AUTH_SECRET"),

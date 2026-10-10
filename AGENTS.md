@@ -140,3 +140,13 @@ fallow also fails on dead code, unused dependencies, duplicated code, cyclomatic
 ## Commits
 
 Conventional Commits with a required scope: `api`, `web`, `db`, `infra`, `deps`, `repo` or `tooling`. Example: `feat(web): add digest page`. Lefthook runs Biome, ls-lint and the comment check on commit, commitlint on the message, and `bun run check` on push.
+
+## Agent skills
+
+### Issue tracker
+
+Tickets are GitHub issues in `AmiyoKm/recap-monorepo`. Use the `AmiyoKm` gh account. PRs target `development`. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: root `GLOSSARY.md` and `docs/adr/`, both committed. See `docs/agents/domain.md`.

@@ -4,3 +4,6 @@ node_modules
 .env
 .git
 .wrangler
+.env.*
+!.env.example
+.dev.vars
