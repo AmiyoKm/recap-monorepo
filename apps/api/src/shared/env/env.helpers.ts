@@ -25,7 +25,6 @@ export function loadEnv(source: NodeJS.ProcessEnv): IEnv {
       secret: readRequired(source, "BETTER_AUTH_SECRET"),
       baseUrl: readRequired(source, "BETTER_AUTH_URL"),
       cookieDomain: readOptional(source, "COOKIE_DOMAIN"),
-      cookiePrefix: readOptional(source, "COOKIE_PREFIX"),
       google: {
         clientId: readOptional(source, "GOOGLE_CLIENT_ID"),
         clientSecret: readOptional(source, "GOOGLE_CLIENT_SECRET"),

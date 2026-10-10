@@ -7,7 +7,6 @@ export interface IAuthEnv {
   secret: string;
   baseUrl: string;
   cookieDomain: string | undefined;
-  cookiePrefix: string | undefined;
   google: IGoogleAuthEnv;
 }
 

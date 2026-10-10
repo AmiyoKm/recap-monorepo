@@ -19,7 +19,6 @@ export function createAuth({ db, storage, config, trustedOrigins }: ICreateAuthO
     emailAndPassword: { enabled: true },
     socialProviders: clientId && clientSecret ? { google: { clientId, clientSecret } } : {},
     advanced: {
-      cookiePrefix: config.cookiePrefix,
       crossSubDomainCookies: config.cookieDomain
         ? { enabled: true, domain: config.cookieDomain }
         : undefined,
