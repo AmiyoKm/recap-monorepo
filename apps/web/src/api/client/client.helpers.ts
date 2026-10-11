@@ -23,3 +23,10 @@ export async function ensureOk<TData>(request: Promise<IEdenResult<TData>>): Pro
   }
   return data;
 }
+
+export function apiErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && typeof error.value === "string") {
+    return error.value;
+  }
+  return EClientMessages.REQUEST_FAILED;
+}
