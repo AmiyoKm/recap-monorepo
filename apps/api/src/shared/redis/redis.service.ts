@@ -9,7 +9,13 @@ export class RedisStorageService implements SecondaryStorage {
   constructor(
     private readonly redis: RedisClient,
     private readonly keyPrefix: string,
-  ) {}
+  ) {
+    this.get = this.get.bind(this);
+    this.getAndDelete = this.getAndDelete.bind(this);
+    this.increment = this.increment.bind(this);
+    this.set = this.set.bind(this);
+    this.delete = this.delete.bind(this);
+  }
 
   get(key: string): Promise<string | null> {
     return this.redis.get(this.prefixed(key));
