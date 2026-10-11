@@ -65,6 +65,14 @@
   },
   "plugins": [
     {
+      "path": "./tooling/biome-plugins/test/no-unawaited-expect-promise.grit",
+      "includes": ["**/*.spec.ts", "**/*.test.ts", "**/*.test.tsx", "**/__tests__/**"]
+    },
+    {
+      "path": "./tooling/biome-plugins/test/no-raw-request-in-api-test.grit",
+      "includes": ["**/apps/api/tests/**"]
+    },
+    {
       "path": "./tooling/biome-plugins/core/no-escape-hatch-assertion.grit",
       "includes": [
         "**/apps/*/src/**/*.ts",
@@ -319,14 +327,15 @@
     {
       "path": "./tooling/biome-plugins/core/no-helper-in-declaration-files.grit",
       "includes": [
-        "apps/*/src/**/*.constants.ts",
-        "apps/*/src/**/*.enums.ts",
-        "apps/*/src/**/*.types.ts",
-        "apps/*/src/**/*.interfaces.ts",
-        "packages/*/src/**/*.constants.ts",
-        "packages/*/src/**/*.enums.ts",
-        "packages/*/src/**/*.types.ts",
-        "packages/*/src/**/*.interfaces.ts",
+        "**/apps/*/src/**/*.constants.ts",
+        "**/apps/*/src/**/*.enums.ts",
+        "**/apps/*/src/**/*.types.ts",
+        "**/apps/*/src/**/*.interfaces.ts",
+        "**/packages/*/src/**/*.constants.ts",
+        "**/packages/*/src/**/*.enums.ts",
+        "**/packages/*/src/**/*.types.ts",
+        "**/packages/*/src/**/*.interfaces.ts",
+        "!**/apps/api/src/shared/routes/routes.constants.ts",
         "!**/__tests__/**",
         "!**/*.test.*",
         "!**/*.spec.*",
@@ -421,6 +430,22 @@
       ]
     },
     {
+      "path": "./tooling/biome-plugins/react/no-raw-html-control.grit",
+      "includes": [
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
       "path": "./tooling/biome-plugins/react/no-internal-anchor.grit",
       "includes": [
         "**/apps/web/src/**/*.tsx",
@@ -468,6 +493,214 @@
         "!**/apps/web/src/lib/**",
         "!**/routeTree.gen.ts",
         "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/responsive-grid-columns.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/responsive-display-text.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-screen-viewport-unit.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-fixed-layout-size.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-palette-color.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-off-scale-spacing.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-space-utility.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-important-modifier.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-decorative-effect.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-display-typography.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts",
+        "!**/apps/web/src/features/app-shell/components/Heading/**",
+        "!**/apps/web/src/features/app-shell/components/Wordmark/**"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-raw-page-width.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts",
+        "!**/apps/web/src/features/app-shell/components/Container/**"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/react/no-raw-heading.grit",
+      "includes": [
+        "**/apps/web/src/**/*.ts",
+        "**/apps/web/src/**/*.tsx",
+        "!**/__tests__/**",
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts",
+        "!**/apps/web/src/features/app-shell/components/Heading/**"
       ]
     },
     {
@@ -555,6 +788,33 @@
       "includes": ["**/apps/api/src/**/*.ts", "!**/__tests__/**", "!**/*.test.*"]
     },
     {
+      "path": "./tooling/biome-plugins/api/no-direct-provider-service-import.grit",
+      "includes": ["**/apps/api/src/**/*.ts", "!**/apps/api/src/shared/providers/**"]
+    },
+    {
+      "path": "./tooling/biome-plugins/api/no-route-literal.grit",
+      "includes": [
+        "**/apps/api/src/**/*.ts",
+        "!**/apps/api/src/modules/**/*.module.ts",
+        "!**/apps/api/src/shared/routes/routes.constants.ts"
+      ]
+    },
+    {
+      "path": "./tooling/biome-plugins/api/route-response-schema.grit",
+      "includes": ["**/apps/api/src/modules/**/*.module.ts"]
+    },
+    {
+      "path": "./tooling/biome-plugins/api/typed-status-body.grit",
+      "includes": ["**/apps/api/src/**/*.ts"]
+    },
+    {
+      "path": "./tooling/biome-plugins/api/no-db-access-in-service.grit",
+      "includes": [
+        "**/apps/api/src/modules/**/*.service.ts",
+        "**/apps/api/src/shared/**/*.service.ts"
+      ]
+    },
+    {
       "path": "./tooling/biome-plugins/core/no-inverted-guard.grit",
       "includes": [
         "**/apps/*/src/**/*.ts",
@@ -601,6 +861,7 @@
     "rules": {
       "preset": "recommended",
       "complexity": {
+        "noStaticOnlyClass": "off",
         "noExcessiveCognitiveComplexity": {
           "level": "error",
           "options": {
@@ -611,7 +872,8 @@
         "noUselessStringConcat": "error",
         "noForEach": "error",
         "useLiteralKeys": "off",
-        "useSimplifiedLogicExpression": "error"
+        "useSimplifiedLogicExpression": "error",
+        "noExcessiveNestedTestSuites": "error"
       },
       "correctness": {
         "noUnusedImports": "error",
@@ -667,7 +929,8 @@
         "useThrowOnlyError": "error",
         "useReactFunctionComponents": "error",
         "useConst": "error",
-        "useTemplate": "error"
+        "useTemplate": "error",
+        "noDoneCallback": "error"
       },
       "suspicious": {
         "noExplicitAny": "error",
@@ -679,6 +942,9 @@
         "noEmptyBlockStatements": "error",
         "noSkippedTests": "error",
         "noFocusedTests": "error",
+        "noExportsInTest": "error",
+        "noDuplicateTestHooks": "error",
+        "noMisplacedAssertion": "error",
         "noImportCycles": "error",
         "noVar": "error",
         "useAwait": "error",
@@ -693,7 +959,17 @@
         "noFloatingPromises": "error",
         "noMisusedPromises": "error",
         "useExhaustiveSwitchCases": "error",
-        "useImportsFirst": "error"
+        "useImportsFirst": "error",
+        "noConditionalExpect": "error",
+        "useExpect": "error",
+        "noIdenticalTestTitle": "error",
+        "useConsistentTestIt": {
+          "level": "error",
+          "options": {
+            "function": "test",
+            "withinDescribe": "test"
+          }
+        }
       }
     }
   },
@@ -731,7 +1007,7 @@
     },
     {
       "includes": [
-        "**/apps/api/src/index.ts",
+        "**/apps/api/src/shared/env/env.constants.ts",
         "**/packages/db/src/migrate.ts",
         "scripts/**",
         "**/*.config.ts"
@@ -747,6 +1023,7 @@
     {
       "includes": [
         "**/apps/*/src/**",
+        "**/apps/api/tests/**",
         "**/packages/*/src/**",
         "!**/packages/db/src/schema/auth.ts"
       ],
@@ -893,8 +1170,37 @@
                   "date-fns": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
                   "moment": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
                   "luxon": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
-                  "drizzle-orm": "Modules only define routes. Put database access in the <feature>.service.ts file.",
-                  "@recap/db": "Modules only define routes. Put database access in the <feature>.service.ts file."
+                  "drizzle-orm": "Modules only define routes. Put database access in the <feature>.repository.ts file.",
+                  "@recap/db": "Modules only define routes. Put database access in the <feature>.repository.ts file."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/apps/api/src/modules/**/*.service.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["dayjs/**", "date-fns/**", "@date-fns/**"],
+                    "message": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers)."
+                  }
+                ],
+                "paths": {
+                  "dayjs": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "date-fns": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "moment": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "luxon": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
+                  "drizzle-orm": "Services orchestrate. Put Postgres access in the <feature>.repository.ts file.",
+                  "@recap/db": "Services orchestrate. Put Postgres access in the <feature>.repository.ts file.",
+                  "#api/shared/db/db.client": "Services orchestrate. Import db only in the <feature>.repository.ts file."
                 }
               }
             }

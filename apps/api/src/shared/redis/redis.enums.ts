@@ -6,6 +6,7 @@ export enum ERedisCommand {
   GET_AND_DELETE = "GETDEL",
   EVAL = "EVAL",
   SET = "SET",
+  DELETE = "DEL",
   PING = "PING",
 }
 

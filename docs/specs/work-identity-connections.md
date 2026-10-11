@@ -19,15 +19,15 @@ Users get a Settings page where they build a list of Work Identities. Each Work 
 7. As a Recap user, I want to return to the Settings page and see the new identity without clicking refresh, so that completion feels immediate.
 8. As a Recap user, I want each identity card to show the Google account's avatar, email and display name, so that I can tell my identities apart at a glance.
 9. As a Recap user, I want to add several Google accounts as separate Work Identities, so that each of my professional identities (for example, one per employer) stays distinct.
-10. As a Recap user, I want a clear error when the Google account I consent with is already a Work Identity (mine or anyone else's), so that identities stay unique per Google account.
+10. As a Recap user, I want a clear error when the Google account I consent with is already one of my Work Identities, so that my identity list stays unique per Google account.
 11. As a Recap user, I want a clear error when a consent link has expired, so that I know to start again instead of being stuck.
 12. As a Recap user, I want the post-connect redirect to tell me what happened (connected provider and email, or an error), so that success and failure are visible without digging.
 13. As a Recap user, I want to connect Google Calendar under a specific Work Identity, so that calendar data is attributed to the right professional identity.
 14. As a Recap user, I want a per-source consent rejected when I complete it with a different Google account than the identity's, so that a pasted URL cannot bind the wrong account's grant.
 15. As a Recap user, I want each Connection to show the connected provider account's email, so that I can verify the right account was connected.
-16. As a Recap user, I want to connect Jira by pasting an API key, so that I do not need Jira OAuth to get my activity in.
+16. As a Recap user, I want to connect Jira by pasting an API token with my Atlassian email and site, so that I do not need Jira OAuth to get my activity in.
 17. As a Recap user, I want to connect Linear the same way with an API key, so that all API-key providers work alike.
-18. As a Recap user, I want my API key validated with a cheap call to the provider when I paste it, so that typos are caught immediately rather than during pulls.
+18. As a Recap user, I want my API key validated with a cheap call to the provider when I paste it (Jira: Basic auth to the site `myself` endpoint; Linear: viewer query), so that typos are caught immediately rather than during pulls.
 19. As a Recap user, I want an explicit error when an API key is invalid, so that I can fix it on the spot.
 20. As a Recap user, I want at most one Connection per provider per Work Identity, so that the connection list stays unambiguous.
 21. As a Recap user, I want each Connection to show a status chip (active or needs reconnect), so that I know which sources need attention later.
@@ -39,7 +39,7 @@ Users get a Settings page where they build a list of Work Identities. Each Work 
 
 ## Implementation Decisions
 
-- Domain model (ADR-0001): every Connection belongs to a Work Identity, never directly to the user. A Work Identity is unique by Google `sub` across all users, owned by exactly one user. No cap on identities per user.
+- Domain model (ADR-0001): every Connection belongs to a Work Identity, never directly to the user. A Work Identity is unique by Google `sub` per user, owned by exactly one user. Two users may anchor the same Google account separately. No cap on identities per user.
 - Storage (ADR-0002): new `identity` and `connection` tables in the db package, separate from Better Auth, whose `account` table stays sign-in only. One Google OAuth client serves both consent kinds (sign-in requests `openid email profile`; connects request per-source read scopes). Google sign-in never auto-creates a Work Identity, and no auto-create happens in either direction.
 - `identity` row: id, user (cascade delete), google_sub (unique, the ownership key), email (display only), display_name, avatar_url, timestamps.
 - `connection` row: id, identity (cascade delete), provider, auth_kind (oauth or api_key), status (active or needs_reconnect), scopes, refresh_token_enc, api_key_enc, access_token_expires_at, provider_account_id, provider_account_email, timestamps, unique (identity, provider). Migration name: `identities-and-connections`.
@@ -50,7 +50,7 @@ Users get a Settings page where they build a list of Work Identities. Each Work 
 - API surface: one identity module in the api package, dependencies injected per repo conventions, registered in the app factory. The provider registry lives in the identity module's constants and enums files; crypto and OAuth helpers live in api shared code.
   - `GET /identities`: the caller's identities with their connections.
   - `POST /identities/connect`: starts identity creation, returns `{ authorizeUrl }`.
-  - `POST /identities/:identityId/connections`: with `{ provider }` returns `{ authorizeUrl }` (OAuth providers); with `{ provider, apiKey }` validates the key with a cheap provider call and connects immediately.
+  - `POST /identities/:identityId/connections`: with `{ provider }` returns `{ authorizeUrl }` (OAuth providers); with `{ provider, apiKey }` validates the key with a cheap provider call and connects immediately (Jira additionally requires `{ email, site }` for Basic auth).
   - `DELETE /connections/:connectionId`: disconnects.
   - `GET /api/connect/google/callback`: the single registered Google redirect URI serving both identity-creation and per-source consents, disambiguated by state. Redirects to the web origin's settings page with `?connected=<provider>&email=...` on success or `?error=...` on failure. The web app never sees tokens.
 - Providers, first cut: wired are google-calendar (OAuth), jira and linear (API key). Registered but unwired: slack, google-chat, github.

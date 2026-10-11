@@ -1,0 +1,11 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsStringLiteralExpression() as $literal where {
+    $literal <: r"[\"'](?:/[A-Za-z0-9:_-]|https?://).*"
+  },
+  JsTemplateChunkElement() as $literal where { $literal <: r"(?:/[A-Za-z0-9:_-]|https?://).*" }
+} where {
+  register_diagnostic(span=$literal, message="Paths and URLs live in ROUTES (#api/shared/routes/routes.constants). Add the route there. Use a function in ROUTES for a dynamic URL.")
+}

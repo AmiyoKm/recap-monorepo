@@ -4,6 +4,7 @@ import {
   ADD_IDENTITY_COPIED,
   ADD_IDENTITY_COPY,
   ADD_IDENTITY_DESCRIPTION,
+  ADD_IDENTITY_DONE,
   ADD_IDENTITY_FAILED,
   ADD_IDENTITY_LOADING,
   ADD_IDENTITY_OPEN_GOOGLE,
@@ -28,6 +29,7 @@ export function AddIdentityDialog() {
       copyText={ADD_IDENTITY_COPY}
       copiedText={ADD_IDENTITY_COPIED}
       openText={ADD_IDENTITY_OPEN_GOOGLE}
+      doneText={ADD_IDENTITY_DONE}
       onDialogOpen={() => connect.mutate()}
     />
   );

@@ -1,14 +1,25 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/api/client";
-import { EClientMessages } from "@/api/client/client.enums";
-import { ensureOk } from "@/api/client/client.helpers";
-import type { IConnectApiKeyInput } from "@/api/identity/identity.interfaces";
+import { type ApiError, ensureOk } from "@/api/client/client.helpers";
+import { EProvider } from "@/api/identity/identity.enums";
+import { readAuthorizeUrl } from "@/api/identity/identity.helpers";
+import type { IAuthorizeResult, IConnectApiKeyInput } from "@/api/identity/identity.interfaces";
 import { identityKeys } from "@/api/identity/identity.keys";
+import type {
+  TConnectConnectionData,
+  TConnectConnectionError,
+  TConnectIdentityData,
+  TConnectIdentityError,
+  TDeleteConnectionData,
+  TDeleteConnectionError,
+  TDeleteIdentityData,
+  TDeleteIdentityError,
+} from "@/api/identity/identity.types";
 
 export function useConnectIdentityMutation() {
   const queryClient = useQueryClient();
-  return useMutation({
+  return useMutation<TConnectIdentityData, ApiError<TConnectIdentityError>>({
     mutationFn: () => ensureOk(api.identities.connect.post()),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: identityKeys.all });
@@ -18,20 +29,12 @@ export function useConnectIdentityMutation() {
 
 export function useConnectCalendarMutation() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (identityId: string) => {
-      const data: unknown = await ensureOk(
-        api.identities({ identityId }).connections.post({ provider: "google-calendar" }),
+  return useMutation<IAuthorizeResult, ApiError<TConnectConnectionError>, string>({
+    mutationFn: async (identityId) => {
+      const data = await ensureOk(
+        api.identities({ identityId }).connections.post({ provider: EProvider.GOOGLE_CALENDAR }),
       );
-      if (
-        typeof data === "object" &&
-        data !== null &&
-        "authorizeUrl" in data &&
-        typeof data.authorizeUrl === "string"
-      ) {
-        return { authorizeUrl: data.authorizeUrl };
-      }
-      throw new Error(EClientMessages.REQUEST_FAILED);
+      return { authorizeUrl: readAuthorizeUrl(data) };
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: identityKeys.all });
@@ -41,8 +44,8 @@ export function useConnectCalendarMutation() {
 
 export function useDeleteIdentityMutation() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (identityId: string) => ensureOk(api.identities({ identityId }).delete()),
+  return useMutation<TDeleteIdentityData, ApiError<TDeleteIdentityError>, string>({
+    mutationFn: (identityId) => ensureOk(api.identities({ identityId }).delete()),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: identityKeys.all });
     },
@@ -51,8 +54,8 @@ export function useDeleteIdentityMutation() {
 
 export function useDeleteConnectionMutation() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (connectionId: string) => ensureOk(api.connections({ connectionId }).delete()),
+  return useMutation<TDeleteConnectionData, ApiError<TDeleteConnectionError>, string>({
+    mutationFn: (connectionId) => ensureOk(api.connections({ connectionId }).delete()),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: identityKeys.all });
     },
@@ -61,9 +64,13 @@ export function useDeleteConnectionMutation() {
 
 export function useConnectApiKeyMutation() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ identityId, provider, apiKey }: IConnectApiKeyInput) =>
-      ensureOk(api.identities({ identityId }).connections.post({ provider, apiKey })),
+  return useMutation<
+    TConnectConnectionData,
+    ApiError<TConnectConnectionError>,
+    IConnectApiKeyInput
+  >({
+    mutationFn: ({ identityId, provider, apiKey, email, site }) =>
+      ensureOk(api.identities({ identityId }).connections.post({ provider, apiKey, email, site })),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: identityKeys.all });
     },

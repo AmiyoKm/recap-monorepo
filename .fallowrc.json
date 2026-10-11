@@ -58,6 +58,10 @@
         "patterns": ["apps/api/src/shared/**"]
       },
       {
+        "name": "api-tests",
+        "patterns": ["apps/api/tests/**"]
+      },
+      {
         "name": "db",
         "patterns": ["packages/db/src/**", "packages/db/drizzle.config.ts"]
       },
@@ -126,6 +130,10 @@
       {
         "from": "web-entry",
         "allow": ["web-shared"]
+      },
+      {
+        "from": "api-tests",
+        "allow": ["api-entry", "api-modules", "api-shared", "db"]
       }
     ],
     "coverage": {

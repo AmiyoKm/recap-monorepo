@@ -1,103 +1,80 @@
-import { Elysia, redirect } from "elysia";
+import { Elysia, t } from "elysia";
 
+import { unauthorizedError } from "#api/modules/auth/auth.model";
+import { authModule } from "#api/modules/auth/auth.module";
 import {
-  GOOGLE_CALLBACK_PATH,
-  HTTP_BAD_REQUEST_STATUS,
-  HTTP_NOT_FOUND_STATUS,
-} from "#api/modules/identity/identity.constants";
-import { EIdentityMessages } from "#api/modules/identity/identity.enums";
-import { apiKeyConnectFailure } from "#api/modules/identity/identity.helpers";
-import type { IIdentityDeps } from "#api/modules/identity/identity.interfaces";
-import {
+  apiKeyValidationError,
+  authorizeResponse,
+  connectBadRequestError,
   connectConnectionBody,
+  connectConnectionResponse,
+  connectionExistsError,
   connectionIdParams,
+  connectionNotFoundError,
+  deleteResponse,
   googleCallbackQuery,
   identityIdParams,
+  identityListResponse,
+  identityNotFoundError,
 } from "#api/modules/identity/identity.model";
-import {
-  completeGoogleCallback,
-  connectApiKeyConnection,
-  deleteConnection,
-  deleteIdentity,
-  listIdentities,
-  startConnection,
-  startIdentityConnect,
-} from "#api/modules/identity/identity.service";
-import { fetchSessionUser } from "#api/shared/session/session.helpers";
+import { IdentityService } from "#api/modules/identity/identity.service";
+import { ROUTES } from "#api/shared/routes/routes.constants";
 
-export function identityModule(deps: IIdentityDeps) {
-  return new Elysia({ name: "identity" })
-    .macro({
-      auth: {
-        async resolve({ status, request: { headers } }) {
-          const user = await fetchSessionUser(deps.sessionProvider, headers);
-          if (!user) {
-            return status("Unauthorized");
-          }
-          return { user };
-        },
-      },
-    })
-    .get("/identities", ({ user }) => listIdentities(deps, user.id), { auth: true })
-    .post("/identities/connect", ({ user }) => startIdentityConnect(deps, user.id), {
+export const identityModule = new Elysia({ name: "identity" })
+  .use(authModule)
+  .get("/identities", ({ user }) => IdentityService.listIdentities(user.id), {
+    auth: true,
+    response: { 200: identityListResponse, 401: unauthorizedError },
+  })
+  .post("/identities/connect", ({ user }) => IdentityService.startIdentityConnect(user.id), {
+    auth: true,
+    response: { 200: authorizeResponse, 401: unauthorizedError },
+  })
+  .post(
+    "/identities/:identityId/connections",
+    ({ user, params, body }) => IdentityService.connect(user.id, params.identityId, body),
+    {
       auth: true,
-    })
-    .post(
-      "/identities/:identityId/connections",
-      async ({ user, params, body, status }) => {
-        if (body.apiKey !== undefined) {
-          try {
-            return await connectApiKeyConnection(
-              deps,
-              user.id,
-              params.identityId,
-              body.provider,
-              body.apiKey,
-            );
-          } catch (error) {
-            const failure = apiKeyConnectFailure(error);
-            if (!failure) {
-              throw error;
-            }
-            return status(failure.code, failure.message);
-          }
-        }
-        const result = await startConnection(deps, user.id, params.identityId, body.provider);
-        if ("error" in result) {
-          if (result.error === EIdentityMessages.IDENTITY_NOT_FOUND) {
-            return status(HTTP_NOT_FOUND_STATUS, result.error);
-          }
-          return status(HTTP_BAD_REQUEST_STATUS, result.error);
-        }
-        return { authorizeUrl: result.authorizeUrl };
+      params: identityIdParams,
+      body: connectConnectionBody,
+      response: {
+        200: connectConnectionResponse,
+        400: connectBadRequestError,
+        401: unauthorizedError,
+        404: identityNotFoundError,
+        409: connectionExistsError,
+        502: apiKeyValidationError,
       },
-      { auth: true, params: identityIdParams, body: connectConnectionBody },
-    )
-    .get(
-      GOOGLE_CALLBACK_PATH,
-      async ({ query }) => redirect((await completeGoogleCallback(deps, query)).redirectUrl),
-      { query: googleCallbackQuery },
-    )
-    .delete(
-      "/identities/:identityId",
-      async ({ user, params, status }) => {
-        const removed = await deleteIdentity(deps, user.id, params.identityId);
-        if (!removed) {
-          return status(HTTP_NOT_FOUND_STATUS, EIdentityMessages.IDENTITY_NOT_FOUND);
-        }
-        return { deleted: true };
+    },
+  )
+  .get(
+    ROUTES.API.GOOGLE_CALLBACK,
+    async ({ query, redirect }) => redirect(await IdentityService.completeGoogleCallback(query)),
+    { query: googleCallbackQuery, response: { 302: t.Void() } },
+  )
+  .delete(
+    "/identities/:identityId",
+    ({ user, params }) => IdentityService.deleteIdentity(user.id, params.identityId),
+    {
+      auth: true,
+      params: identityIdParams,
+      response: {
+        200: deleteResponse,
+        401: unauthorizedError,
+        404: identityNotFoundError,
       },
-      { auth: true, params: identityIdParams },
-    )
-    .delete(
-      "/connections/:connectionId",
-      async ({ user, params, status }) => {
-        const removed = await deleteConnection(deps, user.id, params.connectionId);
-        if (!removed) {
-          return status(HTTP_NOT_FOUND_STATUS, EIdentityMessages.CONNECTION_NOT_FOUND);
-        }
-        return { deleted: true };
+    },
+  )
+  .delete(
+    "/connections/:connectionId",
+    ({ user, params }) => IdentityService.deleteConnection(user.id, params.connectionId),
+    {
+      auth: true,
+      params: connectionIdParams,
+      response: {
+        200: deleteResponse,
+        401: unauthorizedError,
+        404: connectionNotFoundError,
       },
-      { auth: true, params: connectionIdParams },
-    );
-}
+    },
+  );

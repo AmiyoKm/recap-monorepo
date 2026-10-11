@@ -1,0 +1,17 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsStringLiteralExpression() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:])max-w-(?:4xl|5xl|6xl|7xl|screen(?:-[a-z0-9]+)?)(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Use <Container>, <Section> or <AppPage> from @/features/app-shell/components for page width and gutters, not a max-w-4xl or wider class.")
+  },
+  JsxString() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:])max-w-(?:4xl|5xl|6xl|7xl|screen(?:-[a-z0-9]+)?)(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Use <Container>, <Section> or <AppPage> from @/features/app-shell/components for page width and gutters, not a max-w-4xl or wider class.")
+  },
+  JsTemplateChunkElement() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:])max-w-(?:4xl|5xl|6xl|7xl|screen(?:-[a-z0-9]+)?)(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Use <Container>, <Section> or <AppPage> from @/features/app-shell/components for page width and gutters, not a max-w-4xl or wider class.")
+  }
+}

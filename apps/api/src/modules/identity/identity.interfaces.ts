@@ -1,57 +1,78 @@
-import type { RedisClient } from "bun";
-
-import type { TDb } from "@recap/db";
-
 import type { EGrantPurpose, EIdentityAuthKind } from "#api/modules/identity/identity.enums";
-import type { IProviderClient } from "#api/shared/provider/provider.interfaces";
-import type { ISessionProvider } from "#api/shared/session/session.interfaces";
-
-export interface IIdentityDeps {
-  db: TDb;
-  redis: RedisClient;
-  redisKeyPrefix: string;
-  webOrigin: string;
-  callbackBaseUrl: string;
-  encryptionKey: string;
-  providerClient: IProviderClient;
-  sessionProvider: ISessionProvider;
-}
+import type { TIdentityRow } from "#api/modules/identity/identity.types";
+import type { IGoogleGrant, IGoogleProfile } from "#api/shared/providers/google/google.interfaces";
+import type { IJiraCredentials } from "#api/shared/providers/jira/jira.interfaces";
+import type { EProvider } from "#api/shared/providers/providers.enums";
+import type { IProviderAccount } from "#api/shared/providers/providers.interfaces";
 
 export interface IProviderRegistration {
   authKind: EIdentityAuthKind;
   wired: boolean;
 }
 
-export interface IPendingGrant {
+export interface IIdentityCreateGrant {
   userId: string;
-  purpose: EGrantPurpose;
-  identityId: string | undefined;
-  provider: string | undefined;
+  purpose: EGrantPurpose.IDENTITY_CREATE;
 }
 
-export interface IApiKeyConnectFailure {
-  code: number;
-  message: string;
-}
-
-export interface IIdentityConnectionView {
-  id: string;
+export interface IConnectionGrant {
+  userId: string;
+  purpose: EGrantPurpose.CONNECTION;
+  identityId: string;
   provider: string;
-  authKind: string;
-  status: string;
-  scopes: string | null;
-  providerAccountId: string | null;
-  providerAccountEmail: string | null;
-  createdAt: string;
-  updatedAt: string;
 }
 
-export interface IIdentityView {
+export interface IGrantVerifier {
+  codeVerifier: string;
+}
+
+export interface IOAuthConnectionSave {
+  identity: TIdentityRow;
+  provider: string;
+  grant: IGoogleGrant;
+  staleConnectionId: string | undefined;
+}
+
+export interface IConnectionOwnership {
+  connectionId: string;
+  userId: string;
+}
+
+export interface IProviderSlot {
+  isTaken: boolean;
+  staleConnectionId: string | undefined;
+}
+
+export interface IApiKeyConnectInput {
+  provider: string;
+  apiKey: string;
+  email: string | undefined;
+  site: string | undefined;
+}
+
+export interface IJiraApiKey {
+  provider: EProvider.JIRA;
+  credentials: IJiraCredentials;
+}
+
+export interface ILinearApiKey {
+  provider: EProvider.LINEAR;
+  apiKey: string;
+}
+
+export interface IOAuthConnectionInput {
   id: string;
-  email: string;
-  displayName: string | null;
-  avatarUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
-  connections: IIdentityConnectionView[];
+  identityId: string;
+  provider: string;
+  refreshToken: string;
+  expiresInSeconds: number | undefined;
+  profile: IGoogleProfile;
+}
+
+export interface IApiKeyConnectionInput {
+  id: string;
+  identityId: string;
+  provider: string;
+  apiKey: string;
+  account: IProviderAccount;
 }

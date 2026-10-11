@@ -1,3 +1,3 @@
-import type { createAuth } from "#api/modules/auth/auth.service";
+import type { unauthorizedError } from "#api/modules/auth/auth.model";
 
-export type TAuth = ReturnType<typeof createAuth>;
+export type TUnauthorizedError = typeof unauthorizedError.static;

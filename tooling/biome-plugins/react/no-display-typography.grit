@@ -1,0 +1,17 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsStringLiteralExpression() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:])(?:font-serif|text-(?:2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl))(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Set headings and display text with <Heading as=... variant=...> from @/features/app-shell/components/Heading, not with font-serif or text-2xl and larger.")
+  },
+  JsxString() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:])(?:font-serif|text-(?:2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl))(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Set headings and display text with <Heading as=... variant=...> from @/features/app-shell/components/Heading, not with font-serif or text-2xl and larger.")
+  },
+  JsTemplateChunkElement() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:])(?:font-serif|text-(?:2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl))(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Set headings and display text with <Heading as=... variant=...> from @/features/app-shell/components/Heading, not with font-serif or text-2xl and larger.")
+  }
+}

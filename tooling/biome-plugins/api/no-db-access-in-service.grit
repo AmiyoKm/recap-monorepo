@@ -1,0 +1,13 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  `db.select` as $call,
+  `db.insert` as $call,
+  `db.update` as $call,
+  `db.delete` as $call,
+  `db.execute` as $call,
+  `db.transaction` as $call
+} where {
+  register_diagnostic(span=$call, message="Services orchestrate. Put Postgres access in the <feature>.repository.ts file.")
+}

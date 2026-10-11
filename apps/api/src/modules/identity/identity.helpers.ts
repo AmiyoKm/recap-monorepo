@@ -1,86 +1,210 @@
 import { randomBytes } from "node:crypto";
 
 import {
-  CONNECTION_TOKEN_KEY_PREFIX,
+  GOOGLE_CALENDAR_SCOPES,
   GRANT_STATE_BYTES,
-  HTTP_BAD_GATEWAY_STATUS,
-  HTTP_BAD_REQUEST_STATUS,
-  HTTP_CONFLICT_STATUS,
-  HTTP_NOT_FOUND_STATUS,
-  PENDING_GRANT_KEY_PREFIX,
+  PROVIDER_REGISTRY,
+  UNIQUE_VIOLATION_CODE,
 } from "#api/modules/identity/identity.constants";
-import { EGrantPurpose, EIdentityMessages } from "#api/modules/identity/identity.enums";
+import {
+  EConnectionStatus,
+  EGrantPurpose,
+  EIdentityAuthKind,
+  EIdentityMessages,
+  EIdentityRedisKeyPrefix,
+} from "#api/modules/identity/identity.enums";
 import type {
-  IApiKeyConnectFailure,
-  IPendingGrant,
+  IApiKeyConnectionInput,
+  IOAuthConnectionInput,
   IProviderRegistration,
 } from "#api/modules/identity/identity.interfaces";
+import type {
+  TConnectionResponse,
+  TConnectionRow,
+  TIdentityResponse,
+  TIdentityRow,
+  TPendingGrant,
+} from "#api/modules/identity/identity.types";
+import { encryptSecret } from "#api/shared/crypto/crypto.helpers";
+import { dayjs } from "#api/shared/date/date.helpers";
+import { ENV } from "#api/shared/env/env.constants";
 import { toStringRecord } from "#api/shared/json/json.helpers";
+import type { IGoogleProfile } from "#api/shared/providers/google/google.interfaces";
+import { EProvider } from "#api/shared/providers/providers.enums";
 
 export function createGrantState(): string {
   return randomBytes(GRANT_STATE_BYTES).toString("base64url");
 }
 
-export function pendingGrantKey(keyPrefix: string, state: string): string {
-  return `${keyPrefix}${PENDING_GRANT_KEY_PREFIX}${state}`;
+export function pendingGrantKey(state: string): string {
+  return `${ENV.redisKeyPrefix}${EIdentityRedisKeyPrefix.PENDING_GRANT}${state}`;
 }
 
-export function connectionTokenKey(keyPrefix: string, connectionId: string): string {
-  return `${keyPrefix}${CONNECTION_TOKEN_KEY_PREFIX}${connectionId}`;
+export function connectionTokenKey(connectionId: string): string {
+  return `${ENV.redisKeyPrefix}${EIdentityRedisKeyPrefix.CONNECTION_TOKEN}${connectionId}`;
 }
 
 export function findProviderRegistration(
   registry: Record<string, IProviderRegistration>,
   provider: string,
 ): IProviderRegistration | undefined {
-  for (const [name, registration] of Object.entries(registry)) {
-    if (name === provider) {
-      return registration;
-    }
+  if (!Object.hasOwn(registry, provider)) {
+    return undefined;
   }
-  return undefined;
+  return registry[provider];
 }
 
-export function parsePendingGrant(stored: string): IPendingGrant | null {
+export function isWiredProvider(provider: string, authKind: EIdentityAuthKind): boolean {
+  const registration = findProviderRegistration(PROVIDER_REGISTRY, provider);
+  return registration?.wired === true && registration.authKind === authKind;
+}
+
+export function parsePendingGrant(stored: string): TPendingGrant | null {
+  try {
+    return readPendingGrant(stored);
+  } catch {
+    return null;
+  }
+}
+
+function readPendingGrant(stored: string): TPendingGrant | null {
   const parsed: unknown = JSON.parse(stored);
   const record = toStringRecord(parsed);
   if (!record) {
     return null;
   }
-  const userId = record["userId"];
-  const purpose = record["purpose"];
-  if (typeof userId !== "string" || typeof purpose !== "string") {
+  const { userId, purpose, codeVerifier } = record;
+  if (typeof userId !== "string" || typeof codeVerifier !== "string") {
     return null;
   }
-  if (purpose !== EGrantPurpose.IDENTITY_CREATE && purpose !== EGrantPurpose.CONNECTION) {
+  if (purpose === EGrantPurpose.IDENTITY_CREATE) {
+    return { userId, purpose, codeVerifier };
+  }
+  if (purpose !== EGrantPurpose.CONNECTION) {
     return null;
   }
-  const identityId = record["identityId"];
-  if (identityId !== undefined && typeof identityId !== "string") {
+  const { identityId, provider } = record;
+  if (typeof identityId !== "string" || typeof provider !== "string") {
     return null;
   }
-  const provider = record["provider"];
-  if (provider !== undefined && typeof provider !== "string") {
-    return null;
-  }
-  return { userId, purpose, identityId, provider };
+  return { userId, purpose, identityId, provider, codeVerifier };
 }
 
-export function apiKeyConnectFailure(error: unknown): IApiKeyConnectFailure | null {
-  if (!(error instanceof Error)) {
-    return null;
+function errorCodes(error: unknown): unknown[] {
+  if (typeof error !== "object" || error === null) {
+    return [];
   }
-  if (error.message === EIdentityMessages.IDENTITY_NOT_FOUND) {
-    return { code: HTTP_NOT_FOUND_STATUS, message: error.message };
+  const codes: unknown[] = [];
+  if ("code" in error) {
+    codes.push(error.code);
   }
-  if (error.message === EIdentityMessages.INVALID_API_KEY) {
-    return { code: HTTP_BAD_REQUEST_STATUS, message: error.message };
+  if ("errno" in error) {
+    codes.push(error.errno);
   }
-  if (error.message === EIdentityMessages.CONNECTION_EXISTS) {
-    return { code: HTTP_CONFLICT_STATUS, message: error.message };
+  if ("cause" in error) {
+    codes.push(...errorCodes(error.cause));
   }
-  if (error.message === EIdentityMessages.API_KEY_VALIDATION_FAILED) {
-    return { code: HTTP_BAD_GATEWAY_STATUS, message: error.message };
+  return codes;
+}
+
+export function isUniqueViolation(error: unknown): boolean {
+  return errorCodes(error).includes(UNIQUE_VIOLATION_CODE);
+}
+
+function toKnownValue<TValue extends string>(values: TValue[], value: string): TValue {
+  const match = values.find((entry) => entry === value);
+  if (match === undefined) {
+    throw new Error(EIdentityMessages.UNKNOWN_CONNECTION_VALUE, { cause: value });
   }
-  return null;
+  return match;
+}
+
+export function toConnectionView(row: TConnectionRow): TConnectionResponse {
+  return {
+    id: row.id,
+    provider: toKnownValue(Object.values(EProvider), row.provider),
+    authKind: toKnownValue(Object.values(EIdentityAuthKind), row.authKind),
+    status: toKnownValue(Object.values(EConnectionStatus), row.status),
+    scopes: row.scopes,
+    providerAccountId: row.providerAccountId,
+    providerAccountEmail: row.providerAccountEmail,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+export function toIdentityView(
+  row: TIdentityRow,
+  connections: TConnectionRow[],
+): TIdentityResponse {
+  return {
+    id: row.id,
+    email: row.email,
+    displayName: row.displayName,
+    avatarUrl: row.avatarUrl,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    connections: connections
+      .filter((connection) => connection.identityId === row.id)
+      .map((connection) => toConnectionView(connection)),
+  };
+}
+
+export function buildIdentityRow(
+  id: string,
+  userId: string,
+  profile: IGoogleProfile,
+): TIdentityRow {
+  const now = dayjs().toISOString();
+  return {
+    id,
+    userId,
+    googleSub: profile.sub,
+    email: profile.email,
+    displayName: profile.name ?? null,
+    avatarUrl: profile.picture ?? null,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export function buildOAuthConnectionRow(input: IOAuthConnectionInput): TConnectionRow {
+  const now = dayjs();
+  return {
+    id: input.id,
+    identityId: input.identityId,
+    provider: input.provider,
+    authKind: EIdentityAuthKind.OAUTH,
+    status: EConnectionStatus.ACTIVE,
+    scopes: GOOGLE_CALENDAR_SCOPES.join(" "),
+    refreshTokenEnc: encryptSecret(ENV.connectionEncryptionKey, input.refreshToken),
+    apiKeyEnc: null,
+    accessTokenExpiresAt:
+      input.expiresInSeconds === undefined
+        ? null
+        : now.add(input.expiresInSeconds, "second").toISOString(),
+    providerAccountId: input.profile.sub,
+    providerAccountEmail: input.profile.email,
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  };
+}
+
+export function buildApiKeyConnectionRow(input: IApiKeyConnectionInput): TConnectionRow {
+  const now = dayjs().toISOString();
+  return {
+    id: input.id,
+    identityId: input.identityId,
+    provider: input.provider,
+    authKind: EIdentityAuthKind.API_KEY,
+    status: EConnectionStatus.ACTIVE,
+    scopes: null,
+    refreshTokenEnc: null,
+    apiKeyEnc: encryptSecret(ENV.connectionEncryptionKey, input.apiKey),
+    accessTokenExpiresAt: null,
+    providerAccountId: input.account.accountId,
+    providerAccountEmail: input.account.accountEmail,
+    createdAt: now,
+    updatedAt: now,
+  };
 }

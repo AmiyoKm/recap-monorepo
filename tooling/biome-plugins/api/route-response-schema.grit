@@ -1,0 +1,22 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+pattern route_method() {
+  or {
+    `get`,
+    `post`,
+    `put`,
+    `patch`,
+    `delete`
+  }
+}
+
+or {
+  `$app.$method($path, $handler)` as $route where { $method <: route_method() },
+  `$app.$method($path, $handler, $options)` as $route where {
+    $method <: route_method(),
+    not $options <: r"(?s).*\bresponse\s*:.*"
+  }
+} where {
+  register_diagnostic(span=$route, message="Every route declares a response schema per status code (response: { 200: ..., 404: ... }). Eden uses it to type data and errors on the web.")
+}

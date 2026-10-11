@@ -9,14 +9,17 @@ export const identity = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    googleSub: text("google_sub").notNull().unique(),
+    googleSub: text("google_sub").notNull(),
     email: text("email").notNull(),
     displayName: text("display_name"),
     avatarUrl: text("avatar_url"),
     createdAt: timestamp("created_at", { mode: "string" }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "string" }).notNull(),
   },
-  (table) => [index("identity_user_id_idx").on(table.userId)],
+  (table) => [
+    index("identity_user_id_idx").on(table.userId),
+    uniqueIndex("identity_user_google_sub_uidx").on(table.userId, table.googleSub),
+  ],
 );
 
 export const connection = pgTable(

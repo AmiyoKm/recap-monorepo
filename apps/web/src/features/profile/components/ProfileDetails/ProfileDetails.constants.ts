@@ -1,0 +1,10 @@
+export const PROFILE_DETAILS_TITLE = "Account details";
+export const PROFILE_DETAILS_NAME = "Name";
+export const PROFILE_DETAILS_EMAIL = "Email";
+export const PROFILE_DETAILS_EMAIL_STATUS = "Email status";
+export const PROFILE_DETAILS_VERIFIED = "Verified";
+export const PROFILE_DETAILS_NOT_VERIFIED = "Not verified";
+export const PROFILE_DETAILS_MEMBER_SINCE = "Member since";
+export const PROFILE_DETAILS_DATE_FORMAT = "D MMMM YYYY";
+export const PROFILE_DETAILS_WORK_ACCOUNTS = "Work accounts";
+export const PROFILE_DETAILS_MANAGE = "Manage";

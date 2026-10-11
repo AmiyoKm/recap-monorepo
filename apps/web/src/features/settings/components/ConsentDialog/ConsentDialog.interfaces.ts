@@ -12,5 +12,12 @@ export interface IConsentDialogProps {
   copyText: string;
   copiedText: string;
   openText: string;
+  doneText: string;
   onDialogOpen: () => void;
+}
+
+export interface IConsentCompletionOptions {
+  isWaiting: boolean;
+  doneText: string;
+  onDone: () => void;
 }

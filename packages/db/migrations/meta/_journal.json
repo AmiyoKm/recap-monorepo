@@ -15,6 +15,13 @@
       "when": 1791700747847,
       "tag": "0001_identities-and-connections",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791707721541,
+      "tag": "0002_identity-sub-per-user",
+      "breakpoints": true
     }
   ]
 }

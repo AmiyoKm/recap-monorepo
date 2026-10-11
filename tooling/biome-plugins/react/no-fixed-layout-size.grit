@@ -1,0 +1,17 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsStringLiteralExpression() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`])(?:(?:min-)?w-(?:6[4-9]|[7-9][0-9]|[0-9]{3})|(?:min-)?h-(?:3[2-9]|[4-9][0-9]|[0-9]{3}))(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Do not fix a large width or height. Let content set the height, and use w-full with a max-w-* step for width. Set a fixed size only at a breakpoint (md:w-80).")
+  },
+  JsxString() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`])(?:(?:min-)?w-(?:6[4-9]|[7-9][0-9]|[0-9]{3})|(?:min-)?h-(?:3[2-9]|[4-9][0-9]|[0-9]{3}))(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Do not fix a large width or height. Let content set the height, and use w-full with a max-w-* step for width. Set a fixed size only at a breakpoint (md:w-80).")
+  },
+  JsTemplateChunkElement() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`])(?:(?:min-)?w-(?:6[4-9]|[7-9][0-9]|[0-9]{3})|(?:min-)?h-(?:3[2-9]|[4-9][0-9]|[0-9]{3}))(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Do not fix a large width or height. Let content set the height, and use w-full with a max-w-* step for width. Set a fixed size only at a breakpoint (md:w-80).")
+  }
+}

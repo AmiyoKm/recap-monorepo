@@ -36,7 +36,7 @@ Activity is anchored to professional identities, not to a login. A user proves o
 ## Brand Commitments
 
 - Name: Recap.
-- Visual world: the incumbent shadcn/ui implementation with the owner's custom Tailwind theme in `apps/web/src/index.css` is the binding visual world for app surfaces (confirmed 2026-10-11). No separate logo or brand assets exist yet.
+- Visual world: the category standard, played straight (chosen 2026-10-11, replacing the earlier cream, serif and terracotta theme). Recap must sit alongside Linear and Raycast at their craft level: cool zinc neutrals, one indigo accent, Inter, a quiet sidebar, no decoration. The logo is a small indigo square with three digest bars.
 
 ## Evidence on Hand
 

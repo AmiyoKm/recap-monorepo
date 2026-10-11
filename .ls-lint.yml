@@ -7,6 +7,27 @@ ls:
     .ts: exists:0
     .*.ts: kebab-case
 
+  apps/api/tests:
+    .dir: kebab-case
+    .ts: exists:0
+    .*.ts: exists:0
+
+  apps/api/tests/fixtures:
+    .ts: exists:0
+    .*.ts: exists:0
+    .constants.ts: regex:fixtures
+    .helpers.ts: regex:fixtures
+
+  apps/api/tests/*/**:
+    .dir: kebab-case
+    .ts: exists:0
+    .*.ts: exists:0
+    .spec.ts: kebab-case
+    .*.spec.ts: kebab-case
+    .constants.ts: regex:${0}
+    .interfaces.ts: regex:${0}
+    .fixtures.ts: regex:${0}
+
   packages/db/src/schema:
     .ts: kebab-case
 
@@ -27,6 +48,7 @@ ls:
     .*.ts: exists:0
     .module.ts: regex:${0}
     .service.ts: regex:${0}
+    .repository.ts: regex:${0}
     .model.ts: regex:${0}
     .types.ts: regex:${0}
     .interfaces.ts: regex:${0}
@@ -40,7 +62,20 @@ ls:
     .*.ts: exists:0
     .module.ts: regex:${0}
     .service.ts: regex:${0}
+    .client.ts: regex:${0}
     .model.ts: regex:${0}
+    .types.ts: regex:${0}
+    .interfaces.ts: regex:${0}
+    .enums.ts: regex:${0}
+    .constants.ts: regex:${0}
+    .helpers.ts: regex:${0}
+
+  apps/api/src/shared/providers/*:
+    .dir: kebab-case
+    .ts: exists:0
+    .*.ts: exists:0
+    .service.ts: regex:${0}
+    .client.ts: regex:${0}
     .types.ts: regex:${0}
     .interfaces.ts: regex:${0}
     .enums.ts: regex:${0}

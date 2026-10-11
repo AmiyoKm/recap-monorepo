@@ -1,6 +1,5 @@
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -9,8 +8,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { useConsentCompletion } from "@/features/settings/components/ConsentDialog/ConsentDialog.hooks";
 import type { IConsentDialogProps } from "@/features/settings/components/ConsentDialog/ConsentDialog.interfaces";
+import { ConsentLink } from "@/features/settings/components/ConsentDialog/components/ConsentLink";
 
 export function ConsentDialog({
   trigger,
@@ -24,26 +24,22 @@ export function ConsentDialog({
   copyText,
   copiedText,
   openText,
+  doneText,
   onDialogOpen,
 }: IConsentDialogProps) {
   const [open, setOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  async function copyAuthorizeUrl(url: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  }
+  const { markBaseline } = useConsentCompletion({
+    isWaiting: open && Boolean(authorizeUrl),
+    doneText,
+    onDone: () => setOpen(false),
+  });
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        setCopied(false);
+        markBaseline();
         if (next) {
           onDialogOpen();
         }
@@ -62,19 +58,12 @@ export function ConsentDialog({
           </p>
         ) : null}
         {authorizeUrl ? (
-          <div className="flex flex-col gap-3">
-            <Input readOnly value={authorizeUrl} />
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => void copyAuthorizeUrl(authorizeUrl)}>
-                {copied ? copiedText : copyText}
-              </Button>
-              <Button asChild>
-                <a href={authorizeUrl} target="_blank" rel="noreferrer">
-                  {openText}
-                </a>
-              </Button>
-            </div>
-          </div>
+          <ConsentLink
+            url={authorizeUrl}
+            copyText={copyText}
+            copiedText={copiedText}
+            openText={openText}
+          />
         ) : null}
       </DialogContent>
     </Dialog>

@@ -1,68 +1,60 @@
-import { useDeleteIdentityMutation } from "@/api/identity/identity.mutations";
+import { userInitial } from "@/api/auth/auth.helpers";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ConnectApiKeyDialog } from "@/features/settings/components/ConnectApiKeyDialog";
-import { ConnectCalendarDialog } from "@/features/settings/components/ConnectCalendarDialog";
-import { ConnectionRow } from "@/features/settings/components/ConnectionRow";
 import {
-  IDENTITY_CONNECT_NOTE,
-  IDENTITY_CONNECTIONS_HEADING,
-  IDENTITY_NO_CONNECTIONS,
-  IDENTITY_REMOVE,
-  IDENTITY_REMOVING,
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { ConnectorRow } from "@/features/settings/components/ConnectorRow";
+import { IdentityMenu } from "@/features/settings/components/IdentityCard/components/IdentityMenu";
+import {
+  IDENTITY_CONNECTORS,
+  IDENTITY_TOOLS_LABEL,
 } from "@/features/settings/components/IdentityCard/IdentityCard.constants";
-import { identityInitials } from "@/features/settings/components/IdentityCard/IdentityCard.helpers";
 import type { IIdentityCardProps } from "@/features/settings/components/IdentityCard/IdentityCard.interfaces";
 
 export function IdentityCard({ identity }: IIdentityCardProps) {
-  const removeIdentity = useDeleteIdentityMutation();
+  const name = identity.displayName ?? identity.email;
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Avatar>
-              {identity.avatarUrl ? (
-                <AvatarImage
-                  src={identity.avatarUrl}
-                  alt={identity.displayName ?? identity.email}
-                />
-              ) : null}
-              <AvatarFallback>
-                {identityInitials(identity.displayName, identity.email)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col">
-              <CardTitle>{identity.displayName ?? identity.email}</CardTitle>
-              <CardDescription>{identity.email}</CardDescription>
-            </div>
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar className="size-9 rounded-lg after:rounded-lg">
+            {identity.avatarUrl ? (
+              <AvatarImage src={identity.avatarUrl} alt={name} className="rounded-lg" />
+            ) : null}
+            <AvatarFallback className="rounded-lg font-medium text-foreground">
+              {userInitial(identity.displayName ?? "", identity.email)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <CardTitle className="truncate text-sm font-semibold">{name}</CardTitle>
+            {identity.displayName ? (
+              <CardDescription className="truncate">{identity.email}</CardDescription>
+            ) : null}
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={removeIdentity.isPending}
-            onClick={() => removeIdentity.mutate(identity.id)}
-          >
-            {removeIdentity.isPending ? IDENTITY_REMOVING : IDENTITY_REMOVE}
-          </Button>
         </div>
+        <CardAction>
+          <IdentityMenu identityId={identity.id} />
+        </CardAction>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium">{IDENTITY_CONNECTIONS_HEADING}</h2>
-        {identity.connections.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{IDENTITY_NO_CONNECTIONS}</p>
-        ) : null}
-        {identity.connections.map((connection) => (
-          <ConnectionRow key={connection.id} connection={connection} />
-        ))}
-        <div className="flex flex-wrap items-center gap-2">
-          <ConnectCalendarDialog identityId={identity.id} />
-          <ConnectApiKeyDialog identityId={identity.id} provider="jira" />
-          <ConnectApiKeyDialog identityId={identity.id} provider="linear" />
-        </div>
-        <p className="text-sm text-muted-foreground">{IDENTITY_CONNECT_NOTE}</p>
+      <CardContent>
+        <ul aria-label={IDENTITY_TOOLS_LABEL} className="flex flex-col divide-y border-t">
+          {IDENTITY_CONNECTORS.map((provider) => (
+            <ConnectorRow
+              key={provider}
+              identityId={identity.id}
+              provider={provider}
+              connection={identity.connections.find(
+                (connection) => connection.provider === provider,
+              )}
+            />
+          ))}
+        </ul>
       </CardContent>
     </Card>
   );

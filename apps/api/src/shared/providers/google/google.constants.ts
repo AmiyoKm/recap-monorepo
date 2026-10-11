@@ -1,0 +1,1 @@
+export const GOOGLE_REQUEST_TIMEOUT_MS = 10000;

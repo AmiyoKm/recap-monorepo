@@ -3,7 +3,7 @@ export interface IEdenError {
   value: unknown;
 }
 
-export interface IEdenResult<TData> {
+export interface IEdenResult<TData, TError extends IEdenError = IEdenError> {
   data: TData | null;
-  error: IEdenError | null;
+  error: TError | null;
 }

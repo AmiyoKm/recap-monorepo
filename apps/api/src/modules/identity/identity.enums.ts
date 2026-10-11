@@ -1,12 +1,3 @@
-export enum EIdentityProvider {
-  GOOGLE_CALENDAR = "google-calendar",
-  JIRA = "jira",
-  LINEAR = "linear",
-  SLACK = "slack",
-  GOOGLE_CHAT = "google-chat",
-  GITHUB = "github",
-}
-
 export enum EIdentityAuthKind {
   OAUTH = "oauth",
   API_KEY = "api_key",
@@ -27,8 +18,10 @@ export enum EIdentityMessages {
   CONNECTION_NOT_FOUND = "Connection was not found",
   PROVIDER_UNSUPPORTED = "That provider cannot be connected yet",
   INVALID_API_KEY = "API key is invalid",
+  JIRA_DETAILS_REQUIRED = "Jira needs an email and site along with the API key",
   CONNECTION_EXISTS = "Connection already exists for this provider",
   API_KEY_VALIDATION_FAILED = "Provider check failed, try again",
+  UNKNOWN_CONNECTION_VALUE = "Connection row holds an unknown value",
 }
 
 export enum EIdentityConnectError {
@@ -36,4 +29,9 @@ export enum EIdentityConnectError {
   ALREADY_CONNECTED = "already_connected",
   SUB_MISMATCH = "sub_mismatch",
   FAILED = "failed",
+}
+
+export enum EIdentityRedisKeyPrefix {
+  PENDING_GRANT = "pending-grant:",
+  CONNECTION_TOKEN = "connection-token:",
 }

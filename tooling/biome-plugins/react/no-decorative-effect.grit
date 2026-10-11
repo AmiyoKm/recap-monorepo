@@ -1,0 +1,17 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsStringLiteralExpression() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:])(?:bg-clip-text|bg-(?:linear|radial|conic|gradient)-[a-z0-9-]+|backdrop-blur(?:-[a-z0-9]+)?|shadow-\[[^\]]+\]|border-[lrse]-(?:[2-8]|\[[^\]]+\]))(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Decorative effect not allowed by the design rules: gradients, gradient text, backdrop blur, custom shadows and thick side borders. Use theme surfaces, the shadow-* scale and 1px borders.")
+  },
+  JsxString() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:])(?:bg-clip-text|bg-(?:linear|radial|conic|gradient)-[a-z0-9-]+|backdrop-blur(?:-[a-z0-9]+)?|shadow-\[[^\]]+\]|border-[lrse]-(?:[2-8]|\[[^\]]+\]))(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Decorative effect not allowed by the design rules: gradients, gradient text, backdrop blur, custom shadows and thick side borders. Use theme surfaces, the shadow-* scale and 1px borders.")
+  },
+  JsTemplateChunkElement() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:])(?:bg-clip-text|bg-(?:linear|radial|conic|gradient)-[a-z0-9-]+|backdrop-blur(?:-[a-z0-9]+)?|shadow-\[[^\]]+\]|border-[lrse]-(?:[2-8]|\[[^\]]+\]))(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Decorative effect not allowed by the design rules: gradients, gradient text, backdrop blur, custom shadows and thick side borders. Use theme surfaces, the shadow-* scale and 1px borders.")
+  }
+}
