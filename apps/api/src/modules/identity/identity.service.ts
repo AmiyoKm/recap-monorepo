@@ -9,7 +9,13 @@ import {
   IDENTITY_CREATE_SCOPES,
   PENDING_GRANT_TTL_SECONDS,
 } from "#api/modules/identity/identity.constants";
-import { EGrantPurpose, EIdentityConnectError } from "#api/modules/identity/identity.enums";
+import {
+  EConnectionStatus,
+  EGrantPurpose,
+  EIdentityAuthKind,
+  EIdentityConnectError,
+  EIdentityMessages,
+} from "#api/modules/identity/identity.enums";
 import {
   createGrantState,
   parsePendingGrant,
@@ -22,7 +28,10 @@ import type {
   IPendingGrant,
 } from "#api/modules/identity/identity.interfaces";
 import type { TConnectionRow, TIdentityRow } from "#api/modules/identity/identity.types";
+import { encryptSecret } from "#api/shared/crypto/crypto.helpers";
 import { dayjs } from "#api/shared/date/date.helpers";
+import { EProviderMessages } from "#api/shared/provider/provider.enums";
+import type { IApiKeyValidationResult } from "#api/shared/provider/provider.interfaces";
 import { ERedisCommand, ERedisSetOption } from "#api/shared/redis/redis.enums";
 
 function toConnectionView(row: TConnectionRow): IIdentityConnectionView {
@@ -161,6 +170,71 @@ export async function completeGoogleCallback(
     return { redirectUrl: settingsErrorUrl(deps.webOrigin, EIdentityConnectError.UNSUPPORTED) };
   }
   return completeIdentityCreate(deps, grant, input.code);
+}
+
+export async function connectApiKeyConnection(
+  deps: Pick<IIdentityDeps, "db" | "providerClient" | "encryptionKey">,
+  userId: string,
+  identityId: string,
+  providerName: string,
+  apiKey: string,
+): Promise<IIdentityConnectionView> {
+  const owned = await deps.db
+    .select({ id: schema.identity.id })
+    .from(schema.identity)
+    .where(and(eq(schema.identity.id, identityId), eq(schema.identity.userId, userId)));
+  if (owned.length === 0) {
+    throw new Error(EIdentityMessages.IDENTITY_NOT_FOUND);
+  }
+  let validation: IApiKeyValidationResult;
+  try {
+    validation = await deps.providerClient.validateApiKey(providerName, apiKey);
+  } catch (error) {
+    if (error instanceof Error && error.message === EProviderMessages.INVALID_API_KEY) {
+      throw new Error(EIdentityMessages.INVALID_API_KEY);
+    }
+    throw new Error(EIdentityMessages.API_KEY_VALIDATION_FAILED, { cause: error });
+  }
+  const existing = await deps.db
+    .select({ id: schema.connection.id })
+    .from(schema.connection)
+    .where(
+      and(
+        eq(schema.connection.identityId, identityId),
+        eq(schema.connection.provider, providerName),
+      ),
+    );
+  if (existing.length > 0) {
+    throw new Error(EIdentityMessages.CONNECTION_EXISTS);
+  }
+  const now = dayjs().toISOString();
+  const id = randomUUID();
+  await deps.db.insert(schema.connection).values({
+    id,
+    identityId,
+    provider: providerName,
+    authKind: EIdentityAuthKind.API_KEY,
+    status: EConnectionStatus.ACTIVE,
+    scopes: null,
+    refreshTokenEnc: null,
+    apiKeyEnc: encryptSecret(deps.encryptionKey, apiKey),
+    accessTokenExpiresAt: null,
+    providerAccountId: validation.accountId,
+    providerAccountEmail: validation.accountEmail,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return {
+    id,
+    provider: providerName,
+    authKind: EIdentityAuthKind.API_KEY,
+    status: EConnectionStatus.ACTIVE,
+    scopes: null,
+    providerAccountId: validation.accountId,
+    providerAccountEmail: validation.accountEmail,
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 export async function deleteIdentity(

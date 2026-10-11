@@ -14,7 +14,9 @@ import {
   PENDING_GRANT_TTL_SECONDS,
 } from "#api/modules/identity/identity.constants";
 import { EGrantPurpose } from "#api/modules/identity/identity.enums";
+import { decryptSecret } from "#api/shared/crypto/crypto.helpers";
 import type { IEnv } from "#api/shared/env/env.interfaces";
+import { EProviderMessages } from "#api/shared/provider/provider.enums";
 import type {
   IApiKeyValidationResult,
   IAuthorizeUrlInput,
@@ -38,10 +40,13 @@ const TEST_PASSWORD = "test-password-123";
 const HTTP_OK = 200;
 const HTTP_FOUND = 302;
 const HTTP_UNAUTHORIZED = 401;
+const HTTP_BAD_REQUEST = 400;
+const HTTP_CONFLICT = 409;
 const HTTP_NOT_FOUND = 404;
 
 class FakeProviderClient implements IProviderClient {
   readonly profiles = new Map<string, IGoogleUserinfo>();
+  readonly apiKeys = new Map<string, IApiKeyValidationResult>();
   lastAuthorizeInput: IAuthorizeUrlInput | undefined;
 
   buildAuthorizeUrl(input: IAuthorizeUrlInput): string {
@@ -65,8 +70,12 @@ class FakeProviderClient implements IProviderClient {
     return Promise.resolve(profile);
   }
 
-  validateApiKey(): Promise<IApiKeyValidationResult> {
-    return Promise.reject(new Error("Not used in ticket 7"));
+  validateApiKey(providerName: string, key: string): Promise<IApiKeyValidationResult> {
+    const found = this.apiKeys.get(`${providerName}:${key}`);
+    if (!found) {
+      return Promise.reject(new Error(EProviderMessages.INVALID_API_KEY));
+    }
+    return Promise.resolve(found);
   }
 }
 
@@ -408,5 +417,221 @@ describe("work identities", () => {
       }),
     );
     expect(response.status).toBe(HTTP_NOT_FOUND);
+  });
+});
+
+const VALID_JIRA_KEY = "valid-jira-api-key-12345678";
+const VALID_LINEAR_KEY = "valid-linear-api-key-12345678";
+const JIRA_ACCOUNT: IApiKeyValidationResult = {
+  accountId: "jira-account-1",
+  accountEmail: "dev@employer.example",
+};
+const LINEAR_ACCOUNT: IApiKeyValidationResult = {
+  accountId: "linear-user-1",
+  accountEmail: "dev@employer.example",
+};
+
+function seedApiKeys(): void {
+  provider.apiKeys.set(`jira:${VALID_JIRA_KEY}`, JIRA_ACCOUNT);
+  provider.apiKeys.set(`linear:${VALID_LINEAR_KEY}`, LINEAR_ACCOUNT);
+}
+
+function connectApiKey(
+  cookie: string,
+  identityId: string,
+  providerName: string,
+  apiKey: string,
+): Promise<Response> {
+  return app.handle(
+    new Request(`${TEST_API_ORIGIN}/identities/${identityId}/connections`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ provider: providerName, apiKey }),
+    }),
+  );
+}
+
+describe("api key connections", () => {
+  test("connects jira with a valid api key", async () => {
+    seedApiKeys();
+    const { cookie } = await signUp(uniqueEmail());
+    provider.profiles.set("code-jira", { ...GOOGLE_PROFILE, sub: "google-sub-jira" });
+    const identityId = await createIdentity(cookie, "code-jira");
+
+    const response = await connectApiKey(cookie, identityId, "jira", VALID_JIRA_KEY);
+    expect(response.status).toBe(HTTP_OK);
+    expect(await response.json()).toEqual({
+      id: expect.any(String),
+      provider: "jira",
+      authKind: "api_key",
+      status: "active",
+      scopes: null,
+      providerAccountId: JIRA_ACCOUNT.accountId,
+      providerAccountEmail: JIRA_ACCOUNT.accountEmail,
+      createdAt: expect.any(String),
+      updatedAt: expect.any(String),
+    });
+
+    const rows = await db.select().from(schema.connection);
+    expect(rows.length).toBe(1);
+    const stored = rows[0];
+    if (!stored) {
+      throw new Error("Connection row is missing");
+    }
+    expect(stored.apiKeyEnc).not.toBeNull();
+    expect(stored.apiKeyEnc).not.toContain(VALID_JIRA_KEY);
+    expect(String(stored.apiKeyEnc).startsWith("v1.")).toBe(true);
+    expect(decryptSecret(TEST_ENCRYPTION_KEY, String(stored.apiKeyEnc))).toBe(VALID_JIRA_KEY);
+    expect(stored.refreshTokenEnc).toBeNull();
+  });
+
+  test("connects linear with a valid api key", async () => {
+    seedApiKeys();
+    const { cookie } = await signUp(uniqueEmail());
+    provider.profiles.set("code-linear", { ...GOOGLE_PROFILE, sub: "google-sub-linear" });
+    const identityId = await createIdentity(cookie, "code-linear");
+
+    const response = await connectApiKey(cookie, identityId, "linear", VALID_LINEAR_KEY);
+    expect(response.status).toBe(HTTP_OK);
+    const body: unknown = await response.json();
+    if (typeof body !== "object" || body === null) {
+      throw new Error("Connect response is not an object");
+    }
+    expect(body).toMatchObject({
+      provider: "linear",
+      authKind: "api_key",
+      status: "active",
+      providerAccountId: LINEAR_ACCOUNT.accountId,
+      providerAccountEmail: LINEAR_ACCOUNT.accountEmail,
+    });
+  });
+
+  test("rejects an invalid api key with a clear error and no row", async () => {
+    seedApiKeys();
+    const { cookie } = await signUp(uniqueEmail());
+    provider.profiles.set("code-badkey", { ...GOOGLE_PROFILE, sub: "google-sub-badkey" });
+    const identityId = await createIdentity(cookie, "code-badkey");
+
+    const response = await connectApiKey(cookie, identityId, "jira", "wrong-key-12345678");
+    expect(response.status).toBe(HTTP_BAD_REQUEST);
+    expect(await response.text()).toContain("invalid");
+    expect(await db.select().from(schema.connection)).toEqual([]);
+  });
+
+  test("refuses a duplicate provider under the same identity", async () => {
+    seedApiKeys();
+    const { cookie } = await signUp(uniqueEmail());
+    provider.profiles.set("code-dup", { ...GOOGLE_PROFILE, sub: "google-sub-dup" });
+    const identityId = await createIdentity(cookie, "code-dup");
+
+    const first = await connectApiKey(cookie, identityId, "jira", VALID_JIRA_KEY);
+    expect(first.status).toBe(HTTP_OK);
+
+    const second = await connectApiKey(cookie, identityId, "jira", VALID_JIRA_KEY);
+    expect(second.status).toBe(HTTP_CONFLICT);
+    expect(await second.text()).toContain("already");
+    expect((await db.select().from(schema.connection)).length).toBe(1);
+  });
+
+  test("allows the same provider under a different identity", async () => {
+    seedApiKeys();
+    const { cookie } = await signUp(uniqueEmail());
+    provider.profiles.set("code-multi-a", { ...GOOGLE_PROFILE, sub: "google-sub-multi-a" });
+    provider.profiles.set("code-multi-b", {
+      ...GOOGLE_PROFILE,
+      sub: "google-sub-multi-b",
+      email: "other@employer.example",
+    });
+    const firstId = await createIdentity(cookie, "code-multi-a");
+    const secondState = await startConnect(cookie);
+    const completed = await completeCallback("code-multi-b", secondState);
+    expect(completed.status).toBe(HTTP_FOUND);
+    const listResponse = await app.handle(
+      new Request(`${TEST_API_ORIGIN}/identities`, { headers: { cookie } }),
+    );
+    const identities: unknown = await listResponse.json();
+    if (!Array.isArray(identities)) {
+      throw new Error("Identity list is not an array");
+    }
+    const second = identities.find((entry): entry is { id: string } => {
+      if (typeof entry !== "object" || entry === null || !("id" in entry)) {
+        return false;
+      }
+      return entry.id !== firstId;
+    });
+    if (!second) {
+      throw new Error("Second identity is missing");
+    }
+
+    expect((await connectApiKey(cookie, firstId, "jira", VALID_JIRA_KEY)).status).toBe(HTTP_OK);
+    expect((await connectApiKey(cookie, second.id, "jira", VALID_JIRA_KEY)).status).toBe(HTTP_OK);
+    expect((await db.select().from(schema.connection)).length).toBe(2);
+  });
+
+  test("refuses to connect to another user's identity", async () => {
+    seedApiKeys();
+    const first = await signUp(uniqueEmail());
+    const second = await signUp(uniqueEmail());
+    provider.profiles.set("code-mine", { ...GOOGLE_PROFILE, sub: "google-sub-mine" });
+    const identityId = await createIdentity(first.cookie, "code-mine");
+
+    const response = await connectApiKey(second.cookie, identityId, "jira", VALID_JIRA_KEY);
+    expect(response.status).toBe(HTTP_NOT_FOUND);
+    expect(await db.select().from(schema.connection)).toEqual([]);
+  });
+
+  test("rejects unauthenticated api key connect", async () => {
+    const response = await app.handle(
+      new Request(`${TEST_API_ORIGIN}/identities/some-id/connections`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: "jira", apiKey: VALID_JIRA_KEY }),
+      }),
+    );
+    expect(response.status).toBe(HTTP_UNAUTHORIZED);
+  });
+
+  test("never leaks secrets in GET identities", async () => {
+    seedApiKeys();
+    const { cookie } = await signUp(uniqueEmail());
+    provider.profiles.set("code-leak", { ...GOOGLE_PROFILE, sub: "google-sub-leak" });
+    const identityId = await createIdentity(cookie, "code-leak");
+    expect((await connectApiKey(cookie, identityId, "jira", VALID_JIRA_KEY)).status).toBe(HTTP_OK);
+
+    const response = await app.handle(
+      new Request(`${TEST_API_ORIGIN}/identities`, { headers: { cookie } }),
+    );
+    expect(response.status).toBe(HTTP_OK);
+    const raw = await response.text();
+    expect(raw).not.toContain(VALID_JIRA_KEY);
+    expect(raw).not.toContain("apiKeyEnc");
+    expect(raw).not.toContain("refreshTokenEnc");
+  });
+
+  test("disconnect removes an api key connection", async () => {
+    seedApiKeys();
+    const { cookie } = await signUp(uniqueEmail());
+    provider.profiles.set("code-disc", { ...GOOGLE_PROFILE, sub: "google-sub-disc" });
+    const identityId = await createIdentity(cookie, "code-disc");
+    const connected = await connectApiKey(cookie, identityId, "linear", VALID_LINEAR_KEY);
+    expect(connected.status).toBe(HTTP_OK);
+    const created: unknown = await connected.json();
+    if (
+      typeof created !== "object" ||
+      created === null ||
+      !("id" in created) ||
+      typeof created.id !== "string"
+    ) {
+      throw new Error("Connection has no id");
+    }
+
+    const deleted = await app.handle(
+      new Request(`${TEST_API_ORIGIN}/connections/${created.id}`, {
+        method: "DELETE",
+        headers: { cookie },
+      }),
+    );
+    expect(deleted.status).toBe(HTTP_OK);
+    expect(await db.select().from(schema.connection)).toEqual([]);
   });
 });

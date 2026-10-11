@@ -4,4 +4,6 @@ export enum EProviderMessages {
   USERINFO_FAILED = "Google userinfo fetch failed",
   INVALID_USERINFO = "Google userinfo response is invalid",
   API_KEY_VALIDATION_UNSUPPORTED = "API key validation is not wired for this provider",
+  INVALID_API_KEY = "API key is invalid",
+  API_KEY_VALIDATION_FAILED = "Provider validation failed",
 }

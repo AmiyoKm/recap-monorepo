@@ -28,6 +28,11 @@ export interface IPendingGrant {
   identityId: string | undefined;
 }
 
+export interface IApiKeyConnectFailure {
+  code: number;
+  message: string;
+}
+
 export interface IIdentityConnectionView {
   id: string;
   provider: string;

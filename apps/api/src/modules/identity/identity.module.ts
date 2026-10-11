@@ -5,14 +5,17 @@ import {
   HTTP_NOT_FOUND_STATUS,
 } from "#api/modules/identity/identity.constants";
 import { EIdentityMessages } from "#api/modules/identity/identity.enums";
+import { apiKeyConnectFailure } from "#api/modules/identity/identity.helpers";
 import type { IIdentityDeps } from "#api/modules/identity/identity.interfaces";
 import {
+  connectApiKeyBody,
   connectionIdParams,
   googleCallbackQuery,
   identityIdParams,
 } from "#api/modules/identity/identity.model";
 import {
   completeGoogleCallback,
+  connectApiKeyConnection,
   deleteConnection,
   deleteIdentity,
   listIdentities,
@@ -37,6 +40,27 @@ export function identityModule(deps: IIdentityDeps) {
     .post("/identities/connect", ({ user }) => startIdentityConnect(deps, user.id), {
       auth: true,
     })
+    .post(
+      "/identities/:identityId/connections",
+      async ({ user, params, body, status }) => {
+        try {
+          return await connectApiKeyConnection(
+            deps,
+            user.id,
+            params.identityId,
+            body.provider,
+            body.apiKey,
+          );
+        } catch (error) {
+          const failure = apiKeyConnectFailure(error);
+          if (!failure) {
+            throw error;
+          }
+          return status(failure.code, failure.message);
+        }
+      },
+      { auth: true, params: identityIdParams, body: connectApiKeyBody },
+    )
     .get(
       GOOGLE_CALLBACK_PATH,
       async ({ query }) => redirect((await completeGoogleCallback(deps, query)).redirectUrl),
