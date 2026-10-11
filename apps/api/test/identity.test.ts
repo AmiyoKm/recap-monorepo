@@ -14,6 +14,7 @@ import {
   PENDING_GRANT_TTL_SECONDS,
 } from "#api/modules/identity/identity.constants";
 import { EGrantPurpose } from "#api/modules/identity/identity.enums";
+import { decryptSecret } from "#api/shared/crypto/crypto.helpers";
 import type { IEnv } from "#api/shared/env/env.interfaces";
 import type {
   IApiKeyValidationResult,
@@ -35,13 +36,19 @@ const KEY_FILL = 7;
 const TEST_ENCRYPTION_KEY = Buffer.alloc(KEY_BYTES, KEY_FILL).toString("base64");
 const TEST_USER_NAME = "Test User";
 const TEST_PASSWORD = "test-password-123";
+const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
+const CALENDAR_READ_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+const CALENDAR_EMAIL = "work@employer.example";
 const HTTP_OK = 200;
 const HTTP_FOUND = 302;
+const HTTP_BAD_REQUEST = 400;
 const HTTP_UNAUTHORIZED = 401;
 const HTTP_NOT_FOUND = 404;
 
 class FakeProviderClient implements IProviderClient {
   readonly profiles = new Map<string, IGoogleUserinfo>();
+  readonly refreshTokens = new Map<string, string | undefined>();
+  readonly tokenExpiries = new Map<string, number | undefined>();
   lastAuthorizeInput: IAuthorizeUrlInput | undefined;
 
   buildAuthorizeUrl(input: IAuthorizeUrlInput): string {
@@ -54,7 +61,13 @@ class FakeProviderClient implements IProviderClient {
     if (!profile) {
       return Promise.reject(new Error("Unknown test code"));
     }
-    return Promise.resolve({ accessToken: input.code, refreshToken: undefined });
+    const refreshToken = this.refreshTokens.has(input.code)
+      ? this.refreshTokens.get(input.code)
+      : `refresh-${input.code}`;
+    const expiresInSeconds = this.tokenExpiries.has(input.code)
+      ? this.tokenExpiries.get(input.code)
+      : DEFAULT_TOKEN_EXPIRY_SECONDS;
+    return Promise.resolve({ accessToken: input.code, refreshToken, expiresInSeconds });
   }
 
   fetchGoogleUserinfo(accessToken: string): Promise<IGoogleUserinfo> {
@@ -173,6 +186,107 @@ function readLocation(response: Response): string {
     throw new Error("Callback response has no location");
   }
   return location;
+}
+
+function startCalendarConnect(
+  cookie: string,
+  identityId: string,
+  providerName = "google-calendar",
+): Promise<Response> {
+  return app.handle(
+    new Request(`${TEST_API_ORIGIN}/identities/${identityId}/connections`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ provider: providerName }),
+    }),
+  );
+}
+
+function readAuthorizeUrl(body: unknown): string {
+  if (typeof body !== "object" || body === null || !("authorizeUrl" in body)) {
+    throw new Error("Connect response has no authorize URL");
+  }
+  const authorizeUrl: unknown = body.authorizeUrl;
+  if (typeof authorizeUrl !== "string") {
+    throw new Error("Authorize URL is not a string");
+  }
+  return authorizeUrl;
+}
+
+async function startCalendarState(cookie: string, identityId: string): Promise<string> {
+  const startResponse = await startCalendarConnect(cookie, identityId);
+  if (startResponse.status !== HTTP_OK) {
+    throw new Error("Calendar connect start failed");
+  }
+  return readState(readAuthorizeUrl(await startResponse.json()));
+}
+
+async function expectStoredTtl(key: string, maxSeconds: number): Promise<void> {
+  const ttl: unknown = await redis.send("TTL", [key]);
+  if (typeof ttl !== "number") {
+    throw new Error("Stored TTL is not a number");
+  }
+  expect(ttl).toBeGreaterThan(0);
+  expect(ttl).toBeLessThanOrEqual(maxSeconds);
+}
+
+async function readOnlyConnectionRow() {
+  const rows = await db.select().from(schema.connection);
+  if (rows.length !== 1) {
+    throw new Error("Connection table does not hold exactly one row");
+  }
+  const row = rows[0];
+  if (!row) {
+    throw new Error("Connection row is missing");
+  }
+  return row;
+}
+
+function readFirstConnection(body: unknown): object {
+  if (!Array.isArray(body) || body.length !== 1) {
+    throw new Error("Identity list is missing the connected identity");
+  }
+  const entry: unknown = body[0];
+  if (typeof entry !== "object" || entry === null || !("connections" in entry)) {
+    throw new Error("Identity entry has no connections");
+  }
+  const links: unknown = entry.connections;
+  if (!Array.isArray(links) || links.length !== 1) {
+    throw new Error("Identity entry is missing the calendar connection");
+  }
+  const link: unknown = links[0];
+  if (typeof link !== "object" || link === null) {
+    throw new Error("Connection entry is not an object");
+  }
+  return link;
+}
+
+async function connectCalendar(
+  cookie: string,
+  identityCode: string,
+  identitySub: string,
+  calendarCode: string,
+  calendarEmail: string,
+): Promise<{ identityId: string; connectionId: string }> {
+  provider.profiles.set(identityCode, { ...GOOGLE_PROFILE, sub: identitySub });
+  const identityId = await createIdentity(cookie, identityCode);
+  const state = await startCalendarState(cookie, identityId);
+  provider.profiles.set(calendarCode, {
+    sub: identitySub,
+    email: calendarEmail,
+    name: "Work User",
+    picture: undefined,
+  });
+  const completed = await completeCallback(calendarCode, state);
+  if (
+    completed.status !== HTTP_FOUND ||
+    readLocation(completed) !==
+      `${TEST_WEB_ORIGIN}/settings?connected=google-calendar&email=${encodeURIComponent(calendarEmail)}`
+  ) {
+    throw new Error("Calendar connect callback failed");
+  }
+  const row = await readOnlyConnectionRow();
+  return { identityId, connectionId: row.id };
 }
 
 const GOOGLE_PROFILE: IGoogleUserinfo = {
@@ -408,5 +522,223 @@ describe("work identities", () => {
       }),
     );
     expect(response.status).toBe(HTTP_NOT_FOUND);
+  });
+});
+
+describe("calendar connections", () => {
+  test("rejects unauthenticated connection start", async () => {
+    const response = await app.handle(
+      new Request(`${TEST_API_ORIGIN}/identities/some-id/connections`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: "google-calendar" }),
+      }),
+    );
+    expect(response.status).toBe(HTTP_UNAUTHORIZED);
+  });
+
+  test("starts calendar connect with calendar scopes and a pending connection grant", async () => {
+    const { cookie, userId } = await signUp(uniqueEmail());
+    provider.profiles.set("code-cal-start", { ...GOOGLE_PROFILE, sub: "google-sub-cal-start" });
+    const identityId = await createIdentity(cookie, "code-cal-start");
+
+    const response = await startCalendarConnect(cookie, identityId);
+    expect(response.status).toBe(HTTP_OK);
+    const authorizeUrl = readAuthorizeUrl(await response.json());
+    expect(provider.lastAuthorizeInput?.scopes).toContain(CALENDAR_READ_SCOPE);
+    const state = readState(authorizeUrl);
+    const stored = await redis.get(`${TEST_REDIS_PREFIX}${PENDING_GRANT_KEY_PREFIX}${state}`);
+    expect(stored).not.toBeNull();
+    const grant: unknown = JSON.parse(stored ?? "");
+    expect(grant).toEqual({
+      userId,
+      purpose: EGrantPurpose.CONNECTION,
+      identityId,
+      provider: "google-calendar",
+    });
+    const ttl: unknown = await redis.send("TTL", [
+      `${TEST_REDIS_PREFIX}${PENDING_GRANT_KEY_PREFIX}${state}`,
+    ]);
+    if (typeof ttl !== "number") {
+      throw new Error("Grant TTL is not a number");
+    }
+    expect(ttl).toBeGreaterThan(0);
+    expect(ttl).toBeLessThanOrEqual(PENDING_GRANT_TTL_SECONDS);
+
+    expect(await db.select().from(schema.connection)).toEqual([]);
+  });
+
+  test("refuses connection start for another user's work identity", async () => {
+    const first = await signUp(uniqueEmail());
+    const second = await signUp(uniqueEmail());
+    provider.profiles.set("code-cal-owned", { ...GOOGLE_PROFILE, sub: "google-sub-cal-owned" });
+    const identityId = await createIdentity(first.cookie, "code-cal-owned");
+
+    const response = await startCalendarConnect(second.cookie, identityId);
+    expect(response.status).toBe(HTTP_NOT_FOUND);
+  });
+
+  test("refuses connection start for an unwired provider", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    provider.profiles.set("code-cal-unwired", { ...GOOGLE_PROFILE, sub: "google-sub-cal-unwired" });
+    const identityId = await createIdentity(cookie, "code-cal-unwired");
+
+    const response = await startCalendarConnect(cookie, identityId, "slack");
+    expect(response.status).toBe(HTTP_BAD_REQUEST);
+  });
+
+  test("connects a calendar under the matching work identity", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    provider.profiles.set("code-cal-id", { ...GOOGLE_PROFILE, sub: "google-sub-cal-ok" });
+    const identityId = await createIdentity(cookie, "code-cal-id");
+
+    const startResponse = await startCalendarConnect(cookie, identityId);
+    expect(startResponse.status).toBe(HTTP_OK);
+    const state = readState(readAuthorizeUrl(await startResponse.json()));
+
+    provider.profiles.set("code-cal-ok", {
+      sub: "google-sub-cal-ok",
+      email: CALENDAR_EMAIL,
+      name: "Work User",
+      picture: undefined,
+    });
+    const completed = await completeCallback("code-cal-ok", state);
+    expect(completed.status).toBe(HTTP_FOUND);
+    expect(readLocation(completed)).toBe(
+      `${TEST_WEB_ORIGIN}/settings?connected=google-calendar&email=${encodeURIComponent(CALENDAR_EMAIL)}`,
+    );
+
+    const row = await readOnlyConnectionRow();
+    expect(row.identityId).toBe(identityId);
+    expect(row.provider).toBe("google-calendar");
+    expect(row.authKind).toBe("oauth");
+    expect(row.status).toBe("active");
+    expect(row.scopes ?? "").toContain(CALENDAR_READ_SCOPE);
+    expect(row.providerAccountId).toBe("google-sub-cal-ok");
+    expect(row.providerAccountEmail).toBe(CALENDAR_EMAIL);
+    if (typeof row.refreshTokenEnc !== "string") {
+      throw new Error("Connection row has no encrypted refresh token");
+    }
+    expect(row.refreshTokenEnc.startsWith("v1.")).toBe(true);
+    expect(row.refreshTokenEnc).not.toContain("refresh-code-cal-ok");
+    expect(decryptSecret(TEST_ENCRYPTION_KEY, row.refreshTokenEnc)).toBe("refresh-code-cal-ok");
+
+    const cached = await redis.get(`${TEST_REDIS_PREFIX}connection-token:${row.id}`);
+    expect(cached).toBe("code-cal-ok");
+    await expectStoredTtl(
+      `${TEST_REDIS_PREFIX}connection-token:${row.id}`,
+      DEFAULT_TOKEN_EXPIRY_SECONDS,
+    );
+
+    const listResponse = await app.handle(
+      new Request(`${TEST_API_ORIGIN}/identities`, { headers: { cookie } }),
+    );
+    expect(listResponse.status).toBe(HTTP_OK);
+    const body: unknown = await listResponse.json();
+    const serialized = JSON.stringify(body);
+    expect(serialized).not.toContain("refreshTokenEnc");
+    expect(serialized).not.toContain("apiKeyEnc");
+    expect(serialized).not.toContain("refresh-code-cal-ok");
+    expect(readFirstConnection(body)).toEqual({
+      id: row.id,
+      provider: "google-calendar",
+      authKind: "oauth",
+      status: "active",
+      scopes: row.scopes,
+      providerAccountId: "google-sub-cal-ok",
+      providerAccountEmail: CALENDAR_EMAIL,
+      createdAt: expect.any(String),
+      updatedAt: expect.any(String),
+    });
+  });
+
+  test("rejects a calendar consent completed with a different google account", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    provider.profiles.set("code-cal-mid", { ...GOOGLE_PROFILE, sub: "google-sub-cal-mid" });
+    const identityId = await createIdentity(cookie, "code-cal-mid");
+    const state = await startCalendarState(cookie, identityId);
+
+    provider.profiles.set("code-cal-wrong", {
+      sub: "google-sub-cal-other",
+      email: "other@employer.example",
+      name: "Other User",
+      picture: undefined,
+    });
+    const completed = await completeCallback("code-cal-wrong", state);
+    expect(completed.status).toBe(HTTP_FOUND);
+    expect(readLocation(completed)).toBe(`${TEST_WEB_ORIGIN}/settings?error=sub_mismatch`);
+
+    expect(await db.select().from(schema.connection)).toEqual([]);
+  });
+
+  test("refuses a second calendar under the same work identity", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    const { identityId } = await connectCalendar(
+      cookie,
+      "code-cal-dup-id",
+      "google-sub-cal-dup",
+      "code-cal-dup-first",
+      CALENDAR_EMAIL,
+    );
+    const state = await startCalendarState(cookie, identityId);
+
+    provider.profiles.set("code-cal-dup-second", {
+      sub: "google-sub-cal-dup",
+      email: CALENDAR_EMAIL,
+      name: "Work User",
+      picture: undefined,
+    });
+    const completed = await completeCallback("code-cal-dup-second", state);
+    expect(completed.status).toBe(HTTP_FOUND);
+    expect(readLocation(completed)).toBe(`${TEST_WEB_ORIGIN}/settings?error=already_connected`);
+
+    expect((await db.select().from(schema.connection)).length).toBe(1);
+  });
+
+  test("redirects to an error when calendar code exchange fails", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    provider.profiles.set("code-cal-ex", { ...GOOGLE_PROFILE, sub: "google-sub-cal-ex" });
+    const identityId = await createIdentity(cookie, "code-cal-ex");
+    const state = await startCalendarState(cookie, identityId);
+
+    const completed = await completeCallback("unknown-calendar-code", state);
+    expect(completed.status).toBe(HTTP_FOUND);
+    expect(readLocation(completed)).toBe(`${TEST_WEB_ORIGIN}/settings?error=failed`);
+
+    expect(await db.select().from(schema.connection)).toEqual([]);
+  });
+
+  test("disconnect removes the calendar connection", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    const { connectionId } = await connectCalendar(
+      cookie,
+      "code-cal-del-id",
+      "google-sub-cal-del",
+      "code-cal-del-cal",
+      CALENDAR_EMAIL,
+    );
+
+    const deleted = await app.handle(
+      new Request(`${TEST_API_ORIGIN}/connections/${connectionId}`, {
+        method: "DELETE",
+        headers: { cookie },
+      }),
+    );
+    expect(deleted.status).toBe(HTTP_OK);
+    expect(await db.select().from(schema.connection)).toEqual([]);
+
+    const listResponse = await app.handle(
+      new Request(`${TEST_API_ORIGIN}/identities`, { headers: { cookie } }),
+    );
+    expect(listResponse.status).toBe(HTTP_OK);
+    const body: unknown = await listResponse.json();
+    if (!Array.isArray(body) || body.length !== 1) {
+      throw new Error("Identity list is missing the identity after disconnect");
+    }
+    const entry: unknown = body[0];
+    if (typeof entry !== "object" || entry === null || !("connections" in entry)) {
+      throw new Error("Identity entry has no connections");
+    }
+    expect(entry.connections).toEqual([]);
   });
 });

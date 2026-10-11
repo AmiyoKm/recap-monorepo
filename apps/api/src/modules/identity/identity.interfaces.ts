@@ -26,6 +26,7 @@ export interface IPendingGrant {
   userId: string;
   purpose: EGrantPurpose;
   identityId: string | undefined;
+  provider: string | undefined;
 }
 
 export interface IIdentityConnectionView {

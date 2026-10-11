@@ -25,11 +25,12 @@ export enum EGrantPurpose {
 export enum EIdentityMessages {
   IDENTITY_NOT_FOUND = "Work Identity was not found",
   CONNECTION_NOT_FOUND = "Connection was not found",
+  PROVIDER_UNSUPPORTED = "That provider cannot be connected yet",
 }
 
 export enum EIdentityConnectError {
   EXPIRED = "expired",
   ALREADY_CONNECTED = "already_connected",
+  SUB_MISMATCH = "sub_mismatch",
   FAILED = "failed",
-  UNSUPPORTED = "unsupported",
 }

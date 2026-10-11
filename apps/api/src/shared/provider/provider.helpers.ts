@@ -3,6 +3,8 @@ import {
   GOOGLE_AUTHORIZATION_CODE_GRANT,
   GOOGLE_AUTHORIZE_ENDPOINT,
   GOOGLE_CODE_RESPONSE_TYPE,
+  GOOGLE_CONSENT_PROMPT,
+  GOOGLE_OFFLINE_ACCESS_TYPE,
   GOOGLE_TOKEN_ENDPOINT,
   GOOGLE_USERINFO_ENDPOINT,
 } from "#api/shared/provider/provider.constants";
@@ -38,6 +40,18 @@ function readStringField(body: unknown, field: string): string | undefined {
   return undefined;
 }
 
+function readNumberField(body: unknown, field: string): number | undefined {
+  const record = toStringRecord(body);
+  if (!record) {
+    return undefined;
+  }
+  const value = record[field];
+  if (typeof value === "number") {
+    return value;
+  }
+  return undefined;
+}
+
 function parseUserinfo(body: unknown): IGoogleUserinfo {
   const sub = readStringField(body, "sub");
   const email = readStringField(body, "email");
@@ -62,6 +76,8 @@ export function createGoogleProviderClient(config: IGoogleOAuthConfig): IProvide
         response_type: GOOGLE_CODE_RESPONSE_TYPE,
         scope: input.scopes.join(" "),
         state: input.state,
+        access_type: GOOGLE_OFFLINE_ACCESS_TYPE,
+        prompt: GOOGLE_CONSENT_PROMPT,
       });
       return `${GOOGLE_AUTHORIZE_ENDPOINT}?${params.toString()}`;
     },
@@ -87,7 +103,11 @@ export function createGoogleProviderClient(config: IGoogleOAuthConfig): IProvide
       if (!accessToken) {
         throw new Error(EProviderMessages.TOKEN_EXCHANGE_FAILED);
       }
-      return { accessToken, refreshToken: readStringField(body, "refresh_token") };
+      return {
+        accessToken,
+        refreshToken: readStringField(body, "refresh_token"),
+        expiresInSeconds: readNumberField(body, "expires_in"),
+      };
     },
 
     async fetchGoogleUserinfo(accessToken: string): Promise<IGoogleUserinfo> {
