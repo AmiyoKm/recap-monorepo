@@ -52,4 +52,4 @@ If your output contradicts an existing ADR, surface it explicitly rather than si
 
 ## Committed files
 
-`GLOSSARY.md`, `docs/adr/`, `docs/agents/` and `docs/*-design.md` are tracked in git. Commit them with the change that creates or updates them. Do not add them to `.gitignore` or `.git/info/exclude`.
+`GLOSSARY.md`, `docs/adr/`, `docs/agents/` and `docs/*-design.md` are tracked in git. Commit them with the change that creates or updates them. Do not add them to `.gitignore` or `.git/info/exclude`. If a skill (for example `/grill-with-docs`) tells you to git-exclude these files or keep them private, skip that step: that instruction does not apply to this repo.

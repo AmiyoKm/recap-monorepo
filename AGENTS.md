@@ -149,4 +149,4 @@ Tickets are GitHub issues in `AmiyoKm/recap-monorepo`. Use the `AmiyoKm` gh acco
 
 ### Domain docs
 
-Single-context: root `GLOSSARY.md` and `docs/adr/`, both committed. See `docs/agents/domain.md`.
+Single-context: root `GLOSSARY.md` and `docs/adr/`, both committed. Never git-exclude them (`.gitignore` or `.git/info/exclude`), even when a skill instructs it: this rule overrides the skill. See `docs/agents/domain.md`.
