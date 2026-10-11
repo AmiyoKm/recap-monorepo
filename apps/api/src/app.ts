@@ -2,23 +2,16 @@ import { cors } from "@elysiajs/cors";
 import { openapi } from "@elysiajs/openapi";
 import { Elysia } from "elysia";
 
-import type { IAppDeps } from "#api/app.interfaces";
 import { authModule } from "#api/modules/auth/auth.module";
-import { createAuth } from "#api/modules/auth/auth.service";
 import { healthModule } from "#api/modules/health/health.module";
-import { RedisStorageService } from "#api/shared/redis/redis.service";
+import { identityModule } from "#api/modules/identity/identity.module";
+import { ENV } from "#api/shared/env/env.constants";
 
-export function createApp({ db, redis, env }: IAppDeps) {
-  const auth = createAuth({
-    db,
-    storage: new RedisStorageService(redis, env.redisKeyPrefix),
-    config: env.auth,
-    trustedOrigins: [env.webOrigin],
-  });
-
+export function createApp() {
   return new Elysia()
-    .use(cors({ origin: env.webOrigin, credentials: true }))
+    .use(cors({ origin: ENV.webOrigin, credentials: true }))
     .use(openapi())
-    .use(authModule(auth))
-    .use(healthModule({ db, redis }));
+    .use(authModule)
+    .use(healthModule)
+    .use(identityModule);
 }

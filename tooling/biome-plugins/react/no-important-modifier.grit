@@ -1,0 +1,17 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsStringLiteralExpression() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:])![a-z][a-z0-9-]*-.*",
+    register_diagnostic(span=$literal, message="Do not use the ! important modifier. Fix the class order or use cn() so the later class wins.")
+  },
+  JsxString() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:])![a-z][a-z0-9-]*-.*",
+    register_diagnostic(span=$literal, message="Do not use the ! important modifier. Fix the class order or use cn() so the later class wins.")
+  },
+  JsTemplateChunkElement() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:])![a-z][a-z0-9-]*-.*",
+    register_diagnostic(span=$literal, message="Do not use the ! important modifier. Fix the class order or use cn() so the later class wins.")
+  }
+}

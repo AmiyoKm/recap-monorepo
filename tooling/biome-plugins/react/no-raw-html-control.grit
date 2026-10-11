@@ -1,0 +1,10 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsxOpeningElement(name=$name),
+  JsxSelfClosingElement(name=$name)
+} where {
+  $name <: r"button|input|select|textarea|label|table|hr|dialog|progress|meter",
+  register_diagnostic(span=$name, message="Use the shadcn component from @/components/ui (Button, Input, NativeSelect, Textarea, Label, Table, Separator, Dialog, Progress), not a raw HTML control.")
+}

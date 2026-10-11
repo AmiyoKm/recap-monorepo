@@ -1,29 +1,32 @@
-import type { RedisClient } from "bun";
-
 import type { SecondaryStorage } from "better-auth";
 
+import { ENV } from "#api/shared/env/env.constants";
+import { redis } from "#api/shared/redis/redis.client";
 import { INCREMENT_WITH_TTL_SCRIPT, SINGLE_KEY_COUNT } from "#api/shared/redis/redis.constants";
 import { ERedisCommand, ERedisMessages, ERedisSetOption } from "#api/shared/redis/redis.enums";
 
 export class RedisStorageService implements SecondaryStorage {
-  constructor(
-    private readonly redis: RedisClient,
-    private readonly keyPrefix: string,
-  ) {}
+  constructor() {
+    this.get = this.get.bind(this);
+    this.getAndDelete = this.getAndDelete.bind(this);
+    this.increment = this.increment.bind(this);
+    this.set = this.set.bind(this);
+    this.delete = this.delete.bind(this);
+  }
 
   get(key: string): Promise<string | null> {
-    return this.redis.get(this.prefixed(key));
+    return redis.get(this.prefixed(key));
   }
 
   getAndDelete(key: string): Promise<unknown> {
-    return this.redis.send(ERedisCommand.GET_AND_DELETE, [this.prefixed(key)]);
+    return redis.send(ERedisCommand.GET_AND_DELETE, [this.prefixed(key)]);
   }
 
   async increment(key: string, ttl: number): Promise<number> {
     if (!Number.isInteger(ttl) || ttl <= 0) {
       throw new TypeError(ERedisMessages.INVALID_TTL);
     }
-    const value = await this.redis.send(ERedisCommand.EVAL, [
+    const value = await redis.send(ERedisCommand.EVAL, [
       INCREMENT_WITH_TTL_SCRIPT,
       SINGLE_KEY_COUNT,
       this.prefixed(key),
@@ -34,10 +37,10 @@ export class RedisStorageService implements SecondaryStorage {
 
   async set(key: string, value: string, ttl?: number): Promise<void> {
     if (!ttl) {
-      await this.redis.set(this.prefixed(key), value);
+      await redis.set(this.prefixed(key), value);
       return;
     }
-    await this.redis.send(ERedisCommand.SET, [
+    await redis.send(ERedisCommand.SET, [
       this.prefixed(key),
       value,
       ERedisSetOption.EXPIRE_IN_SECONDS,
@@ -46,10 +49,10 @@ export class RedisStorageService implements SecondaryStorage {
   }
 
   async delete(key: string): Promise<void> {
-    await this.redis.del(this.prefixed(key));
+    await redis.del(this.prefixed(key));
   }
 
   private prefixed(key: string): string {
-    return `${this.keyPrefix}${key}`;
+    return `${ENV.redisKeyPrefix}${key}`;
   }
 }

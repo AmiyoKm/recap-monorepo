@@ -1,0 +1,6 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+`$app.handle($request)` as $call where {
+  register_diagnostic(span=$call, message="Call API routes through Eden: const api = treaty(createApp()). Eden types the body, query, data and error of each route.")
+}

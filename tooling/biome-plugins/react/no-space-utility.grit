@@ -1,0 +1,17 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsStringLiteralExpression() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:])-?space-[xy]-.*",
+    register_diagnostic(span=$literal, message="Use flex or grid with gap-* to space children, not space-x-* or space-y-*.")
+  },
+  JsxString() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:])-?space-[xy]-.*",
+    register_diagnostic(span=$literal, message="Use flex or grid with gap-* to space children, not space-x-* or space-y-*.")
+  },
+  JsTemplateChunkElement() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`:])-?space-[xy]-.*",
+    register_diagnostic(span=$literal, message="Use flex or grid with gap-* to space children, not space-x-* or space-y-*.")
+  }
+}

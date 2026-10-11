@@ -1,0 +1,1 @@
+export { ConsentLink } from "./ConsentLink";

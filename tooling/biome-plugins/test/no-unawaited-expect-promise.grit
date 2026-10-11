@@ -1,0 +1,10 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  `expect($value).rejects`,
+  `expect($value).resolves`
+} as $assertion where {
+  not $assertion <: within `await $_`,
+  register_diagnostic(span=$assertion, message="Await expect(...).rejects and expect(...).resolves. Without await the test ends before the promise settles and the assertion never runs.")
+}

@@ -16,5 +16,6 @@ export interface IEnv {
   redisUrl: string;
   redisKeyPrefix: string;
   webOrigin: string;
+  connectionEncryptionKey: string;
   auth: IAuthEnv;
 }

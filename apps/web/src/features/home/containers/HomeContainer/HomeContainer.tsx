@@ -1,14 +1,29 @@
-import { useHealthStatusQuery } from "@/api/health/health.queries";
-import { HealthBadge } from "@/features/home/components/HealthBadge";
-import { APP_TITLE } from "@/features/home/containers/HomeContainer/HomeContainer.constants";
+import { Navigate } from "@tanstack/react-router";
+
+import { useSessionQuery } from "@/api/auth/auth.queries";
+import { ClosingBand } from "@/features/home/components/ClosingBand";
+import { HowItWorks } from "@/features/home/components/HowItWorks";
+import { LandingHeader } from "@/features/home/components/LandingHeader";
+import { LandingHero } from "@/features/home/components/LandingHero";
+import { Principles } from "@/features/home/components/Principles";
+import { SourcesTable } from "@/features/home/components/SourcesTable";
 
 export function HomeContainer() {
-  const { isSuccess } = useHealthStatusQuery();
+  const session = useSessionQuery();
 
+  if (session.data) {
+    return <Navigate to="/dashboard" replace />;
+  }
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-4">
-      <h1 className="font-serif text-4xl">{APP_TITLE}</h1>
-      <HealthBadge isHealthy={isSuccess} />
-    </main>
+    <div className="flex min-h-svh flex-col">
+      <LandingHeader />
+      <main className="flex flex-col">
+        <LandingHero />
+        <HowItWorks />
+        <Principles />
+        <SourcesTable />
+        <ClosingBand />
+      </main>
+    </div>
   );
 }

@@ -1,0 +1,1 @@
+export { GoogleMark } from "./GoogleMark";

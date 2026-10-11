@@ -1,0 +1,17 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsStringLiteralExpression() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"\'`:!-])(?:(?:min-|max-)?h-screen|w-screen)(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Use min-h-svh, min-h-dvh or w-full. h-screen and w-screen break on mobile browser toolbars and add a horizontal scrollbar.")
+  },
+  JsxString() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"\'`:!-])(?:(?:min-|max-)?h-screen|w-screen)(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Use min-h-svh, min-h-dvh or w-full. h-screen and w-screen break on mobile browser toolbars and add a horizontal scrollbar.")
+  },
+  JsTemplateChunkElement() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"\'`:!-])(?:(?:min-|max-)?h-screen|w-screen)(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Use min-h-svh, min-h-dvh or w-full. h-screen and w-screen break on mobile browser toolbars and add a horizontal scrollbar.")
+  }
+}

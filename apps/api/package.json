@@ -4,24 +4,32 @@
     "@better-auth/drizzle-adapter": "^1.7.7",
     "@elysiajs/cors": "^1.4.2",
     "@elysiajs/openapi": "^1.4.16",
+    "@linear/sdk": "^97.1.0",
     "@recap/db": "workspace:*",
     "better-auth": "catalog:",
     "dayjs": "catalog:",
     "drizzle-orm": "catalog:",
-    "elysia": "catalog:"
+    "elysia": "catalog:",
+    "google-auth-library": "^11.2.0",
+    "jira.js": "^6.3.0"
   },
   "exports": {
     ".": "./src/app.types.ts"
   },
   "imports": {
-    "#api/*": "./src/*.ts"
+    "#api/*": "./src/*.ts",
+    "#api-tests/*": "./tests/*.ts"
   },
   "private": true,
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
     "build": "bun build src/index.ts --compile --minify --target=bun-linux-x64 --outfile dist/server",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "@elysia/eden": "^1.4.10"
+  }
 }

@@ -1,0 +1,10 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsxOpeningElement(name=$name),
+  JsxSelfClosingElement(name=$name)
+} where {
+  $name <: r"h[1-6]",
+  register_diagnostic(span=$name, message="Use <Heading as={EHeadingTag.H2} variant={EHeadingVariant.SECTION}> from @/features/app-shell/components/Heading, not a raw <h1> to <h6>. The variants keep every page on one type scale.")
+}

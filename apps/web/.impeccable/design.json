@@ -1,0 +1,305 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-11T00:00:00Z",
+  "title": "Design System: Recap",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Signal Indigo",
+        "canonical": "oklch(0.52 0.19 277)",
+        "tonalRamp": [
+          "oklch(0.15 0.19 277)",
+          "oklch(0.25 0.19 277)",
+          "oklch(0.35 0.19 277)",
+          "oklch(0.45 0.19 277)",
+          "oklch(0.55 0.19 277)",
+          "oklch(0.7 0.19 277)",
+          "oklch(0.85 0.19 277)",
+          "oklch(0.95 0.19 277)"
+        ]
+      },
+      "background": {
+        "role": "neutral",
+        "displayName": "Cool Paper",
+        "canonical": "oklch(0.992 0.001 286)",
+        "tonalRamp": [
+          "oklch(0.15 0.006 286)",
+          "oklch(0.25 0.006 286)",
+          "oklch(0.35 0.006 286)",
+          "oklch(0.45 0.006 286)",
+          "oklch(0.55 0.006 286)",
+          "oklch(0.7 0.006 286)",
+          "oklch(0.85 0.006 286)",
+          "oklch(0.95 0.006 286)"
+        ]
+      },
+      "card": {
+        "role": "neutral",
+        "displayName": "Plain White",
+        "canonical": "oklch(1 0 0)"
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(0.21 0.006 286)"
+      },
+      "muted-foreground": {
+        "role": "neutral",
+        "displayName": "Slate Text",
+        "canonical": "oklch(0.5 0.014 286)"
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Mist",
+        "canonical": "oklch(0.965 0.002 286)"
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "oklch(0.915 0.004 286)"
+      },
+      "sidebar": {
+        "role": "neutral",
+        "displayName": "Rail Grey",
+        "canonical": "oklch(0.975 0.002 286)"
+      },
+      "success": {
+        "role": "state",
+        "displayName": "Healthy Green",
+        "canonical": "oklch(0.6 0.15 155)",
+        "tonalRamp": [
+          "oklch(0.15 0.15 155)",
+          "oklch(0.25 0.15 155)",
+          "oklch(0.35 0.15 155)",
+          "oklch(0.45 0.15 155)",
+          "oklch(0.55 0.15 155)",
+          "oklch(0.7 0.15 155)",
+          "oklch(0.85 0.15 155)",
+          "oklch(0.95 0.15 155)"
+        ]
+      },
+      "destructive": {
+        "role": "state",
+        "displayName": "Alert Red",
+        "canonical": "oklch(0.56 0.2 25)",
+        "tonalRamp": [
+          "oklch(0.15 0.2 25)",
+          "oklch(0.25 0.2 25)",
+          "oklch(0.35 0.2 25)",
+          "oklch(0.45 0.2 25)",
+          "oklch(0.55 0.2 25)",
+          "oklch(0.7 0.2 25)",
+          "oklch(0.85 0.2 25)",
+          "oklch(0.95 0.2 25)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Landing page h1 only."
+      },
+      "section": {
+        "displayName": "Section",
+        "purpose": "Landing section titles."
+      },
+      "page": {
+        "displayName": "Page",
+        "purpose": "h1 of every signed-in page."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Auth and result page titles."
+      },
+      "card": {
+        "displayName": "Card",
+        "purpose": "Card and panel titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All running UI text."
+      },
+      "label": {
+        "displayName": "Meta",
+        "purpose": "Timestamps, emails under names, hints."
+      }
+    },
+    "shadows": [
+      {
+        "name": "lift",
+        "value": "0 4px 8px -2px oklch(0.21 0.006 286 / 0.08)",
+        "purpose": "Menus, popovers, toasts."
+      },
+      {
+        "name": "float",
+        "value": "0 8px 16px -4px oklch(0.21 0.006 286 / 0.1)",
+        "purpose": "Dialogs and sheets."
+      }
+    ],
+    "motion": [
+      {
+        "name": "draw",
+        "value": "900ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Connector lines on the dashboard, motion-safe only."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one primary action in a region.",
+      "html": "<button class=\"ds-btn-primary\">Add work account</button>",
+      "css": ".ds-btn-primary{background:var(--primary,oklch(0.52 0.19 277));color:var(--primary-foreground,#fff);height:32px;padding:0 10px;border:1px solid transparent;border-radius:8px;font:500 14px/1 'Inter Variable',Inter,system-ui,sans-serif;cursor:pointer;transition:background .15s}.ds-btn-primary:hover{background:oklch(0.52 0.19 277 / .8)}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 0 0 3px oklch(0.52 0.19 277 / .5)}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Card actions such as Manage.",
+      "html": "<button class=\"ds-btn-outline\">Manage</button>",
+      "css": ".ds-btn-outline{background:var(--background,#fdfdfe);color:var(--foreground,oklch(0.21 0.006 286));height:28px;padding:0 10px;border:1px solid var(--border,oklch(0.915 0.004 286));border-radius:8px;font:500 13px/1 'Inter Variable',Inter,system-ui,sans-serif;cursor:pointer}.ds-btn-outline:hover{background:var(--muted,oklch(0.965 0.002 286))}.ds-btn-outline:focus-visible{outline:none;box-shadow:0 0 0 3px oklch(0.52 0.19 277 / .5)}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary nav actions.",
+      "html": "<button class=\"ds-btn-ghost\">Sign in</button>",
+      "css": ".ds-btn-ghost{background:transparent;color:var(--foreground,oklch(0.21 0.006 286));height:32px;padding:0 10px;border:0;border-radius:8px;font:500 14px/1 'Inter Variable',Inter,system-ui,sans-serif;cursor:pointer}.ds-btn-ghost:hover{background:var(--accent,oklch(0.955 0.003 286))}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Form field with label.",
+      "html": "<label class=\"ds-field\"><span>Email</span><input class=\"ds-input\" type=\"email\" placeholder=\"you@company.com\"></label>",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:8px;font:500 14px 'Inter Variable',Inter,system-ui,sans-serif;color:oklch(0.21 0.006 286)}.ds-input{height:32px;padding:0 10px;border:1px solid var(--input,oklch(0.89 0.005 286));border-radius:8px;background:transparent;font:400 14px 'Inter Variable',Inter,system-ui,sans-serif}.ds-input:focus-visible{outline:none;border-color:oklch(0.52 0.19 277);box-shadow:0 0 0 3px oklch(0.52 0.19 277 / .5)}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Flat white panel with a hairline ring.",
+      "html": "<div class=\"ds-card\"><p class=\"ds-card-title\">Today</p><p class=\"ds-card-desc\">Recap does not read your tools yet.</p></div>",
+      "css": ".ds-card{background:#fff;border-radius:12px;box-shadow:0 0 0 1px oklch(0.21 0.006 286 / .1);padding:16px;font-family:'Inter Variable',Inter,system-ui,sans-serif}.ds-card-title{margin:0 0 4px;font:600 14px/1.4 inherit;color:oklch(0.21 0.006 286)}.ds-card-desc{margin:0;font:400 14px/1.5 inherit;color:oklch(0.5 0.014 286)}"
+    },
+    {
+      "name": "Sidebar Nav",
+      "kind": "nav",
+      "refersTo": "sidebar",
+      "description": "App sidebar with the active item.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-active\">Dashboard</a><a class=\"ds-nav-item\">Settings</a></nav>",
+      "css": ".ds-nav{display:flex;flex-direction:column;gap:2px;width:240px;padding:8px;background:oklch(0.975 0.002 286);font:400 14px 'Inter Variable',Inter,system-ui,sans-serif}.ds-nav-item{padding:8px 10px;border-radius:6px;color:oklch(0.37 0.012 286);cursor:pointer}.ds-nav-item:hover{background:oklch(0.935 0.004 286)}.ds-active{background:oklch(0.935 0.004 286);color:oklch(0.21 0.006 286);font-weight:500}"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge-outline",
+      "description": "Neutral status such as Example or Coming soon.",
+      "html": "<span class=\"ds-badge\">Coming soon</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;height:20px;padding:0 8px;border:1px solid oklch(0.915 0.004 286);border-radius:999px;font:500 12px 'Inter Variable',Inter,system-ui,sans-serif;color:oklch(0.21 0.006 286)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Clear Desk",
+    "overview": "Recap is a tool that people open in the morning to see what they did. The screen must look like a clean desk: everything in its place, nothing loud, the work in front. The style is the category standard, played straight. Recap must sit next to Linear and Raycast and look like it belongs there. The user chose this direction on 2026-10-11 over more expressive options. Do not add personality through decoration. Add it through precision: alignment, spacing, type weight and good copy.\n\nThe UI is light, cool and neutral. One indigo accent marks the primary action, focus, progress and \"today\". Green and red show state only. Density is medium: 14 px body text, 32 px controls, 24 px between panels. The design uses 1 px borders to separate surfaces, not shadows.\n\nThe previous theme (cream paper, a serif display face, a terracotta dot) is rejected. It looked like generic AI output. Do not bring back any part of it.",
+    "keyCharacteristics": [
+      "Cool zinc neutrals with a slight blue-violet tint (hue 286).",
+      "One accent: indigo (hue 277).",
+      "Inter for all text. No serif, no display face, no mono costume.",
+      "Flat surfaces with 1 px borders. Shadows only on floating layers.",
+      "shadcn/ui components, used as they are."
+    ],
+    "rules": [
+      {
+        "name": "The One Accent Rule",
+        "body": "Indigo is the only hue that is not a state. If a second accent seems necessary, the hierarchy is wrong. Fix it with weight or position.",
+        "section": "colors"
+      },
+      {
+        "name": "The State Means State Rule",
+        "body": "Green and red appear only when they report a real state. A green badge for \"Available\" marketing copy is wrong. Use the default or outline badge.",
+        "section": "colors"
+      },
+      {
+        "name": "The Token Only Rule",
+        "body": "Use the Tailwind theme classes (`bg-primary`, `text-muted-foreground`, `border-border`). No palette colours (`bg-zinc-100`), no hex, no arbitrary values. The `no-palette-color` plugin fails the build on them.",
+        "section": "colors"
+      },
+      {
+        "name": "The Weight Not Size Rule",
+        "body": "In the app, a heading is at most 24 px. Rank inside a panel comes from `font-semibold` against `font-normal`, and from `text-foreground` against `text-muted-foreground`. Big type belongs to the landing page only.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Numbers Rule",
+        "body": "Counts, dates, times and step numbers use `tabular-nums`.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Eyebrow Rule",
+        "body": "No small caps label or kicker above a heading. No uppercase tracking labels. The heading carries its own weight.",
+        "section": "typography"
+      },
+      {
+        "name": "The More Space Above Rule",
+        "body": "A heading has more space above it than below it. A page title sits 24 to 32 px above its first panel and 4 px above its description.",
+        "section": "layout"
+      },
+      {
+        "name": "The One Elevation Rule",
+        "body": "A surface has a border or a shadow, not both at full strength. A bordered card with a wide soft shadow is a ghost card. Do not make one.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Floating Only Rule",
+        "body": "Only layers that float above the page (menus, dialogs, toasts) get a real shadow.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do start every signed-in page with `AppPage` (title, one-line description, actions on the right).",
+      "Do use `Heading` variants for every heading, and pick the variant by role.",
+      "Do keep one primary button for each region, and make other actions outline, ghost or link.",
+      "Do separate surfaces with a 1 px hairline or a tonal step.",
+      "Do show state with a small green or red dot, an icon, or a badge, next to a text label.",
+      "Do label example or sample data with an \"Example\" badge.",
+      "Do write UI copy in plain, short sentences. Name the action on a button (\"Add work account\", not \"Continue\"). An error says what went wrong and what to do.",
+      "Do use \"work account\" in the UI for a Work Identity, and the provider name for a Connection (\"Google Calendar\", \"Jira\").",
+      "Do run the impeccable detector (`impeccable detect --json <files>`) on changed UI files before you finish."
+    ],
+    "donts": [
+      "Don't use a serif face, a second display face, cream or beige grounds, or a terracotta or orange accent. The user rejected this look.",
+      "Don't use gradients, gradient text, glass, `backdrop-blur`, glows or hard offset shadows.",
+      "Don't put a kicker, eyebrow or uppercase label above a heading.",
+      "Don't build a page from a grid of same-size icon cards, or a hero metric block (big number, small label).",
+      "Don't nest cards, or put a border and a wide shadow on the same card.",
+      "Don't use a colour for decoration. Indigo is for action and focus. Green and red are for state.",
+      "Don't set text larger than 24 px in the signed-in app.",
+      "Don't use monospace for anything that is not code, a key or an ID.",
+      "Don't use arbitrary Tailwind values (`w-[13px]`), palette colours or `!important`.",
+      "Don't show internal terms (\"Work Identity\", \"Connection\", \"Connector\") in the UI."
+    ]
+  }
+}

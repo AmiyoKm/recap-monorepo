@@ -1,0 +1,7 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+`status($code, $body)` as $call where {
+  not $body <: TsSatisfiesExpression(),
+  register_diagnostic(span=$call, message="A status() body must use satisfies with the type of its response schema, for example { message } satisfies TIdentityNotFoundError.")
+}

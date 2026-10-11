@@ -1,0 +1,17 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+or {
+  JsStringLiteralExpression() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`])text-(?:5xl|6xl|7xl|8xl|9xl)(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Large text must scale with the screen. Start at text-4xl or smaller and step up with sm:, md: or lg: (text-4xl lg:text-6xl).")
+  },
+  JsxString() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`])text-(?:5xl|6xl|7xl|8xl|9xl)(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Large text must scale with the screen. Start at text-4xl or smaller and step up with sm:, md: or lg: (text-4xl lg:text-6xl).")
+  },
+  JsTemplateChunkElement() as $literal where {
+    $literal <: r"(?s).*(?:^|[\s\"'`])text-(?:5xl|6xl|7xl|8xl|9xl)(?:[\s\"'`]|$).*",
+    register_diagnostic(span=$literal, message="Large text must scale with the screen. Start at text-4xl or smaller and step up with sm:, md: or lg: (text-4xl lg:text-6xl).")
+  }
+}

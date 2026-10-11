@@ -1,8 +1,10 @@
 import { Elysia } from "elysia";
 
-import type { IHealthDeps } from "#api/modules/health/health.interfaces";
-import { checkHealth } from "#api/modules/health/health.service";
+import { healthResponse } from "#api/modules/health/health.model";
+import { HealthService } from "#api/modules/health/health.service";
 
-export function healthModule(deps: IHealthDeps) {
-  return new Elysia({ name: "health" }).get("/health", () => checkHealth(deps));
-}
+export const healthModule = new Elysia({ name: "health" }).get(
+  "/health",
+  () => HealthService.check(),
+  { response: { 200: healthResponse } },
+);
