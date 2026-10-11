@@ -3,11 +3,16 @@ import { t } from "elysia";
 import {
   MAX_ID_LENGTH,
   MAX_OAUTH_CODE_LENGTH,
+  MAX_PROVIDER_LENGTH,
   MAX_STATE_LENGTH,
 } from "#api/modules/identity/identity.constants";
 
 export const identityIdParams = t.Object({
   identityId: t.String({ maxLength: MAX_ID_LENGTH }),
+});
+
+export const startConnectionBody = t.Object({
+  provider: t.String({ maxLength: MAX_PROVIDER_LENGTH }),
 });
 
 export const connectionIdParams = t.Object({

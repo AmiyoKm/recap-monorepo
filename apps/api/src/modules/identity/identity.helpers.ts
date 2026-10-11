@@ -1,11 +1,15 @@
 import { randomBytes } from "node:crypto";
 
 import {
+  CONNECTION_TOKEN_KEY_PREFIX,
   GRANT_STATE_BYTES,
   PENDING_GRANT_KEY_PREFIX,
 } from "#api/modules/identity/identity.constants";
 import { EGrantPurpose } from "#api/modules/identity/identity.enums";
-import type { IPendingGrant } from "#api/modules/identity/identity.interfaces";
+import type {
+  IPendingGrant,
+  IProviderRegistration,
+} from "#api/modules/identity/identity.interfaces";
 import { toStringRecord } from "#api/shared/json/json.helpers";
 
 export function createGrantState(): string {
@@ -14,6 +18,22 @@ export function createGrantState(): string {
 
 export function pendingGrantKey(keyPrefix: string, state: string): string {
   return `${keyPrefix}${PENDING_GRANT_KEY_PREFIX}${state}`;
+}
+
+export function connectionTokenKey(keyPrefix: string, connectionId: string): string {
+  return `${keyPrefix}${CONNECTION_TOKEN_KEY_PREFIX}${connectionId}`;
+}
+
+export function findProviderRegistration(
+  registry: Record<string, IProviderRegistration>,
+  provider: string,
+): IProviderRegistration | undefined {
+  for (const [name, registration] of Object.entries(registry)) {
+    if (name === provider) {
+      return registration;
+    }
+  }
+  return undefined;
 }
 
 export function parsePendingGrant(stored: string): IPendingGrant | null {
@@ -34,5 +54,9 @@ export function parsePendingGrant(stored: string): IPendingGrant | null {
   if (identityId !== undefined && typeof identityId !== "string") {
     return null;
   }
-  return { userId, purpose, identityId };
+  const provider = record["provider"];
+  if (provider !== undefined && typeof provider !== "string") {
+    return null;
+  }
+  return { userId, purpose, identityId, provider };
 }

@@ -2,6 +2,7 @@ import { Elysia, redirect } from "elysia";
 
 import {
   GOOGLE_CALLBACK_PATH,
+  HTTP_BAD_REQUEST_STATUS,
   HTTP_NOT_FOUND_STATUS,
 } from "#api/modules/identity/identity.constants";
 import { EIdentityMessages } from "#api/modules/identity/identity.enums";
@@ -10,12 +11,14 @@ import {
   connectionIdParams,
   googleCallbackQuery,
   identityIdParams,
+  startConnectionBody,
 } from "#api/modules/identity/identity.model";
 import {
   completeGoogleCallback,
   deleteConnection,
   deleteIdentity,
   listIdentities,
+  startConnection,
   startIdentityConnect,
 } from "#api/modules/identity/identity.service";
 import { fetchSessionUser } from "#api/shared/session/session.helpers";
@@ -37,6 +40,20 @@ export function identityModule(deps: IIdentityDeps) {
     .post("/identities/connect", ({ user }) => startIdentityConnect(deps, user.id), {
       auth: true,
     })
+    .post(
+      "/identities/:identityId/connections",
+      async ({ user, params, body, status }) => {
+        const result = await startConnection(deps, user.id, params.identityId, body.provider);
+        if ("error" in result) {
+          if (result.error === EIdentityMessages.IDENTITY_NOT_FOUND) {
+            return status(HTTP_NOT_FOUND_STATUS, result.error);
+          }
+          return status(HTTP_BAD_REQUEST_STATUS, result.error);
+        }
+        return { authorizeUrl: result.authorizeUrl };
+      },
+      { auth: true, params: identityIdParams, body: startConnectionBody },
+    )
     .get(
       GOOGLE_CALLBACK_PATH,
       async ({ query }) => redirect((await completeGoogleCallback(deps, query)).redirectUrl),

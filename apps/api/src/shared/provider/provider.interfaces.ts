@@ -8,6 +8,7 @@ export interface IGoogleUserinfo {
 export interface ITokenSet {
   accessToken: string;
   refreshToken: string | undefined;
+  expiresInSeconds: number | undefined;
 }
 
 export interface IAuthorizeUrlInput {

@@ -3,3 +3,5 @@ export const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 export const GOOGLE_USERINFO_ENDPOINT = "https://openidconnect.googleapis.com/v1/userinfo";
 export const GOOGLE_CODE_RESPONSE_TYPE = "code";
 export const GOOGLE_AUTHORIZATION_CODE_GRANT = "authorization_code";
+export const GOOGLE_OFFLINE_ACCESS_TYPE = "offline";
+export const GOOGLE_CONSENT_PROMPT = "consent";

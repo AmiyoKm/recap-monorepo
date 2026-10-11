@@ -5,13 +5,23 @@ import { and, eq, inArray } from "drizzle-orm";
 import { schema } from "@recap/db";
 
 import {
+  GOOGLE_CALENDAR_SCOPES,
   GOOGLE_CALLBACK_PATH,
   IDENTITY_CREATE_SCOPES,
   PENDING_GRANT_TTL_SECONDS,
+  PROVIDER_REGISTRY,
 } from "#api/modules/identity/identity.constants";
-import { EGrantPurpose, EIdentityConnectError } from "#api/modules/identity/identity.enums";
 import {
+  EConnectionStatus,
+  EGrantPurpose,
+  EIdentityAuthKind,
+  EIdentityConnectError,
+  EIdentityMessages,
+} from "#api/modules/identity/identity.enums";
+import {
+  connectionTokenKey,
   createGrantState,
+  findProviderRegistration,
   parsePendingGrant,
   pendingGrantKey,
 } from "#api/modules/identity/identity.helpers";
@@ -22,7 +32,9 @@ import type {
   IPendingGrant,
 } from "#api/modules/identity/identity.interfaces";
 import type { TConnectionRow, TIdentityRow } from "#api/modules/identity/identity.types";
+import { encryptSecret } from "#api/shared/crypto/crypto.helpers";
 import { dayjs } from "#api/shared/date/date.helpers";
+import type { ITokenSet } from "#api/shared/provider/provider.interfaces";
 import { ERedisCommand, ERedisSetOption } from "#api/shared/redis/redis.enums";
 
 function toConnectionView(row: TConnectionRow): IIdentityConnectionView {
@@ -80,14 +92,12 @@ export async function startIdentityConnect(
   deps: Pick<IIdentityDeps, "redis" | "redisKeyPrefix" | "providerClient" | "callbackBaseUrl">,
   userId: string,
 ): Promise<{ authorizeUrl: string }> {
-  const state = createGrantState();
-  const grant = JSON.stringify({ userId, purpose: EGrantPurpose.IDENTITY_CREATE });
-  await deps.redis.send(ERedisCommand.SET, [
-    pendingGrantKey(deps.redisKeyPrefix, state),
-    grant,
-    ERedisSetOption.EXPIRE_IN_SECONDS,
-    String(PENDING_GRANT_TTL_SECONDS),
-  ]);
+  const state = await storePendingGrant(deps, {
+    userId,
+    purpose: EGrantPurpose.IDENTITY_CREATE,
+    identityId: undefined,
+    provider: undefined,
+  });
   const authorizeUrl = deps.providerClient.buildAuthorizeUrl({
     state,
     redirectUri: `${deps.callbackBaseUrl}${GOOGLE_CALLBACK_PATH}`,
@@ -96,8 +106,56 @@ export async function startIdentityConnect(
   return { authorizeUrl };
 }
 
-function settingsSuccessUrl(webOrigin: string, email: string): string {
-  return `${webOrigin}/settings?connected=google&email=${encodeURIComponent(email)}`;
+function settingsSuccessUrl(webOrigin: string, connected: string, email: string): string {
+  return `${webOrigin}/settings?connected=${connected}&email=${encodeURIComponent(email)}`;
+}
+
+async function storePendingGrant(
+  deps: Pick<IIdentityDeps, "redis" | "redisKeyPrefix">,
+  grant: IPendingGrant,
+): Promise<string> {
+  const state = createGrantState();
+  await deps.redis.send(ERedisCommand.SET, [
+    pendingGrantKey(deps.redisKeyPrefix, state),
+    JSON.stringify(grant),
+    ERedisSetOption.EXPIRE_IN_SECONDS,
+    String(PENDING_GRANT_TTL_SECONDS),
+  ]);
+  return state;
+}
+
+export async function startConnection(
+  deps: Pick<
+    IIdentityDeps,
+    "db" | "redis" | "redisKeyPrefix" | "providerClient" | "callbackBaseUrl"
+  >,
+  userId: string,
+  identityId: string,
+  provider: string,
+): Promise<{ authorizeUrl: string } | { error: EIdentityMessages }> {
+  const owned = await deps.db
+    .select({ id: schema.identity.id })
+    .from(schema.identity)
+    .where(and(eq(schema.identity.id, identityId), eq(schema.identity.userId, userId)));
+  if (owned.length === 0) {
+    return { error: EIdentityMessages.IDENTITY_NOT_FOUND };
+  }
+  const registration = findProviderRegistration(PROVIDER_REGISTRY, provider);
+  if (!registration?.wired || registration.authKind !== EIdentityAuthKind.OAUTH) {
+    return { error: EIdentityMessages.PROVIDER_UNSUPPORTED };
+  }
+  const state = await storePendingGrant(deps, {
+    userId,
+    purpose: EGrantPurpose.CONNECTION,
+    identityId,
+    provider,
+  });
+  const authorizeUrl = deps.providerClient.buildAuthorizeUrl({
+    state,
+    redirectUri: `${deps.callbackBaseUrl}${GOOGLE_CALLBACK_PATH}`,
+    scopes: GOOGLE_CALENDAR_SCOPES,
+  });
+  return { authorizeUrl };
 }
 
 function settingsErrorUrl(webOrigin: string, error: EIdentityConnectError): string {
@@ -133,7 +191,104 @@ async function completeIdentityCreate(
       createdAt: now,
       updatedAt: now,
     });
-    return { redirectUrl: settingsSuccessUrl(deps.webOrigin, profile.email) };
+    return { redirectUrl: settingsSuccessUrl(deps.webOrigin, "google", profile.email) };
+  } catch (error) {
+    console.error(EIdentityConnectError.FAILED, error);
+    return { redirectUrl: settingsErrorUrl(deps.webOrigin, EIdentityConnectError.FAILED) };
+  }
+}
+
+async function cacheConnectionToken(
+  deps: Pick<IIdentityDeps, "redis" | "redisKeyPrefix">,
+  connectionId: string,
+  tokens: ITokenSet,
+): Promise<void> {
+  if (tokens.expiresInSeconds === undefined || tokens.expiresInSeconds <= 0) {
+    return;
+  }
+  await deps.redis.send(ERedisCommand.SET, [
+    connectionTokenKey(deps.redisKeyPrefix, connectionId),
+    tokens.accessToken,
+    ERedisSetOption.EXPIRE_IN_SECONDS,
+    String(tokens.expiresInSeconds),
+  ]);
+}
+
+async function completeConnection(
+  deps: Pick<
+    IIdentityDeps,
+    | "db"
+    | "redis"
+    | "redisKeyPrefix"
+    | "webOrigin"
+    | "callbackBaseUrl"
+    | "providerClient"
+    | "encryptionKey"
+  >,
+  grant: IPendingGrant,
+  code: string,
+): Promise<{ redirectUrl: string }> {
+  if (grant.identityId === undefined || grant.provider === undefined) {
+    return { redirectUrl: settingsErrorUrl(deps.webOrigin, EIdentityConnectError.FAILED) };
+  }
+  const identities = await deps.db
+    .select()
+    .from(schema.identity)
+    .where(eq(schema.identity.id, grant.identityId));
+  const identity = identities[0];
+  if (!identity || identity.userId !== grant.userId) {
+    return { redirectUrl: settingsErrorUrl(deps.webOrigin, EIdentityConnectError.FAILED) };
+  }
+  const existing = await deps.db
+    .select({ id: schema.connection.id })
+    .from(schema.connection)
+    .where(
+      and(
+        eq(schema.connection.identityId, identity.id),
+        eq(schema.connection.provider, grant.provider),
+      ),
+    );
+  if (existing.length > 0) {
+    return {
+      redirectUrl: settingsErrorUrl(deps.webOrigin, EIdentityConnectError.ALREADY_CONNECTED),
+    };
+  }
+  const redirectUri = `${deps.callbackBaseUrl}${GOOGLE_CALLBACK_PATH}`;
+  try {
+    const tokens = await deps.providerClient.exchangeCode({ code, redirectUri });
+    const profile = await deps.providerClient.fetchGoogleUserinfo(tokens.accessToken);
+    if (profile.sub !== identity.googleSub) {
+      return {
+        redirectUrl: settingsErrorUrl(deps.webOrigin, EIdentityConnectError.SUB_MISMATCH),
+      };
+    }
+    if (tokens.refreshToken === undefined) {
+      return { redirectUrl: settingsErrorUrl(deps.webOrigin, EIdentityConnectError.FAILED) };
+    }
+    const now = dayjs().toISOString();
+    const connectionId = randomUUID();
+    await deps.db.insert(schema.connection).values({
+      id: connectionId,
+      identityId: identity.id,
+      provider: grant.provider,
+      authKind: EIdentityAuthKind.OAUTH,
+      status: EConnectionStatus.ACTIVE,
+      scopes: GOOGLE_CALENDAR_SCOPES.join(" "),
+      refreshTokenEnc: encryptSecret(deps.encryptionKey, tokens.refreshToken),
+      apiKeyEnc: null,
+      accessTokenExpiresAt:
+        tokens.expiresInSeconds === undefined
+          ? null
+          : dayjs().add(tokens.expiresInSeconds, "second").toISOString(),
+      providerAccountId: profile.sub,
+      providerAccountEmail: profile.email,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await cacheConnectionToken(deps, connectionId, tokens);
+    return {
+      redirectUrl: settingsSuccessUrl(deps.webOrigin, grant.provider, profile.email),
+    };
   } catch (error) {
     console.error(EIdentityConnectError.FAILED, error);
     return { redirectUrl: settingsErrorUrl(deps.webOrigin, EIdentityConnectError.FAILED) };
@@ -143,7 +298,13 @@ async function completeIdentityCreate(
 export async function completeGoogleCallback(
   deps: Pick<
     IIdentityDeps,
-    "db" | "redis" | "redisKeyPrefix" | "webOrigin" | "callbackBaseUrl" | "providerClient"
+    | "db"
+    | "redis"
+    | "redisKeyPrefix"
+    | "webOrigin"
+    | "callbackBaseUrl"
+    | "providerClient"
+    | "encryptionKey"
   >,
   input: { code: string; state: string },
 ): Promise<{ redirectUrl: string }> {
@@ -157,10 +318,12 @@ export async function completeGoogleCallback(
   if (!grant) {
     return { redirectUrl: settingsErrorUrl(deps.webOrigin, EIdentityConnectError.FAILED) };
   }
-  if (grant.purpose !== EGrantPurpose.IDENTITY_CREATE) {
-    return { redirectUrl: settingsErrorUrl(deps.webOrigin, EIdentityConnectError.UNSUPPORTED) };
+  switch (grant.purpose) {
+    case EGrantPurpose.IDENTITY_CREATE:
+      return completeIdentityCreate(deps, grant, input.code);
+    case EGrantPurpose.CONNECTION:
+      return completeConnection(deps, grant, input.code);
   }
-  return completeIdentityCreate(deps, grant, input.code);
 }
 
 export async function deleteIdentity(
