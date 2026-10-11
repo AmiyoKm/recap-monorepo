@@ -2,11 +2,10 @@ import { useDeleteIdentityMutation } from "@/api/identity/identity.mutations";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConnectApiKeyDialog } from "@/features/settings/components/ConnectApiKeyDialog";
 import { ConnectCalendarDialog } from "@/features/settings/components/ConnectCalendarDialog";
 import { ConnectionRow } from "@/features/settings/components/ConnectionRow";
 import {
-  IDENTITY_CONNECT_JIRA,
-  IDENTITY_CONNECT_LINEAR,
   IDENTITY_CONNECT_NOTE,
   IDENTITY_CONNECTIONS_HEADING,
   IDENTITY_NO_CONNECTIONS,
@@ -60,12 +59,8 @@ export function IdentityCard({ identity }: IIdentityCardProps) {
         ))}
         <div className="flex flex-wrap items-center gap-2">
           <ConnectCalendarDialog identityId={identity.id} />
-          <Button variant="outline" size="sm" disabled>
-            {IDENTITY_CONNECT_JIRA}
-          </Button>
-          <Button variant="outline" size="sm" disabled>
-            {IDENTITY_CONNECT_LINEAR}
-          </Button>
+          <ConnectApiKeyDialog identityId={identity.id} provider="jira" />
+          <ConnectApiKeyDialog identityId={identity.id} provider="linear" />
         </div>
         <p className="text-sm text-muted-foreground">{IDENTITY_CONNECT_NOTE}</p>
       </CardContent>

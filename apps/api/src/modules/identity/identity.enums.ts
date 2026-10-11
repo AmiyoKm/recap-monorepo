@@ -26,6 +26,9 @@ export enum EIdentityMessages {
   IDENTITY_NOT_FOUND = "Work Identity was not found",
   CONNECTION_NOT_FOUND = "Connection was not found",
   PROVIDER_UNSUPPORTED = "That provider cannot be connected yet",
+  INVALID_API_KEY = "API key is invalid",
+  CONNECTION_EXISTS = "Connection already exists for this provider",
+  API_KEY_VALIDATION_FAILED = "Provider check failed, try again",
 }
 
 export enum EIdentityConnectError {

@@ -18,6 +18,10 @@ export const MAX_OAUTH_CODE_LENGTH = 4096;
 export const MAX_STATE_LENGTH = 512;
 export const HTTP_BAD_REQUEST_STATUS = 400;
 export const HTTP_NOT_FOUND_STATUS = 404;
+export const HTTP_CONFLICT_STATUS = 409;
+export const HTTP_BAD_GATEWAY_STATUS = 502;
+export const MIN_API_KEY_LENGTH = 8;
+export const MAX_API_KEY_LENGTH = 4096;
 export const PROVIDER_REGISTRY: Record<EIdentityProvider, IProviderRegistration> = {
   [EIdentityProvider.GOOGLE_CALENDAR]: { authKind: EIdentityAuthKind.OAUTH, wired: true },
   [EIdentityProvider.JIRA]: { authKind: EIdentityAuthKind.API_KEY, wired: true },

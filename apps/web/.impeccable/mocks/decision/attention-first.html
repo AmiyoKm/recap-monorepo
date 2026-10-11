@@ -1,0 +1,81 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:1440px; height:900px; overflow:hidden; background:#f1eee3; color:#2e2d2a; font-family:Inter,sans-serif; }
+  .bar { height:56px; display:flex; align-items:center; padding:0 28px; border-bottom:1px solid #d8d2c0; background:#f4f1e7; }
+  .wordmark { font-family:"Playfair Display",serif; font-size:20px; font-weight:600; margin-right:40px; }
+  .nav { display:flex; gap:26px; font-size:13.5px; color:#6f6a5c; }
+  .nav .on { color:#2e2d2a; font-weight:600; }
+  .user { margin-left:auto; display:flex; align-items:center; gap:10px; font-size:13px; }
+  .ava { border-radius:50%; background:#2e2d2a; color:#f3f0e6; display:flex; align-items:center; justify-content:center; font-weight:600; }
+  main { max-width:1160px; margin:0 auto; padding:40px 24px; }
+  .head { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:8px; }
+  h1 { font-family:"Playfair Display",serif; font-size:28px; font-weight:600; }
+  .sub { font-size:14px; color:#6f6a5c; margin-top:6px; }
+  .btn { border-radius:8px; font-size:13.5px; font-weight:500; padding:10px 16px; }
+  .btn.primary { background:#383733; color:#f3f0e6; }
+  .btn.danger { background:#c8402e; color:#fdf6f2; font-size:13px; padding:9px 14px; }
+  .label { font-size:11px; letter-spacing:0.09em; color:#6f6a5c; margin:30px 0 10px; }
+  .attention { background:#f7f5ec; border:1px solid #d8d2c0; border-left:3px solid #c8402e; border-radius:8px; padding:18px 20px; display:flex; align-items:center; gap:16px; box-shadow:0 4px 10px rgba(0,0,0,0.05); }
+  .attention .mark { width:34px; height:34px; border-radius:50%; background:rgba(200,64,46,0.10); color:#c8402e; font-weight:600; font-size:16px; display:flex; align-items:center; justify-content:center; }
+  .attention .t { font-size:14px; font-weight:600; }
+  .attention .d { font-size:13px; color:#6f6a5c; margin-top:3px; }
+  .attention .d code { font-family:"JetBrains Mono",monospace; font-size:12px; }
+  .attention .btn { margin-left:auto; }
+  .group { background:#f7f5ec; border:1px solid #d8d2c0; border-radius:8px; padding:16px 20px; display:flex; align-items:center; gap:16px; margin-bottom:12px; box-shadow:0 4px 10px rgba(0,0,0,0.05); }
+  .group .ava { width:38px; height:38px; font-size:13px; }
+  .group .who .n { font-size:14px; font-weight:600; }
+  .group .who .e { font-family:"JetBrains Mono",monospace; font-size:12px; color:#6f6a5c; margin-top:2px; }
+  .chips { margin-left:auto; display:flex; gap:8px; align-items:center; }
+  .chip { display:flex; align-items:center; gap:7px; background:#e9e4d3; border:1px solid #d8d2c0; border-radius:999px; padding:6px 12px; font-size:12.5px; }
+  .dot { width:7px; height:7px; border-radius:50%; background:#5a7355; }
+  .link { font-size:12.5px; color:#6f6a5c; text-decoration:underline; text-underline-offset:3px; margin-left:6px; }
+  .foot { font-size:12.5px; color:#8a8474; margin-top:26px; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <div class="wordmark">Recap</div>
+    <div class="nav"><span>Overview</span><span>Digests</span><span class="on">Settings</span></div>
+    <div class="user"><div class="ava" style="width:28px;height:28px;font-size:11px;">AM</div><span>Amiyo</span></div>
+  </div>
+  <main>
+    <div class="head">
+      <div><h1>Settings</h1><div class="sub">Work identities and the sources Recap pulls from.</div></div>
+      <div class="btn primary">+ Add Google account</div>
+    </div>
+    <div class="label">NEEDS ATTENTION</div>
+    <div class="attention">
+      <div class="mark">!</div>
+      <div>
+        <div class="t">Google Calendar · Lune identity</div>
+        <div class="d">Recap can no longer read calendar events for <code>amiyo@lune.studio</code>. Reconnect to resume pulls.</div>
+      </div>
+      <div class="btn danger">Reconnect</div>
+    </div>
+    <div class="label">HEALTHY</div>
+    <div class="group">
+      <div class="ava">AM</div>
+      <div class="who"><div class="n">Amiyo Mondol</div><div class="e">amiyo@sazimhq.com</div></div>
+      <div class="chips">
+        <div class="chip"><span class="dot"></span>Google Calendar</div>
+        <div class="chip"><span class="dot"></span>Jira</div>
+        <span class="link">Manage</span>
+      </div>
+    </div>
+    <div class="group">
+      <div class="ava">AM</div>
+      <div class="who"><div class="n">Amiyo Mondol</div><div class="e">amiyo@lune.studio</div></div>
+      <div class="chips">
+        <div class="chip"><span class="dot"></span>Linear</div>
+        <span class="link">Manage</span>
+      </div>
+    </div>
+    <div class="foot">Slack, Google Chat and GitHub are registered sources and arrive later.</div>
+  </main>
+</body>
+</html>

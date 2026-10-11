@@ -1,5 +1,6 @@
 import { toStringRecord } from "#api/shared/json/json.helpers";
 import {
+  API_KEY_VALIDATION_TIMEOUT_MS,
   GOOGLE_AUTHORIZATION_CODE_GRANT,
   GOOGLE_AUTHORIZE_ENDPOINT,
   GOOGLE_CODE_RESPONSE_TYPE,
@@ -7,9 +8,17 @@ import {
   GOOGLE_OFFLINE_ACCESS_TYPE,
   GOOGLE_TOKEN_ENDPOINT,
   GOOGLE_USERINFO_ENDPOINT,
+  HTTP_FORBIDDEN_STATUS,
+  HTTP_UNAUTHORIZED_STATUS,
+  JIRA_ME_ENDPOINT,
+  JIRA_PROVIDER_NAME,
+  LINEAR_GRAPHQL_ENDPOINT,
+  LINEAR_PROVIDER_NAME,
+  LINEAR_VIEWER_QUERY,
 } from "#api/shared/provider/provider.constants";
 import { EProviderMessages } from "#api/shared/provider/provider.enums";
 import type {
+  IApiKeyValidationResult,
   IAuthorizeUrlInput,
   ICodeExchangeInput,
   IGoogleOAuthConfig,
@@ -50,6 +59,50 @@ function readNumberField(body: unknown, field: string): number | undefined {
     return value;
   }
   return undefined;
+}
+
+function throwApiKeyError(responseStatus: number): never {
+  if (responseStatus === HTTP_UNAUTHORIZED_STATUS || responseStatus === HTTP_FORBIDDEN_STATUS) {
+    throw new Error(EProviderMessages.INVALID_API_KEY, { cause: responseStatus });
+  }
+  throw new Error(EProviderMessages.API_KEY_VALIDATION_FAILED, { cause: responseStatus });
+}
+
+async function validateJiraApiKey(apiKey: string): Promise<IApiKeyValidationResult> {
+  const response = await fetch(JIRA_ME_ENDPOINT, {
+    headers: { authorization: `Bearer ${apiKey}`, accept: "application/json" },
+    signal: AbortSignal.timeout(API_KEY_VALIDATION_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throwApiKeyError(response.status);
+  }
+  const body: unknown = await response.json();
+  const accountId = readStringField(body, "account_id");
+  const accountEmail = readStringField(body, "email");
+  if (!(accountId && accountEmail)) {
+    throw new Error(EProviderMessages.API_KEY_VALIDATION_FAILED);
+  }
+  return { accountId, accountEmail };
+}
+
+async function validateLinearApiKey(apiKey: string): Promise<IApiKeyValidationResult> {
+  const response = await fetch(LINEAR_GRAPHQL_ENDPOINT, {
+    method: "POST",
+    headers: { authorization: apiKey, "content-type": "application/json" },
+    body: JSON.stringify({ query: LINEAR_VIEWER_QUERY }),
+    signal: AbortSignal.timeout(API_KEY_VALIDATION_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throwApiKeyError(response.status);
+  }
+  const body: unknown = await response.json();
+  const viewer = toStringRecord(toStringRecord(body)?.["data"])?.["viewer"];
+  const accountId = readStringField(viewer, "id");
+  const accountEmail = readStringField(viewer, "email");
+  if (!(accountId && accountEmail)) {
+    throw new Error(EProviderMessages.API_KEY_VALIDATION_FAILED);
+  }
+  return { accountId, accountEmail };
 }
 
 function parseUserinfo(body: unknown): IGoogleUserinfo {
@@ -121,7 +174,13 @@ export function createGoogleProviderClient(config: IGoogleOAuthConfig): IProvide
       return parseUserinfo(await response.json());
     },
 
-    validateApiKey(): Promise<never> {
+    validateApiKey(providerName: string, apiKey: string): Promise<IApiKeyValidationResult> {
+      if (providerName === JIRA_PROVIDER_NAME) {
+        return validateJiraApiKey(apiKey);
+      }
+      if (providerName === LINEAR_PROVIDER_NAME) {
+        return validateLinearApiKey(apiKey);
+      }
       return Promise.reject(new Error(EProviderMessages.API_KEY_VALIDATION_UNSUPPORTED));
     },
   };

@@ -6,15 +6,17 @@ import {
   HTTP_NOT_FOUND_STATUS,
 } from "#api/modules/identity/identity.constants";
 import { EIdentityMessages } from "#api/modules/identity/identity.enums";
+import { apiKeyConnectFailure } from "#api/modules/identity/identity.helpers";
 import type { IIdentityDeps } from "#api/modules/identity/identity.interfaces";
 import {
+  connectConnectionBody,
   connectionIdParams,
   googleCallbackQuery,
   identityIdParams,
-  startConnectionBody,
 } from "#api/modules/identity/identity.model";
 import {
   completeGoogleCallback,
+  connectApiKeyConnection,
   deleteConnection,
   deleteIdentity,
   listIdentities,
@@ -43,6 +45,23 @@ export function identityModule(deps: IIdentityDeps) {
     .post(
       "/identities/:identityId/connections",
       async ({ user, params, body, status }) => {
+        if (body.apiKey !== undefined) {
+          try {
+            return await connectApiKeyConnection(
+              deps,
+              user.id,
+              params.identityId,
+              body.provider,
+              body.apiKey,
+            );
+          } catch (error) {
+            const failure = apiKeyConnectFailure(error);
+            if (!failure) {
+              throw error;
+            }
+            return status(failure.code, failure.message);
+          }
+        }
         const result = await startConnection(deps, user.id, params.identityId, body.provider);
         if ("error" in result) {
           if (result.error === EIdentityMessages.IDENTITY_NOT_FOUND) {
@@ -52,7 +71,7 @@ export function identityModule(deps: IIdentityDeps) {
         }
         return { authorizeUrl: result.authorizeUrl };
       },
-      { auth: true, params: identityIdParams, body: startConnectionBody },
+      { auth: true, params: identityIdParams, body: connectConnectionBody },
     )
     .get(
       GOOGLE_CALLBACK_PATH,

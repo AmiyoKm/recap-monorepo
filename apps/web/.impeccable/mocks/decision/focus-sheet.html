@@ -1,0 +1,107 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:1440px; height:900px; overflow:hidden; background:#f1eee3; color:#2e2d2a; font-family:Inter,sans-serif; position:relative; }
+  .bar { height:56px; display:flex; align-items:center; padding:0 28px; border-bottom:1px solid #d8d2c0; background:#f4f1e7; }
+  .wordmark { font-family:"Playfair Display",serif; font-size:20px; font-weight:600; margin-right:40px; }
+  .nav { display:flex; gap:26px; font-size:13.5px; color:#6f6a5c; }
+  .nav .on { color:#2e2d2a; font-weight:600; }
+  .user { margin-left:auto; display:flex; align-items:center; gap:10px; font-size:13px; }
+  .ava { border-radius:50%; background:#2e2d2a; color:#f3f0e6; display:flex; align-items:center; justify-content:center; font-weight:600; }
+  main { max-width:1160px; margin:0 auto; padding:40px 24px; }
+  h1 { font-family:"Playfair Display",serif; font-size:28px; font-weight:600; }
+  .sub { font-size:14px; color:#6f6a5c; margin-top:6px; margin-bottom:28px; }
+  .head { display:flex; align-items:flex-end; justify-content:space-between; }
+  .btn { border-radius:8px; font-size:13.5px; font-weight:500; padding:10px 16px; }
+  .btn.primary { background:#383733; color:#f3f0e6; }
+  .tiles { display:grid; grid-template-columns:repeat(3, 1fr); gap:18px; }
+  .tile { background:#f7f5ec; border:1px solid #d8d2c0; border-radius:10px; padding:20px; box-shadow:0 4px 10px rgba(0,0,0,0.05); }
+  .tile .ava { width:44px; height:44px; font-size:14px; }
+  .tile .n { font-size:15px; font-weight:600; margin-top:12px; }
+  .tile .e { font-family:"JetBrains Mono",monospace; font-size:12px; color:#6f6a5c; margin-top:3px; }
+  .tile .srcs { display:flex; gap:7px; margin-top:14px; }
+  .pill { display:flex; align-items:center; gap:6px; background:#e9e4d3; border:1px solid #d8d2c0; border-radius:999px; padding:5px 11px; font-size:11.5px; }
+  .dot { width:7px; height:7px; border-radius:50%; background:#5a7355; }
+  .dot.warn { background:#c8402e; }
+  .attention { margin-top:12px; font-size:12px; color:#c8402e; }
+  .sheet { position:absolute; top:56px; right:0; bottom:0; width:440px; background:#f7f5ec; border-left:1px solid #d8d2c0; box-shadow:-12px 0 30px rgba(46,45,42,0.10); padding:26px 26px; }
+  .sheet .close { position:absolute; top:18px; right:20px; color:#6f6a5c; font-size:15px; }
+  .sheet .kick { font-size:10.5px; letter-spacing:0.09em; color:#6f6a5c; }
+  .shead { display:flex; align-items:center; gap:13px; margin-top:10px; }
+  .shead .ava { width:42px; height:42px; font-size:13px; }
+  .shead .n { font-size:15.5px; font-weight:600; }
+  .shead .e { font-family:"JetBrains Mono",monospace; font-size:11.5px; color:#6f6a5c; margin-top:3px; }
+  .sl { font-size:11px; letter-spacing:0.08em; color:#6f6a5c; margin:24px 0 6px; }
+  .row { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid #e5dfcd; }
+  .mark { width:30px; height:30px; border-radius:8px; background:#e9e4d3; border:1px solid #d8d2c0; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:600; color:#55524a; }
+  .row .pn { font-size:13.5px; font-weight:600; }
+  .row .pe { font-family:"JetBrains Mono",monospace; font-size:11.5px; color:#6f6a5c; margin-top:2px; }
+  .rstatus { margin-left:auto; display:flex; align-items:center; gap:10px; }
+  .schip { display:flex; align-items:center; gap:7px; border-radius:999px; padding:5px 11px; font-size:11.5px; }
+  .schip.ok { background:#e2decd; }
+  .schip.bad { background:rgba(200,64,46,0.10); color:#c8402e; }
+  .dotg { width:7px; height:7px; border-radius:50%; background:#5a7355; }
+  .schip.bad .dotg { background:#c8402e; }
+  .ghost { font-size:12px; color:#6f6a5c; text-decoration:underline; text-underline-offset:3px; }
+  .ghost.red { color:#c8402e; }
+  .connects { display:flex; gap:8px; margin-top:22px; }
+  .sbtn { border-radius:8px; font-size:12.5px; font-weight:500; padding:9px 13px; background:#e9e4d3; border:1px solid #d8d2c0; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <div class="wordmark">Recap</div>
+    <div class="nav"><span>Overview</span><span>Digests</span><span class="on">Settings</span></div>
+    <div class="user"><div class="ava" style="width:28px;height:28px;font-size:11px;">AM</div><span>Amiyo</span></div>
+  </div>
+  <main>
+    <div class="head">
+      <div><h1>Settings</h1><div class="sub">Work identities and the sources Recap pulls from.</div></div>
+      <div class="btn primary">+ Add Google account</div>
+    </div>
+    <div class="tiles">
+      <div class="tile">
+        <div class="ava">AM</div>
+        <div class="n">Amiyo Mondol</div>
+        <div class="e">amiyo@sazimhq.com</div>
+        <div class="srcs"><div class="pill"><span class="dot"></span>Calendar</div><div class="pill"><span class="dot"></span>Jira</div></div>
+      </div>
+      <div class="tile">
+        <div class="ava">AM</div>
+        <div class="n">Amiyo Mondol</div>
+        <div class="e">amiyo@lune.studio</div>
+        <div class="srcs"><div class="pill"><span class="dot"></span>Linear</div><div class="pill"><span class="dot warn"></span>Calendar</div></div>
+        <div class="attention">Calendar needs a reconnect</div>
+      </div>
+      <div class="tile" style="border-style:dashed; display:flex; align-items:center; justify-content:center; color:#8a8474; font-size:13px;">+ Add Google account</div>
+    </div>
+  </main>
+  <div class="sheet">
+    <div class="close">✕</div>
+    <div class="kick">MANAGING IDENTITY</div>
+    <div class="shead">
+      <div class="ava">AM</div>
+      <div><div class="n">Amiyo Mondol</div><div class="e">amiyo@lune.studio</div></div>
+    </div>
+    <div class="sl">CONNECTED SOURCES</div>
+    <div class="row">
+      <div class="mark">L</div>
+      <div><div class="pn">Linear</div><div class="pe">API key ••••••••</div></div>
+      <div class="rstatus"><div class="schip ok"><span class="dotg"></span>Active</div><span class="ghost">Disconnect</span></div>
+    </div>
+    <div class="row">
+      <div class="mark">G</div>
+      <div><div class="pn">Google Calendar</div><div class="pe">amiyo@lune.studio</div></div>
+      <div class="rstatus"><div class="schip bad"><span class="dotg"></span>Needs reconnect</div><span class="ghost red">Reconnect</span></div>
+    </div>
+    <div class="sl">ADD A SOURCE</div>
+    <div class="connects">
+      <div class="sbtn">+ Jira</div>
+    </div>
+  </div>
+</body>
+</html>
