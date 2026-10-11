@@ -9,6 +9,7 @@ export interface IGoogleTokens {
   accessToken: string;
   refreshToken: string | undefined;
   expiresInSeconds: number | undefined;
+  scopes: string[];
 }
 
 export interface IGoogleAuthorizeInput {

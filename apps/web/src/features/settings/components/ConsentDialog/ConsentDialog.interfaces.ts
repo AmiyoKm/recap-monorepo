@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import type { TConsentTarget } from "@/api/identity/identity.types";
+
 export interface IConsentDialogProps {
   trigger: ReactNode;
   title: string;
@@ -13,11 +15,13 @@ export interface IConsentDialogProps {
   copiedText: string;
   openText: string;
   doneText: string;
+  target: TConsentTarget;
   onDialogOpen: () => void;
 }
 
 export interface IConsentCompletionOptions {
-  isWaiting: boolean;
+  hasAuthorizeUrl: boolean;
+  target: TConsentTarget;
   doneText: string;
-  onDone: () => void;
+  onDialogOpen: () => void;
 }

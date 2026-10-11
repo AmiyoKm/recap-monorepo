@@ -22,12 +22,15 @@ export enum EIdentityMessages {
   CONNECTION_EXISTS = "Connection already exists for this provider",
   API_KEY_VALIDATION_FAILED = "Provider check failed, try again",
   UNKNOWN_CONNECTION_VALUE = "Connection row holds an unknown value",
+  CONNECTION_CACHE_FAILED = "Connection token cache update failed",
 }
 
 export enum EIdentityConnectError {
   EXPIRED = "expired",
   ALREADY_CONNECTED = "already_connected",
   SUB_MISMATCH = "sub_mismatch",
+  ACCESS_DENIED = "access_denied",
+  SCOPE_DENIED = "scope_denied",
   FAILED = "failed",
 }
 

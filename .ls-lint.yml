@@ -17,6 +17,7 @@ ls:
     .*.ts: exists:0
     .constants.ts: regex:fixtures
     .helpers.ts: regex:fixtures
+    .enums.ts: regex:fixtures
 
   apps/api/tests/*/**:
     .dir: kebab-case

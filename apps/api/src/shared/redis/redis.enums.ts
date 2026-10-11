@@ -8,6 +8,7 @@ export enum ERedisCommand {
   SET = "SET",
   DELETE = "DEL",
   PING = "PING",
+  KEYS = "KEYS",
 }
 
 export enum ERedisSetOption {

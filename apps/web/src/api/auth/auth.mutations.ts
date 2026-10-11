@@ -32,7 +32,10 @@ export function useEmailSignInMutation() {
         throw toAuthError(error);
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: authKeys.all }),
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: identityKeys.all });
+      return queryClient.invalidateQueries({ queryKey: authKeys.all });
+    },
   });
 }
 
@@ -45,7 +48,10 @@ export function useEmailSignUpMutation() {
         throw toAuthError(error);
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: authKeys.all }),
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: identityKeys.all });
+      return queryClient.invalidateQueries({ queryKey: authKeys.all });
+    },
   });
 }
 

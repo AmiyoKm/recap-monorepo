@@ -32,10 +32,13 @@ import { JiraService } from "#api/shared/providers/jira/jira.service";
 import { LinearService } from "#api/shared/providers/linear/linear.service";
 import type { IProviderAccount } from "#api/shared/providers/providers.interfaces";
 import { redis } from "#api/shared/redis/redis.client";
+import { ERedisCommand } from "#api/shared/redis/redis.enums";
 import {
   CALENDAR_EMAIL,
+  CALENDAR_GRANTED_SCOPES,
   CALENDAR_READ_SCOPE,
   DEFAULT_TOKEN_EXPIRY_SECONDS,
+  GOOGLE_ACCESS_DENIED,
   GOOGLE_PROFILE,
   HTTP_BAD_REQUEST,
   HTTP_CONFLICT,
@@ -53,6 +56,7 @@ import {
   VALID_JIRA_KEY,
   VALID_LINEAR_KEY,
 } from "#api-tests/fixtures/fixtures.constants";
+import { ETestMessages } from "#api-tests/fixtures/fixtures.enums";
 import { uniqueEmail, wipeDatabase, wipeRedis } from "#api-tests/fixtures/fixtures.helpers";
 import type { ICalendarConnectCodes } from "#api-tests/integration/identity/identity.interfaces";
 
@@ -60,6 +64,7 @@ class FakeGoogleClient {
   readonly profiles = new Map<string, IGoogleProfile>();
   readonly refreshTokens = new Map<string, string | undefined>();
   readonly tokenExpiries = new Map<string, number | undefined>();
+  readonly grantedScopes = new Map<string, string[]>();
   lastAuthorizeInput: IGoogleAuthorizeInput | undefined;
   lastCodeVerifier: string | undefined;
 
@@ -74,7 +79,7 @@ class FakeGoogleClient {
   exchangeCode(input: IGoogleCodeExchangeInput): Promise<IGoogleGrant> {
     const profile = this.profiles.get(input.code);
     if (!profile) {
-      return Promise.reject(new Error("Unknown test code"));
+      return Promise.reject(new Error(ETestMessages.UNKNOWN_TEST_CODE));
     }
     this.lastCodeVerifier = input.codeVerifier;
     const refreshToken = this.refreshTokens.has(input.code)
@@ -83,8 +88,9 @@ class FakeGoogleClient {
     const expiresInSeconds = this.tokenExpiries.has(input.code)
       ? this.tokenExpiries.get(input.code)
       : DEFAULT_TOKEN_EXPIRY_SECONDS;
+    const scopes = this.grantedScopes.get(input.code) ?? [...CALENDAR_GRANTED_SCOPES];
     return Promise.resolve({
-      tokens: { accessToken: input.code, refreshToken, expiresInSeconds },
+      tokens: { accessToken: input.code, refreshToken, expiresInSeconds, scopes },
       profile,
     });
   }
@@ -112,8 +118,6 @@ class FakeProviderClients {
 
 const provider = new FakeProviderClients();
 const api = treaty(createApp());
-
-type TProviderName = TConnectConnectionBody["provider"];
 
 function withCookie(cookie: string) {
   return { headers: { cookie } };
@@ -145,7 +149,7 @@ async function signUp(email: string) {
     .map((entry) => entry.split(";")[0])
     .join("; ");
   if (cookie.length === 0) {
-    throw new Error("Sign up set no session cookie");
+    throw new Error(ETestMessages.SIGN_UP_SET_NO_SESSION_COOKIE);
   }
   return { cookie, userId: response.user.id };
 }
@@ -153,18 +157,18 @@ async function signUp(email: string) {
 function readState(authorizeUrl: string): string {
   const state = new URL(authorizeUrl).searchParams.get("state");
   if (!state) {
-    throw new Error("Authorize URL has no state");
+    throw new Error(ETestMessages.AUTHORIZE_URL_HAS_NO_STATE);
   }
   return state;
 }
 
 function readAuthorizeUrl(data: unknown): string {
   if (typeof data !== "object" || data === null || !("authorizeUrl" in data)) {
-    throw new Error("Connect response has no authorize URL");
+    throw new Error(ETestMessages.CONNECT_RESPONSE_HAS_NO_AUTHORIZE_URL);
   }
   const { authorizeUrl } = data;
   if (typeof authorizeUrl !== "string") {
-    throw new Error("Authorize URL is not a string");
+    throw new Error(ETestMessages.AUTHORIZE_URL_IS_NOT_A_STRING);
   }
   return authorizeUrl;
 }
@@ -180,7 +184,7 @@ function startIdentityConnect(cookie: string) {
 async function startConnect(cookie: string): Promise<string> {
   const { data, status } = await startIdentityConnect(cookie);
   if (status !== HTTP_OK) {
-    throw new Error("Identity connect start failed");
+    throw new Error(ETestMessages.IDENTITY_CONNECT_START_FAILED);
   }
   return readState(readAuthorizeUrl(data));
 }
@@ -189,10 +193,16 @@ function completeCallback(code: string, state: string) {
   return api.api.connect.google.callback.get({ query: { code, state } });
 }
 
+function denyCallback(state: string) {
+  return api.api.connect.google.callback.get({
+    query: { error: GOOGLE_ACCESS_DENIED, state },
+  });
+}
+
 function readLocation(result: { response: Response }): string {
   const location = result.response.headers.get("location");
   if (!location) {
-    throw new Error("Callback response has no location");
+    throw new Error(ETestMessages.CALLBACK_RESPONSE_HAS_NO_LOCATION);
   }
   return location;
 }
@@ -204,7 +214,7 @@ function connect(cookie: string, identityId: string, body: TConnectConnectionBod
 function startCalendarConnect(
   cookie: string,
   identityId: string,
-  providerName: TProviderName = "google-calendar",
+  providerName: TConnectConnectionBody["provider"] = "google-calendar",
 ) {
   return connect(cookie, identityId, { provider: providerName });
 }
@@ -212,7 +222,7 @@ function startCalendarConnect(
 async function startCalendarState(cookie: string, identityId: string): Promise<string> {
   const { data, status } = await startCalendarConnect(cookie, identityId);
   if (status !== HTTP_OK) {
-    throw new Error("Calendar connect start failed");
+    throw new Error(ETestMessages.CALENDAR_CONNECT_START_FAILED);
   }
   return readState(readAuthorizeUrl(data));
 }
@@ -228,7 +238,7 @@ function deleteConnection(cookie: string, connectionId: string) {
 async function readPendingGrant(state: string): Promise<unknown> {
   const stored = await redis.get(pendingGrantKey(state));
   if (stored === null) {
-    throw new Error("Pending grant is missing");
+    throw new Error(ETestMessages.PENDING_GRANT_IS_MISSING);
   }
   const grant: unknown = JSON.parse(stored);
   return grant;
@@ -237,11 +247,11 @@ async function readPendingGrant(state: string): Promise<unknown> {
 async function readOnlyConnectionRow() {
   const rows = await db.select().from(schema.connection);
   if (rows.length !== 1) {
-    throw new Error("Connection table does not hold exactly one row");
+    throw new Error(ETestMessages.CONNECTION_TABLE_DOES_NOT_HOLD_EXACTLY_ONE_ROW);
   }
   const row = rows[0];
   if (!row) {
-    throw new Error("Connection row is missing");
+    throw new Error(ETestMessages.CONNECTION_ROW_IS_MISSING);
   }
   return row;
 }
@@ -257,12 +267,12 @@ async function createIdentity(cookie: string, code: string): Promise<string> {
   const state = await startConnect(cookie);
   const completed = await completeCallback(code, state);
   if (completed.status !== HTTP_FOUND) {
-    throw new Error("Identity connect callback failed");
+    throw new Error(ETestMessages.IDENTITY_CONNECT_CALLBACK_FAILED);
   }
   const { data } = await listIdentities(cookie);
   const first = data?.[0];
   if (!first) {
-    throw new Error("Identity list is empty after connect");
+    throw new Error(ETestMessages.IDENTITY_LIST_IS_EMPTY_AFTER_CONNECT);
   }
   return first.id;
 }
@@ -281,7 +291,7 @@ async function connectCalendar(
   setCalendarProfile(calendarCode, identitySub);
   const completed = await completeCallback(calendarCode, state);
   if (readLocation(completed) !== connectedUrl("google-calendar", CALENDAR_EMAIL)) {
-    throw new Error("Calendar connect callback failed");
+    throw new Error(ETestMessages.CALENDAR_CONNECT_CALLBACK_FAILED);
   }
   const row = await readOnlyConnectionRow();
   return { identityId, connectionId: row.id };
@@ -434,6 +444,17 @@ describe("work identities", () => {
     expect(readLocation(completed)).toBe(errorUrl("expired"));
   });
 
+  test("redirects a cancelled consent to access denied and consumes the grant", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    const state = await startConnect(cookie);
+
+    const completed = await denyCallback(state);
+    expect(completed.status).toBe(HTTP_FOUND);
+    expect(readLocation(completed)).toBe(errorUrl("access_denied"));
+    expect(await redis.get(pendingGrantKey(state))).toBeNull();
+    expect(await db.select().from(schema.identity)).toEqual([]);
+  });
+
   test("redirects to an error when code exchange fails", async () => {
     const { cookie } = await signUp(uniqueEmail());
     const state = await startConnect(cookie);
@@ -561,7 +582,7 @@ describe("calendar connections", () => {
     expect(row.providerAccountId).toBe("google-sub-cal-ok");
     expect(row.providerAccountEmail).toBe(CALENDAR_EMAIL);
     if (typeof row.refreshTokenEnc !== "string") {
-      throw new Error("Connection row has no encrypted refresh token");
+      throw new Error(ETestMessages.CONNECTION_ROW_HAS_NO_ENCRYPTED_REFRESH_TOKEN);
     }
     expect(row.refreshTokenEnc.startsWith("v1.")).toBe(true);
     expect(row.refreshTokenEnc).not.toContain("refresh-code-cal-ok");
@@ -589,10 +610,59 @@ describe("calendar connections", () => {
         scopes: row.scopes,
         providerAccountId: "google-sub-cal-ok",
         providerAccountEmail: CALENDAR_EMAIL,
+        providerSite: null,
         createdAt: expect.any(String),
         updatedAt: expect.any(String),
       },
     ]);
+  });
+
+  test("rejects a calendar consent that leaves out the calendar scope", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    provider.google.profiles.set("code-cal-noscope", {
+      ...GOOGLE_PROFILE,
+      sub: "google-sub-cal-noscope",
+    });
+    const identityId = await createIdentity(cookie, "code-cal-noscope");
+    const state = await startCalendarState(cookie, identityId);
+
+    setCalendarProfile("code-cal-noscope-2", "google-sub-cal-noscope");
+    provider.google.grantedScopes.set("code-cal-noscope-2", ["openid", "email"]);
+    const completed = await completeCallback("code-cal-noscope-2", state);
+    expect(completed.status).toBe(HTTP_FOUND);
+    expect(readLocation(completed)).toBe(errorUrl("scope_denied"));
+
+    expect(await db.select().from(schema.connection)).toEqual([]);
+  });
+
+  test("keeps a saved calendar connection when the token cache write fails", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    provider.google.profiles.set("code-cal-cache", {
+      ...GOOGLE_PROFILE,
+      sub: "google-sub-cal-cache",
+    });
+    const identityId = await createIdentity(cookie, "code-cal-cache");
+    const state = await startCalendarState(cookie, identityId);
+    setCalendarProfile("code-cal-cache-2", "google-sub-cal-cache");
+
+    const send = redis.send.bind(redis);
+    const cacheSpy = spyOn(redis, "send").mockImplementation((command, args) => {
+      const isTokenWrite =
+        command === ERedisCommand.SET &&
+        args[0]?.includes(EIdentityRedisKeyPrefix.CONNECTION_TOKEN);
+      return isTokenWrite
+        ? Promise.reject(new Error(ETestMessages.REDIS_IS_DOWN))
+        : send(command, args);
+    });
+    try {
+      const completed = await completeCallback("code-cal-cache-2", state);
+      expect(readLocation(completed)).toBe(connectedUrl("google-calendar", CALENDAR_EMAIL));
+    } finally {
+      cacheSpy.mockRestore();
+    }
+
+    const row = await readOnlyConnectionRow();
+    expect(row.status).toBe(EConnectionStatus.ACTIVE);
   });
 
   test("rejects a calendar consent completed with a different google account", async () => {
@@ -726,13 +796,14 @@ describe("api key connections", () => {
       scopes: null,
       providerAccountId: JIRA_ACCOUNT.accountId,
       providerAccountEmail: JIRA_ACCOUNT.accountEmail,
+      providerSite: JIRA_SITE,
       createdAt: expect.anything(),
       updatedAt: expect.anything(),
     });
 
     const stored = await readOnlyConnectionRow();
     if (typeof stored.apiKeyEnc !== "string") {
-      throw new Error("Connection row has no encrypted api key");
+      throw new Error(ETestMessages.CONNECTION_ROW_HAS_NO_ENCRYPTED_API_KEY);
     }
     expect(stored.apiKeyEnc).not.toContain(VALID_JIRA_KEY);
     expect(stored.apiKeyEnc.startsWith("v1.")).toBe(true);
@@ -830,7 +901,7 @@ describe("api key connections", () => {
     const { data } = await listIdentities(cookie);
     const second = data?.find((entry) => entry.id !== firstId);
     if (!second) {
-      throw new Error("Second identity is missing");
+      throw new Error(ETestMessages.SECOND_IDENTITY_IS_MISSING);
     }
 
     expect((await connectJira(cookie, firstId, VALID_JIRA_KEY)).status).toBe(HTTP_OK);
@@ -880,7 +951,7 @@ describe("api key connections", () => {
     });
     expect(status).toBe(HTTP_OK);
     if (!(data && "id" in data)) {
-      throw new Error("Connection has no id");
+      throw new Error(ETestMessages.CONNECTION_HAS_NO_ID);
     }
 
     expect((await deleteConnection(cookie, data.id)).status).toBe(HTTP_OK);

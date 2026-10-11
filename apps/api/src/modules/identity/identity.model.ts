@@ -7,6 +7,7 @@ import {
   MAX_EMAIL_LENGTH,
   MAX_ID_LENGTH,
   MAX_OAUTH_CODE_LENGTH,
+  MAX_OAUTH_ERROR_LENGTH,
   MAX_SCOPES_LENGTH,
   MAX_SITE_LENGTH,
   MAX_STATE_LENGTH,
@@ -30,7 +31,8 @@ export const connectionIdParams = t.Object({
 });
 
 export const googleCallbackQuery = t.Object({
-  code: t.String({ maxLength: MAX_OAUTH_CODE_LENGTH }),
+  code: t.Optional(t.String({ maxLength: MAX_OAUTH_CODE_LENGTH })),
+  error: t.Optional(t.String({ maxLength: MAX_OAUTH_ERROR_LENGTH })),
   state: t.String({ maxLength: MAX_STATE_LENGTH }),
 });
 
@@ -68,6 +70,7 @@ export const connectionResponse = t.Object({
   scopes: t.Nullable(t.String({ maxLength: MAX_SCOPES_LENGTH })),
   providerAccountId: t.Nullable(t.String({ maxLength: MAX_ACCOUNT_ID_LENGTH })),
   providerAccountEmail: t.Nullable(t.String({ maxLength: MAX_EMAIL_LENGTH })),
+  providerSite: t.Nullable(t.String({ maxLength: MAX_SITE_LENGTH })),
   createdAt: t.String({ maxLength: MAX_TIMESTAMP_LENGTH }),
   updatedAt: t.String({ maxLength: MAX_TIMESTAMP_LENGTH }),
 });

@@ -1,10 +1,10 @@
 import { createCloudClient } from "jira.js";
 
 import { JIRA_REQUEST_TIMEOUT_MS } from "#api/shared/providers/jira/jira.constants";
-import { EJiraMessages } from "#api/shared/providers/jira/jira.enums";
 import {
   isRejectedJiraCredential,
   normalizeJiraSite,
+  toJiraAccount,
 } from "#api/shared/providers/jira/jira.helpers";
 import type { IJiraCredentials } from "#api/shared/providers/jira/jira.interfaces";
 import type { IProviderAccount } from "#api/shared/providers/providers.interfaces";
@@ -25,22 +25,12 @@ export abstract class JiraService {
         {},
         { signal: AbortSignal.timeout(JIRA_REQUEST_TIMEOUT_MS) },
       );
-      return JiraService.toAccount(user.accountId, user.emailAddress);
+      return toJiraAccount(user.accountId, user.emailAddress);
     } catch (error) {
       if (isRejectedJiraCredential(error)) {
         return null;
       }
       throw error;
     }
-  }
-
-  private static toAccount(
-    accountId: string | undefined,
-    accountEmail: string | null | undefined,
-  ): IProviderAccount {
-    if (!(accountId && accountEmail)) {
-      throw new Error(EJiraMessages.ACCOUNT_INCOMPLETE);
-    }
-    return { accountId, accountEmail };
   }
 }

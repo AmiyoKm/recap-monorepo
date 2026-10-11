@@ -11,6 +11,7 @@ export const GOOGLE_CALENDAR_SCOPES = ["openid", "email", ROUTES.GOOGLE.CALENDAR
 export const MAX_ID_LENGTH = 128;
 export const MAX_OAUTH_CODE_LENGTH = 4096;
 export const MAX_STATE_LENGTH = 512;
+export const MAX_OAUTH_ERROR_LENGTH = 256;
 export const MIN_API_KEY_LENGTH = 8;
 export const MAX_API_KEY_LENGTH = 4096;
 export const MAX_EMAIL_LENGTH = 320;

@@ -4,9 +4,9 @@ import { useIdentitiesQuery } from "@/api/identity/identity.queries";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { EHeadingTag, EHeadingVariant, Heading } from "@/features/app-shell/components/Heading";
 import { ProfileDetailRow } from "@/features/profile/components/ProfileDetails/components/ProfileDetailRow";
+import { WorkAccountCount } from "@/features/profile/components/ProfileDetails/components/WorkAccountCount";
 import {
   PROFILE_DETAILS_DATE_FORMAT,
   PROFILE_DETAILS_EMAIL,
@@ -51,11 +51,7 @@ export function ProfileDetails({ user }: IProfileDetailsProps) {
             {dayjs(user.createdAt).format(PROFILE_DETAILS_DATE_FORMAT)}
           </ProfileDetailRow>
           <ProfileDetailRow label={PROFILE_DETAILS_WORK_ACCOUNTS}>
-            {identities.data ? (
-              <span className="tabular-nums">{identities.data.length}</span>
-            ) : (
-              <Skeleton className="h-4 w-8" />
-            )}
+            <WorkAccountCount count={identities.data?.length} isError={identities.isError} />
             <Button asChild variant="outline" size="sm">
               <Link to="/settings">{PROFILE_DETAILS_MANAGE}</Link>
             </Button>

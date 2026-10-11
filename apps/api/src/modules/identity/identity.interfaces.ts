@@ -66,6 +66,7 @@ export interface IOAuthConnectionInput {
   provider: string;
   refreshToken: string;
   expiresInSeconds: number | undefined;
+  scopes: string[];
   profile: IGoogleProfile;
 }
 
@@ -74,5 +75,6 @@ export interface IApiKeyConnectionInput {
   identityId: string;
   provider: string;
   apiKey: string;
+  site: string | null;
   account: IProviderAccount;
 }

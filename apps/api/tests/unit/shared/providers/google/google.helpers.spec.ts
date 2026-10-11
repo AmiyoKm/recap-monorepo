@@ -52,6 +52,11 @@ describe("toGoogleTokens", () => {
       accessToken: "access",
       refreshToken: undefined,
       expiresInSeconds: undefined,
+      scopes: [],
     });
+  });
+
+  test("splits the granted scopes", () => {
+    expect(toGoogleTokens("access", { scope: "openid email" }).scopes).toEqual(["openid", "email"]);
   });
 });

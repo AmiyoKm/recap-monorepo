@@ -24,5 +24,8 @@ export const IDENTITY_CONNECT_ERROR_MESSAGES: Record<EIdentityConnectError, stri
     "This Google account is already one of your work accounts.",
   [EIdentityConnectError.SUB_MISMATCH]:
     "This Google account does not match the work account. Give consent with the matching Google account.",
+  [EIdentityConnectError.ACCESS_DENIED]: "Google consent was cancelled. Start again to connect.",
+  [EIdentityConnectError.SCOPE_DENIED]:
+    "Recap needs access to your calendar. Start again and allow calendar access.",
   [EIdentityConnectError.FAILED]: "Google consent did not complete. Try again.",
 };

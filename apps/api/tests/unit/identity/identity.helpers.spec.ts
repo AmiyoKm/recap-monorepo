@@ -11,14 +11,18 @@ import {
   EIdentityRedisKeyPrefix,
 } from "#api/modules/identity/identity.enums";
 import {
+  apiKeySite,
   connectionTokenKey,
   createGrantState,
   findProviderRegistration,
+  hasCalendarScope,
   isUniqueViolation,
   parsePendingGrant,
   pendingGrantKey,
   toConnectionView,
 } from "#api/modules/identity/identity.helpers";
+import { EProvider } from "#api/shared/providers/providers.enums";
+import { ROUTES } from "#api/shared/routes/routes.constants";
 
 const TEN_MINUTES_IN_SECONDS = 600;
 const STATE_BYTES = 32;
@@ -140,6 +144,7 @@ describe("toConnectionView", () => {
     accessTokenExpiresAt: null,
     providerAccountId: "account-1",
     providerAccountEmail: "dev@employer.example",
+    providerSite: "acme.atlassian.net",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   };
@@ -156,5 +161,24 @@ describe("toConnectionView", () => {
     expect(() => toConnectionView({ ...row, provider: "zoom" })).toThrow(
       EIdentityMessages.UNKNOWN_CONNECTION_VALUE,
     );
+  });
+});
+
+describe("apiKeySite", () => {
+  test("normalizes the jira site and leaves other providers empty", () => {
+    expect(
+      apiKeySite({
+        provider: EProvider.JIRA,
+        credentials: { site: "https://Acme.atlassian.net/jira", email: "a@b.c", apiToken: "t" },
+      }),
+    ).toBe("acme.atlassian.net");
+    expect(apiKeySite({ provider: EProvider.LINEAR, apiKey: "key" })).toBeNull();
+  });
+});
+
+describe("hasCalendarScope", () => {
+  test("requires the calendar read scope", () => {
+    expect(hasCalendarScope(["openid", ROUTES.GOOGLE.CALENDAR_READONLY_SCOPE])).toBe(true);
+    expect(hasCalendarScope(["openid", "email"])).toBe(false);
   });
 });

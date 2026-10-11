@@ -9,9 +9,9 @@ import {
   IDENTITY_CONNECTED_SUFFIX,
   IDENTITY_SYNC_CHANNEL,
 } from "@/api/identity/identity.constants";
-import { EProvider } from "@/api/identity/identity.enums";
+import { EConnectionStatus, EConsentTarget, EProvider } from "@/api/identity/identity.enums";
 import type { IConnectResultMessage } from "@/api/identity/identity.interfaces";
-import type { TIdentitiesData } from "@/api/identity/identity.types";
+import type { TConsentTarget, TIdentitiesData } from "@/api/identity/identity.types";
 
 export function readAuthorizeUrl(data: unknown): string {
   if (
@@ -59,11 +59,17 @@ export function connectedTitle(connected: string): string {
   return `${providerLabel(connected)} ${IDENTITY_CONNECTED_SUFFIX}`;
 }
 
+function connectionEntry(identityId: string, provider: string, status: string): string {
+  return `${identityId}:${provider}:${status}`;
+}
+
 export function identitiesFingerprint(identities: TIdentitiesData): string {
   return identities
     .flatMap((identity) => [
       identity.id,
-      ...identity.connections.map((connection) => `${connection.id}:${connection.status}`),
+      ...identity.connections.map((connection) =>
+        connectionEntry(identity.id, connection.provider, connection.status),
+      ),
     ])
     .join("|");
 }
@@ -104,7 +110,19 @@ export function publishConnectResult(message: IConnectResultMessage): void {
   channel.close();
 }
 
-export function identitiesGained(before: string, after: string): boolean {
+function gainedEntries(before: string, after: string): string[] {
   const known = new Set(before.split("|"));
-  return after.split("|").some((entry) => entry.length > 0 && !known.has(entry));
+  return after.split("|").filter((entry) => entry.length > 0 && !known.has(entry));
+}
+
+export function consentCompleted(before: string, after: string, target: TConsentTarget): boolean {
+  const gained = gainedEntries(before, after);
+  switch (target.kind) {
+    case EConsentTarget.IDENTITY:
+      return gained.some((entry) => !entry.includes(":"));
+    case EConsentTarget.CONNECTION:
+      return gained.includes(
+        connectionEntry(target.identityId, target.provider, EConnectionStatus.ACTIVE),
+      );
+  }
 }

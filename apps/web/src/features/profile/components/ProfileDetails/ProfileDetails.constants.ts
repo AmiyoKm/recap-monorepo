@@ -8,3 +8,4 @@ export const PROFILE_DETAILS_MEMBER_SINCE = "Member since";
 export const PROFILE_DETAILS_DATE_FORMAT = "D MMMM YYYY";
 export const PROFILE_DETAILS_WORK_ACCOUNTS = "Work accounts";
 export const PROFILE_DETAILS_MANAGE = "Manage";
+export const PROFILE_DETAILS_WORK_ACCOUNTS_UNAVAILABLE = "Unavailable";

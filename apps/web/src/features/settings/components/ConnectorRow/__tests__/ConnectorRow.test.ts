@@ -38,6 +38,7 @@ describe("connectorState", () => {
     scopes: null,
     providerAccountId: "account-1",
     providerAccountEmail: "ada@acme.dev",
+    providerSite: "acme.atlassian.net",
     createdAt: "2026-10-11T00:00:00.000Z",
     updatedAt: "2026-10-11T00:00:00.000Z",
   };

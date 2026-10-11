@@ -8,7 +8,9 @@ import { dayjs } from "#api/shared/date/date.helpers";
 import { db } from "#api/shared/db/db.client";
 import { ENV } from "#api/shared/env/env.constants";
 import { redis } from "#api/shared/redis/redis.client";
-import { TEST_USER_NAME } from "#api-tests/fixtures/fixtures.constants";
+import { ERedisCommand } from "#api/shared/redis/redis.enums";
+import { TEST_DATABASE_SUFFIX, TEST_USER_NAME } from "#api-tests/fixtures/fixtures.constants";
+import { ETestMessages } from "#api-tests/fixtures/fixtures.enums";
 
 export function uniqueEmail(): string {
   return `user-${randomUUID()}@test.example`;
@@ -28,14 +30,22 @@ export async function createUser(email: string): Promise<string> {
   return id;
 }
 
+function requireTestDatabase(): void {
+  if (!new URL(ENV.databaseUrl).pathname.endsWith(TEST_DATABASE_SUFFIX)) {
+    throw new Error(ETestMessages.NOT_A_TEST_DATABASE, { cause: ENV.databaseUrl });
+  }
+}
+
 export async function wipeDatabase(): Promise<void> {
+  requireTestDatabase();
   await db.execute(
     sql`truncate table "identity", "connection", "session", "account", "user" cascade`,
   );
 }
 
 export async function wipeRedis(): Promise<void> {
-  const found: unknown = await redis.send("KEYS", [`${ENV.redisKeyPrefix}*`]);
+  requireTestDatabase();
+  const found: unknown = await redis.send(ERedisCommand.KEYS, [`${ENV.redisKeyPrefix}*`]);
   if (!Array.isArray(found)) {
     return;
   }

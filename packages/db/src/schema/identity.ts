@@ -38,6 +38,7 @@ export const connection = pgTable(
     accessTokenExpiresAt: timestamp("access_token_expires_at", { mode: "string" }),
     providerAccountId: text("provider_account_id"),
     providerAccountEmail: text("provider_account_email"),
+    providerSite: text("provider_site"),
     createdAt: timestamp("created_at", { mode: "string" }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "string" }).notNull(),
   },

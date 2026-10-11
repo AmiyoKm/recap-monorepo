@@ -7,6 +7,7 @@ import { IdentityRepository } from "#api/modules/identity/identity.repository";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { db } from "#api/shared/db/db.client";
 import { createUser, uniqueEmail, wipeDatabase } from "#api-tests/fixtures/fixtures.helpers";
+import type { IIdentityWithUser } from "#api-tests/unit/identity/identity.interfaces";
 
 function identityValues(userId: string, googleSub: string) {
   const now = dayjs().toISOString();
@@ -41,10 +42,7 @@ function connectionValues(identityId: string, provider: string) {
   };
 }
 
-async function insertIdentityWithUser(googleSub: string): Promise<{
-  userId: string;
-  identityId: string;
-}> {
+async function insertIdentityWithUser(googleSub: string): Promise<IIdentityWithUser> {
   const userId = await createUser(uniqueEmail());
   const values = identityValues(userId, googleSub);
   await IdentityRepository.insertIdentity(values);

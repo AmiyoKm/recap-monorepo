@@ -1,3 +1,4 @@
+import { EConsentTarget } from "@/api/identity/identity.enums";
 import { useConnectIdentityMutation } from "@/api/identity/identity.mutations";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +31,7 @@ export function AddIdentityDialog() {
       copiedText={ADD_IDENTITY_COPIED}
       openText={ADD_IDENTITY_OPEN_GOOGLE}
       doneText={ADD_IDENTITY_DONE}
+      target={{ kind: EConsentTarget.IDENTITY }}
       onDialogOpen={() => connect.mutate()}
     />
   );

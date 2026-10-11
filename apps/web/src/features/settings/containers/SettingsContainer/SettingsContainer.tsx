@@ -1,9 +1,11 @@
 import { WaypointsIcon } from "lucide-react";
 
 import { useIdentitiesQuery } from "@/api/identity/identity.queries";
-import { Alert, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertAction, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -19,6 +21,7 @@ import {
   SETTINGS_EMPTY_TITLE,
   SETTINGS_LOAD_FAILED,
   SETTINGS_LOADING,
+  SETTINGS_RETRY,
   SETTINGS_TITLE,
 } from "@/features/settings/containers/SettingsContainer/SettingsContainer.constants";
 
@@ -38,6 +41,11 @@ export function SettingsContainer() {
         {identities.isError ? (
           <Alert variant="destructive">
             <AlertTitle>{SETTINGS_LOAD_FAILED}</AlertTitle>
+            <AlertAction>
+              <Button variant="outline" size="sm" onClick={() => void identities.refetch()}>
+                {SETTINGS_RETRY}
+              </Button>
+            </AlertAction>
           </Alert>
         ) : null}
         {identities.data && identities.data.length === 0 ? (
@@ -49,6 +57,9 @@ export function SettingsContainer() {
               <EmptyTitle>{SETTINGS_EMPTY_TITLE}</EmptyTitle>
               <EmptyDescription>{SETTINGS_EMPTY}</EmptyDescription>
             </EmptyHeader>
+            <EmptyContent>
+              <AddIdentityDialog />
+            </EmptyContent>
           </Empty>
         ) : null}
         {identities.data?.map((identity) => (

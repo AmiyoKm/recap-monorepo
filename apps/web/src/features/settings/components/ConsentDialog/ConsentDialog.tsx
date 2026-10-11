@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import {
   Dialog,
   DialogContent,
@@ -25,27 +23,21 @@ export function ConsentDialog({
   copiedText,
   openText,
   doneText,
+  target,
   onDialogOpen,
 }: IConsentDialogProps) {
-  const [open, setOpen] = useState(false);
-  const { markBaseline } = useConsentCompletion({
-    isWaiting: open && Boolean(authorizeUrl),
+  const { open, isReady, changeOpen } = useConsentCompletion({
+    hasAuthorizeUrl: Boolean(authorizeUrl),
+    target,
     doneText,
-    onDone: () => setOpen(false),
+    onDialogOpen,
   });
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        markBaseline();
-        if (next) {
-          onDialogOpen();
-        }
-      }}
-    >
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <DialogTrigger asChild disabled={!isReady}>
+        {trigger}
+      </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>

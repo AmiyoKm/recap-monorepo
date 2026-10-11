@@ -1,7 +1,6 @@
 import { randomBytes } from "node:crypto";
 
 import {
-  GOOGLE_CALENDAR_SCOPES,
   GRANT_STATE_BYTES,
   PROVIDER_REGISTRY,
   UNIQUE_VIOLATION_CODE,
@@ -19,6 +18,7 @@ import type {
   IProviderRegistration,
 } from "#api/modules/identity/identity.interfaces";
 import type {
+  TApiKey,
   TConnectionResponse,
   TConnectionRow,
   TIdentityResponse,
@@ -29,8 +29,11 @@ import { encryptSecret } from "#api/shared/crypto/crypto.helpers";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { ENV } from "#api/shared/env/env.constants";
 import { toStringRecord } from "#api/shared/json/json.helpers";
+import { GOOGLE_SCOPE_SEPARATOR } from "#api/shared/providers/google/google.constants";
 import type { IGoogleProfile } from "#api/shared/providers/google/google.interfaces";
+import { normalizeJiraSite } from "#api/shared/providers/jira/jira.helpers";
 import { EProvider } from "#api/shared/providers/providers.enums";
+import { ROUTES } from "#api/shared/routes/routes.constants";
 
 export function createGrantState(): string {
   return randomBytes(GRANT_STATE_BYTES).toString("base64url");
@@ -128,6 +131,7 @@ export function toConnectionView(row: TConnectionRow): TConnectionResponse {
     scopes: row.scopes,
     providerAccountId: row.providerAccountId,
     providerAccountEmail: row.providerAccountEmail,
+    providerSite: row.providerSite,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -176,7 +180,7 @@ export function buildOAuthConnectionRow(input: IOAuthConnectionInput): TConnecti
     provider: input.provider,
     authKind: EIdentityAuthKind.OAUTH,
     status: EConnectionStatus.ACTIVE,
-    scopes: GOOGLE_CALENDAR_SCOPES.join(" "),
+    scopes: input.scopes.join(GOOGLE_SCOPE_SEPARATOR),
     refreshTokenEnc: encryptSecret(ENV.connectionEncryptionKey, input.refreshToken),
     apiKeyEnc: null,
     accessTokenExpiresAt:
@@ -185,6 +189,7 @@ export function buildOAuthConnectionRow(input: IOAuthConnectionInput): TConnecti
         : now.add(input.expiresInSeconds, "second").toISOString(),
     providerAccountId: input.profile.sub,
     providerAccountEmail: input.profile.email,
+    providerSite: null,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
@@ -204,7 +209,19 @@ export function buildApiKeyConnectionRow(input: IApiKeyConnectionInput): TConnec
     accessTokenExpiresAt: null,
     providerAccountId: input.account.accountId,
     providerAccountEmail: input.account.accountEmail,
+    providerSite: input.site,
     createdAt: now,
     updatedAt: now,
   };
+}
+
+export function apiKeySite(apiKey: TApiKey): string | null {
+  if (apiKey.provider !== EProvider.JIRA) {
+    return null;
+  }
+  return normalizeJiraSite(apiKey.credentials.site);
+}
+
+export function hasCalendarScope(scopes: string[]): boolean {
+  return scopes.includes(ROUTES.GOOGLE.CALENDAR_READONLY_SCOPE);
 }

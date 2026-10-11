@@ -1,30 +1,44 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import { toast } from "sonner";
 
-import { identitiesFingerprint, identitiesGained } from "@/api/identity/identity.helpers";
-import { useConnectResultSubscription, useIdentitiesQuery } from "@/api/identity/identity.queries";
+import { consentCompleted, identitiesFingerprint } from "@/api/identity/identity.helpers";
+import { useIdentitiesQuery } from "@/api/identity/identity.queries";
 import type { IConsentCompletionOptions } from "@/features/settings/components/ConsentDialog/ConsentDialog.interfaces";
 
-export function useConsentCompletion({ isWaiting, doneText, onDone }: IConsentCompletionOptions) {
+export function useConsentCompletion({
+  hasAuthorizeUrl,
+  target,
+  doneText,
+  onDialogOpen,
+}: IConsentCompletionOptions) {
+  const [open, setOpen] = useState(false);
   const [baseline, setBaseline] = useState<string | null>(null);
+  const isWaiting = open && hasAuthorizeUrl;
   const identities = useIdentitiesQuery({ isWaitingForConsent: isWaiting });
   const fingerprint = identities.data ? identitiesFingerprint(identities.data) : null;
   const finish = useEffectEvent(() => {
-    onDone();
+    setOpen(false);
     toast.success(doneText);
   });
-
-  useConnectResultSubscription(onDone);
 
   useEffect(() => {
     if (!isWaiting || baseline === null || fingerprint === null) {
       return;
     }
-    if (!identitiesGained(baseline, fingerprint)) {
+    if (!consentCompleted(baseline, fingerprint, target)) {
       return;
     }
     finish();
-  }, [isWaiting, baseline, fingerprint]);
+  }, [isWaiting, baseline, fingerprint, target]);
 
-  return { markBaseline: () => setBaseline(fingerprint) };
+  const changeOpen = (next: boolean) => {
+    setOpen(next);
+    setBaseline(fingerprint);
+    if (!next) {
+      return;
+    }
+    onDialogOpen();
+  };
+
+  return { open, isReady: fingerprint !== null, changeOpen };
 }

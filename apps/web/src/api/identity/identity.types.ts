@@ -1,5 +1,9 @@
 import type { api } from "@/api/client";
 import type { EProvider } from "@/api/identity/identity.enums";
+import type {
+  IConnectionConsentTarget,
+  IIdentityConsentTarget,
+} from "@/api/identity/identity.interfaces";
 export type TIdentity = TIdentitiesData[number];
 
 export type TIdentityConnection = TIdentity["connections"][number];
@@ -32,3 +36,5 @@ export type TDeleteIdentityError = TEdenError<TConnectionsRoute["delete"]>;
 export type TDeleteConnectionData = TEdenData<TConnectionRoute["delete"]>;
 export type TDeleteConnectionError = TEdenError<TConnectionRoute["delete"]>;
 export type TConnectorProvider = EProvider.GOOGLE_CALENDAR | EProvider.JIRA | EProvider.LINEAR;
+
+export type TConsentTarget = IIdentityConsentTarget | IConnectionConsentTarget;

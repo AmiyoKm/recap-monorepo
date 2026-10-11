@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { EHeadingTag, EHeadingVariant, Heading } from "@/features/app-shell/components/Heading";
 import { ConnectorRow } from "@/features/settings/components/ConnectorRow";
 import { IdentityMenu } from "@/features/settings/components/IdentityCard/components/IdentityMenu";
 import {
@@ -32,7 +33,11 @@ export function IdentityCard({ identity }: IIdentityCardProps) {
             </AvatarFallback>
           </Avatar>
           <div className="flex min-w-0 flex-col gap-0.5">
-            <CardTitle className="truncate text-sm font-semibold">{name}</CardTitle>
+            <CardTitle className="min-w-0">
+              <Heading as={EHeadingTag.H2} variant={EHeadingVariant.CARD} className="truncate">
+                {name}
+              </Heading>
+            </CardTitle>
             {identity.displayName ? (
               <CardDescription className="truncate">{identity.email}</CardDescription>
             ) : null}

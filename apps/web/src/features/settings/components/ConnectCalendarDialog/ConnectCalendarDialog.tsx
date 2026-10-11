@@ -1,3 +1,4 @@
+import { EConsentTarget, EProvider } from "@/api/identity/identity.enums";
 import { useConnectCalendarMutation } from "@/api/identity/identity.mutations";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,7 @@ export function ConnectCalendarDialog({ identityId, triggerLabel }: IConnectCale
       copiedText={CONNECT_CALENDAR_COPIED}
       openText={CONNECT_CALENDAR_OPEN_GOOGLE}
       doneText={CONNECT_CALENDAR_DONE}
+      target={{ kind: EConsentTarget.CONNECTION, identityId, provider: EProvider.GOOGLE_CALENDAR }}
       onDialogOpen={() => connect.mutate(identityId)}
     />
   );

@@ -16,11 +16,13 @@ import {
   EIdentityMessages,
 } from "#api/modules/identity/identity.enums";
 import {
+  apiKeySite,
   buildApiKeyConnectionRow,
   buildIdentityRow,
   buildOAuthConnectionRow,
   connectionTokenKey,
   createGrantState,
+  hasCalendarScope,
   isWiredProvider,
   parsePendingGrant,
   pendingGrantKey,
@@ -108,8 +110,12 @@ export abstract class IdentityService {
     if (!grant) {
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.FAILED });
     }
+    const { code } = query;
+    if (!code) {
+      return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.ACCESS_DENIED });
+    }
     try {
-      return await IdentityService.completeGrant(grant, query.code);
+      return await IdentityService.completeGrant(grant, code);
     } catch (error) {
       logError(EIdentityConnectError.FAILED, error);
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.FAILED });
@@ -170,12 +176,14 @@ export abstract class IdentityService {
         message: EIdentityMessages.CONNECTION_EXISTS,
       } satisfies TConnectionExistsError);
     }
-    const account = await IdentityService.verifyApiKey(IdentityService.toApiKey(input));
+    const apiKey = IdentityService.toApiKey(input);
+    const account = await IdentityService.verifyApiKey(apiKey);
     const row = buildApiKeyConnectionRow({
       id: randomUUID(),
       identityId,
       provider: input.provider,
       apiKey: input.apiKey,
+      site: apiKeySite(apiKey),
       account,
     });
     const saved = await IdentityService.saveConnection(row, slot.staleConnectionId);
@@ -260,7 +268,7 @@ export abstract class IdentityService {
     if (!(saved && staleConnectionId)) {
       return saved;
     }
-    await IdentityService.deleteConnectionTokens([staleConnectionId]);
+    await IdentityService.runCacheTask(IdentityService.deleteConnectionTokens([staleConnectionId]));
     return true;
   }
 
@@ -276,19 +284,23 @@ export abstract class IdentityService {
     if (tokens.refreshToken === undefined) {
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.FAILED });
     }
+    if (!hasCalendarScope(tokens.scopes)) {
+      return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.SCOPE_DENIED });
+    }
     const row = buildOAuthConnectionRow({
       id: randomUUID(),
       identityId: identity.id,
       provider,
       refreshToken: tokens.refreshToken,
       expiresInSeconds: tokens.expiresInSeconds,
+      scopes: tokens.scopes,
       profile,
     });
     const saved = await IdentityService.saveConnection(row, staleConnectionId);
     if (!saved) {
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.ALREADY_CONNECTED });
     }
-    await IdentityService.cacheConnectionToken(row.id, tokens);
+    await IdentityService.runCacheTask(IdentityService.cacheConnectionToken(row.id, tokens));
     return ROUTES.WEB.CONNECT_RESULT({ connected: provider, email: profile.email });
   }
 
@@ -377,6 +389,14 @@ export abstract class IdentityService {
       ERedisSetOption.EXPIRE_IN_SECONDS,
       String(PENDING_GRANT_TTL_SECONDS),
     ]);
+  }
+
+  private static async runCacheTask(task: Promise<void>): Promise<void> {
+    try {
+      await task;
+    } catch (error) {
+      logError(EIdentityMessages.CONNECTION_CACHE_FAILED, error);
+    }
   }
 
   private static async cacheConnectionToken(

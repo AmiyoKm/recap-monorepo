@@ -6,3 +6,4 @@ export const SETTINGS_LOAD_FAILED = "Recap failed to load your work accounts. Tr
 export const SETTINGS_EMPTY_TITLE = "No work account yet";
 export const SETTINGS_EMPTY =
   "Add the Google account you use for work. Then connect its tools here.";
+export const SETTINGS_RETRY = "Try again";
