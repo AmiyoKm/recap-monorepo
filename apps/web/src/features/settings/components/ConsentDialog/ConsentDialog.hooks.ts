@@ -2,7 +2,8 @@ import { useEffect, useEffectEvent, useState } from "react";
 import { toast } from "sonner";
 
 import { consentCompleted, identitiesFingerprint } from "@/api/identity/identity.helpers";
-import { useIdentitiesQuery } from "@/api/identity/identity.queries";
+import type { IConnectResultMessage } from "@/api/identity/identity.interfaces";
+import { useConnectResultSubscription, useIdentitiesQuery } from "@/api/identity/identity.queries";
 import type { IConsentCompletionOptions } from "@/features/settings/components/ConsentDialog/ConsentDialog.interfaces";
 
 export function useConsentCompletion({
@@ -19,6 +20,13 @@ export function useConsentCompletion({
   const finish = useEffectEvent(() => {
     setOpen(false);
     toast.success(doneText);
+  });
+
+  useConnectResultSubscription((message: IConnectResultMessage) => {
+    if (!(isWaiting && message.error)) {
+      return;
+    }
+    onDialogOpen();
   });
 
   useEffect(() => {
