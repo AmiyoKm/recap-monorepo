@@ -14,6 +14,17 @@ export function useConnectIdentityMutation() {
   });
 }
 
+export function useConnectCalendarMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (identityId: string) =>
+      ensureOk(api.identities({ identityId }).connections.post({ provider: "google-calendar" })),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: identityKeys.all });
+    },
+  });
+}
+
 export function useDeleteIdentityMutation() {
   const queryClient = useQueryClient();
   return useMutation({

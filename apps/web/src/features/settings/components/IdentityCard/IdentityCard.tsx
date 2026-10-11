@@ -2,9 +2,9 @@ import { useDeleteIdentityMutation } from "@/api/identity/identity.mutations";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConnectCalendarDialog } from "@/features/settings/components/ConnectCalendarDialog";
 import { ConnectionRow } from "@/features/settings/components/ConnectionRow";
 import {
-  IDENTITY_CONNECT_CALENDAR,
   IDENTITY_CONNECT_JIRA,
   IDENTITY_CONNECT_LINEAR,
   IDENTITY_CONNECT_NOTE,
@@ -59,9 +59,7 @@ export function IdentityCard({ identity }: IIdentityCardProps) {
           <ConnectionRow key={connection.id} connection={connection} />
         ))}
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" disabled>
-            {IDENTITY_CONNECT_CALENDAR}
-          </Button>
+          <ConnectCalendarDialog identityId={identity.id} />
           <Button variant="outline" size="sm" disabled>
             {IDENTITY_CONNECT_JIRA}
           </Button>
