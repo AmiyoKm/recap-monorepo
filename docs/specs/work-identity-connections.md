@@ -62,7 +62,7 @@ Users get a Settings page where they build a list of Work Identities. Each Work 
 - Seams (confirmed with the user):
   - Existing seam, used as-is: the app factory with db, cache and env. Tests run against a local simulated D1 and KV from getPlatformProxy, and real AES-256-GCM encryption with a test key.
   - Exactly one new seam: an outbound provider client, injected into the identity module like the other dependencies, covering authorize-URL construction, code exchange, userinfo fetch and API-key validation. Production wraps the real Google, Jira and Linear endpoints; tests provide a fake. This is the highest point the network boundary can sit at, so it is the only new seam.
-- Tested module: the identity module end to end through the app factory, including auth gating, both consent kinds, the sub-mismatch rejection, grant TTL expiry and GETDEL consumption, encrypted-at-rest credentials, and disconnect/delete cascades.
+- Tested module: the identity module end to end through the app factory, including auth gating, both consent kinds, the sub-mismatch rejection, grant TTL expiry and D1 `DELETE ... RETURNING` consumption, encrypted-at-rest credentials, and disconnect/delete cascades.
 - Prior art: none; the repo has no tests yet, and this suite becomes the reference for future modules.
 - The web app gets no automated tests in this spec; `/settings` is verified manually.
 

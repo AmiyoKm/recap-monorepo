@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
 import { cache } from "#api/shared/cache/cache.client";
-import { KV_MIN_TTL_SECONDS } from "#api/shared/cache/cache.constants";
 import { CacheService } from "#api/shared/cache/cache.service";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { ETestMessages } from "#api-tests/fixtures/fixtures.enums";
@@ -36,16 +35,14 @@ describe("CacheService.put", () => {
     expect(await cache.get("cache-spec:value")).toBe("stored");
   });
 
-  test("raises a TTL below the KV minimum to the minimum", async () => {
+  test("skips a TTL below the KV minimum", async () => {
     await CacheService.put({
       key: "cache-spec:short",
       value: "stored",
       ttlSeconds: SHORT_TTL_SECONDS,
     });
 
-    const ttl = await ttlSeconds("cache-spec:short");
-    expect(ttl).toBeGreaterThan(KV_MIN_TTL_SECONDS - TTL_CLOCK_SLACK_SECONDS);
-    expect(ttl).toBeLessThanOrEqual(KV_MIN_TTL_SECONDS);
+    expect(await cache.get("cache-spec:short")).toBeNull();
   });
 
   test("keeps a TTL above the KV minimum", async () => {
