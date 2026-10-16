@@ -10,7 +10,11 @@ function requireBinding<TBinding>(name: EBinding, value: TBinding | undefined): 
 
 export function readBindings(env: Cloudflare.Env): IBindings {
   return {
-    DB: requireBinding(EBinding.DB, env.DB),
-    CACHE: requireBinding(EBinding.CACHE, env.CACHE),
+    get DB() {
+      return requireBinding(EBinding.DB, env.DB);
+    },
+    get CACHE() {
+      return requireBinding(EBinding.CACHE, env.CACHE);
+    },
   };
 }
