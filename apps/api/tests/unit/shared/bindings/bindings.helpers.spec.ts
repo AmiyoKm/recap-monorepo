@@ -6,6 +6,10 @@ import { EBindingsMessages } from "#api/shared/bindings/bindings.enums";
 import { readBindings } from "#api/shared/bindings/bindings.helpers";
 
 describe("readBindings", () => {
+  test("does not throw before a binding is read", () => {
+    expect(() => readBindings({ ...env, DB: undefined, CACHE: undefined })).not.toThrow();
+  });
+
   test("returns the DB and CACHE bindings when both are set", () => {
     const bindings = readBindings(env);
 
@@ -13,15 +17,15 @@ describe("readBindings", () => {
     expect(env.CACHE).toBe(bindings.CACHE);
   });
 
-  test("throws when DB is missing", () => {
-    expect(() => readBindings({ ...env, DB: undefined })).toThrow(
-      EBindingsMessages.MISSING_BINDING,
-    );
+  test("throws on DB access when DB is missing", () => {
+    const bindings = readBindings({ ...env, DB: undefined });
+
+    expect(() => bindings.DB).toThrow(EBindingsMessages.MISSING_BINDING);
   });
 
-  test("throws when CACHE is missing", () => {
-    expect(() => readBindings({ ...env, CACHE: undefined })).toThrow(
-      EBindingsMessages.MISSING_BINDING,
-    );
+  test("throws on CACHE access when CACHE is missing", () => {
+    const bindings = readBindings({ ...env, CACHE: undefined });
+
+    expect(() => bindings.CACHE).toThrow(EBindingsMessages.MISSING_BINDING);
   });
 });
