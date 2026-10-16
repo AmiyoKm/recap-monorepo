@@ -28,10 +28,7 @@
     "lint:fallow": "fallow",
     "format": "biome check --write .",
     "check": "bun run lint && bun run lint:files && bun run lint:comments && bun run lint:fallow && bun run typecheck && bun run build",
-    "services:up": "docker compose up -d --wait",
-    "services:down": "docker compose down",
     "db:generate": "bun --filter @recap/db generate",
-    "db:migrate": "bun --filter @recap/db migrate",
     "db:studio": "bun --filter @recap/db studio",
     "prepare": "lefthook install"
   },

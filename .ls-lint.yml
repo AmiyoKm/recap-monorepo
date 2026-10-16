@@ -19,6 +19,11 @@ ls:
     .helpers.ts: regex:fixtures
     .enums.ts: regex:fixtures
 
+  apps/api/tests/setup:
+    .ts: exists:0
+    .*.ts: exists:0
+    .preload.ts: regex:setup
+
   apps/api/tests/*/**:
     .dir: kebab-case
     .ts: exists:0
@@ -33,7 +38,7 @@ ls:
     .ts: kebab-case
 
   apps/api/src:
-    .ts: regex:index|app
+    .ts: regex:worker|app
     .*.ts: exists:0
     .types.ts: regex:app
     .interfaces.ts: regex:app

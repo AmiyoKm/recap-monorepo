@@ -198,3 +198,39 @@ describe("connection rows", () => {
     expect(await db.select().from(schema.connection)).toEqual([]);
   });
 });
+
+describe("pending grants", () => {
+  function grantValues(expiresAt: string) {
+    return { state: randomUUID(), payload: "{}", expiresAt };
+  }
+
+  test("takes a live grant only once", async () => {
+    const grant = grantValues(dayjs().add(1, "minute").toISOString());
+    await IdentityRepository.storePendingGrant(grant);
+    const now = dayjs().toISOString();
+
+    expect(await IdentityRepository.takePendingGrant({ state: grant.state, now })).toBe("{}");
+    expect(await IdentityRepository.takePendingGrant({ state: grant.state, now })).toBeUndefined();
+  });
+
+  test("does not take an expired grant", async () => {
+    const grant = grantValues(dayjs().subtract(1, "minute").toISOString());
+    await IdentityRepository.storePendingGrant(grant);
+
+    expect(
+      await IdentityRepository.takePendingGrant({ state: grant.state, now: dayjs().toISOString() }),
+    ).toBeUndefined();
+  });
+
+  test("deletes only expired grants", async () => {
+    const expired = grantValues(dayjs().subtract(1, "minute").toISOString());
+    const live = grantValues(dayjs().add(1, "minute").toISOString());
+    await IdentityRepository.storePendingGrant(expired);
+    await IdentityRepository.storePendingGrant(live);
+
+    await IdentityRepository.deleteExpiredPendingGrants(dayjs().toISOString());
+
+    const states = (await db.select().from(schema.pendingGrant)).map((row) => row.state);
+    expect(states).toEqual([live.state]);
+  });
+});

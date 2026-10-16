@@ -784,10 +784,6 @@
       "includes": ["**/apps/api/src/**/*.model.ts"]
     },
     {
-      "path": "./tooling/biome-plugins/api/no-raw-redis-command.grit",
-      "includes": ["**/apps/api/src/**/*.ts", "!**/__tests__/**", "!**/*.test.*"]
-    },
-    {
       "path": "./tooling/biome-plugins/api/no-direct-provider-service-import.grit",
       "includes": ["**/apps/api/src/**/*.ts", "!**/apps/api/src/shared/providers/**"]
     },
@@ -975,7 +971,12 @@
   },
   "overrides": [
     {
-      "includes": ["**/*.config.ts", "**/*.config.mts", "**/apps/web/vite.config.ts"],
+      "includes": [
+        "**/*.config.ts",
+        "**/*.config.mts",
+        "**/apps/web/vite.config.ts",
+        "**/apps/api/src/worker.ts"
+      ],
       "linter": {
         "rules": {
           "style": {
@@ -1006,12 +1007,7 @@
       }
     },
     {
-      "includes": [
-        "**/apps/api/src/shared/env/env.constants.ts",
-        "**/packages/db/src/migrate.ts",
-        "scripts/**",
-        "**/*.config.ts"
-      ],
+      "includes": ["**/apps/api/src/shared/env/env.constants.ts", "scripts/**", "**/*.config.ts"],
       "linter": {
         "rules": {
           "style": {
@@ -1198,8 +1194,8 @@
                   "date-fns": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
                   "moment": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
                   "luxon": "Use dayjs from the shared date module (#api/shared/date/date.helpers or @/shared/date/date.helpers).",
-                  "drizzle-orm": "Services orchestrate. Put Postgres access in the <feature>.repository.ts file.",
-                  "@recap/db": "Services orchestrate. Put Postgres access in the <feature>.repository.ts file.",
+                  "drizzle-orm": "Services orchestrate. Put database access in the <feature>.repository.ts file.",
+                  "@recap/db": "Services orchestrate. Put database access in the <feature>.repository.ts file.",
                   "#api/shared/db/db.client": "Services orchestrate. Import db only in the <feature>.repository.ts file."
                 }
               }

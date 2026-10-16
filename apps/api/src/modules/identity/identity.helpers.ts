@@ -2,15 +2,16 @@ import { randomBytes } from "node:crypto";
 
 import {
   GRANT_STATE_BYTES,
+  PENDING_GRANT_TTL_SECONDS,
   PROVIDER_REGISTRY,
-  UNIQUE_VIOLATION_CODE,
+  SQLITE_UNIQUE_VIOLATION,
 } from "#api/modules/identity/identity.constants";
 import {
   EConnectionStatus,
   EGrantPurpose,
   EIdentityAuthKind,
+  EIdentityCacheKeyPrefix,
   EIdentityMessages,
-  EIdentityRedisKeyPrefix,
 } from "#api/modules/identity/identity.enums";
 import type {
   IApiKeyConnectionInput,
@@ -24,6 +25,7 @@ import type {
   TIdentityResponse,
   TIdentityRow,
   TPendingGrant,
+  TPendingGrantInsert,
 } from "#api/modules/identity/identity.types";
 import { encryptSecret } from "#api/shared/crypto/crypto.helpers";
 import { dayjs } from "#api/shared/date/date.helpers";
@@ -39,12 +41,16 @@ export function createGrantState(): string {
   return randomBytes(GRANT_STATE_BYTES).toString("base64url");
 }
 
-export function pendingGrantKey(state: string): string {
-  return `${ENV.redisKeyPrefix}${EIdentityRedisKeyPrefix.PENDING_GRANT}${state}`;
+export function connectionTokenKey(connectionId: string): string {
+  return `${EIdentityCacheKeyPrefix.CONNECTION_TOKEN}${connectionId}`;
 }
 
-export function connectionTokenKey(connectionId: string): string {
-  return `${ENV.redisKeyPrefix}${EIdentityRedisKeyPrefix.CONNECTION_TOKEN}${connectionId}`;
+export function buildPendingGrantRow(state: string, grant: TPendingGrant): TPendingGrantInsert {
+  return {
+    state,
+    payload: JSON.stringify(grant),
+    expiresAt: dayjs().add(PENDING_GRANT_TTL_SECONDS, "second").toISOString(),
+  };
 }
 
 export function findProviderRegistration(
@@ -93,25 +99,15 @@ function readPendingGrant(stored: string): TPendingGrant | null {
   return { userId, purpose, identityId, provider, codeVerifier };
 }
 
-function errorCodes(error: unknown): unknown[] {
-  if (typeof error !== "object" || error === null) {
+function errorMessages(error: unknown): string[] {
+  if (!(error instanceof Error)) {
     return [];
   }
-  const codes: unknown[] = [];
-  if ("code" in error) {
-    codes.push(error.code);
-  }
-  if ("errno" in error) {
-    codes.push(error.errno);
-  }
-  if ("cause" in error) {
-    codes.push(...errorCodes(error.cause));
-  }
-  return codes;
+  return [error.message, ...errorMessages(error.cause)];
 }
 
 export function isUniqueViolation(error: unknown): boolean {
-  return errorCodes(error).includes(UNIQUE_VIOLATION_CODE);
+  return errorMessages(error).some((message) => message.includes(SQLITE_UNIQUE_VIOLATION));
 }
 
 function toKnownValue<TValue extends string>(values: TValue[], value: string): TValue {

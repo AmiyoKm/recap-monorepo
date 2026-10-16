@@ -78,3 +78,8 @@ export interface IApiKeyConnectionInput {
   site: string | null;
   account: IProviderAccount;
 }
+
+export interface ITakePendingGrantInput {
+  state: string;
+  now: string;
+}

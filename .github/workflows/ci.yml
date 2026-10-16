@@ -43,42 +43,9 @@ jobs:
       - name: Build API
         run: bun --filter @recap/api build
 
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - name: Build API image
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          file: apps/api/Dockerfile
-          push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_USER: recap
-          POSTGRES_PASSWORD: recap
-          POSTGRES_DB: recap_identity_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U recap -d recap_identity_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-      redis:
-        image: redis:8-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -88,13 +55,9 @@ jobs:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
 
-      - name: Migrate test database
-        run: bun run db:migrate
-        env:
-          DATABASE_URL: postgres://recap:recap@localhost:5432/recap_identity_test
       - name: Test API
         working-directory: apps/api
-        run: bun test
+        run: bun run test
       - name: Test web
         working-directory: apps/web
         run: bun test

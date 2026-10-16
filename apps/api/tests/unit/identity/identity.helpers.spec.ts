@@ -7,33 +7,47 @@ import {
 } from "#api/modules/identity/identity.constants";
 import {
   EGrantPurpose,
+  EIdentityCacheKeyPrefix,
   EIdentityMessages,
-  EIdentityRedisKeyPrefix,
 } from "#api/modules/identity/identity.enums";
 import {
   apiKeySite,
+  buildPendingGrantRow,
   connectionTokenKey,
   createGrantState,
   findProviderRegistration,
   hasCalendarScope,
   isUniqueViolation,
   parsePendingGrant,
-  pendingGrantKey,
   toConnectionView,
 } from "#api/modules/identity/identity.helpers";
+import { dayjs } from "#api/shared/date/date.helpers";
 import { EProvider } from "#api/shared/providers/providers.enums";
 import { ROUTES } from "#api/shared/routes/routes.constants";
 
 const TEN_MINUTES_IN_SECONDS = 600;
 const STATE_BYTES = 32;
+const CLOCK_SLACK_SECONDS = 5;
 
-describe("pending grant keys", () => {
-  test("prefixes grant states and connection tokens", () => {
-    expect(pendingGrantKey("abc")).toBe("test-7:pending-grant:abc");
-    expect(connectionTokenKey("conn-1")).toBe("test-7:connection-token:conn-1");
-    expect<string>(EIdentityRedisKeyPrefix.PENDING_GRANT).toBe("pending-grant:");
-    expect<string>(EIdentityRedisKeyPrefix.CONNECTION_TOKEN).toBe("connection-token:");
+describe("pending grants and cache keys", () => {
+  test("builds connection token cache keys", () => {
+    expect(connectionTokenKey("conn-1")).toBe("connection-token:conn-1");
+    expect<string>(EIdentityCacheKeyPrefix.CONNECTION_TOKEN).toBe("connection-token:");
     expect(PENDING_GRANT_TTL_SECONDS).toBe(TEN_MINUTES_IN_SECONDS);
+  });
+
+  test("builds a pending grant row that expires after the grant TTL", () => {
+    const grant = {
+      userId: "user-1",
+      purpose: EGrantPurpose.IDENTITY_CREATE,
+      codeVerifier: "verifier",
+    } as const;
+    const row = buildPendingGrantRow("state-1", grant);
+    expect(row.state).toBe("state-1");
+    expect(JSON.parse(row.payload)).toEqual(grant);
+    const ttl = dayjs(row.expiresAt).diff(dayjs(), "second");
+    expect(ttl).toBeGreaterThan(TEN_MINUTES_IN_SECONDS - CLOCK_SLACK_SECONDS);
+    expect(ttl).toBeLessThanOrEqual(TEN_MINUTES_IN_SECONDS);
   });
 
   test("creates unique high-entropy states", () => {
@@ -104,19 +118,28 @@ describe("parsePendingGrant", () => {
 });
 
 describe("isUniqueViolation", () => {
-  test("detects drizzle-wrapped unique violations", () => {
-    expect(isUniqueViolation({ cause: { errno: "23505" } })).toBe(true);
+  const d1Message =
+    "D1_ERROR: UNIQUE constraint failed: identity.user_id, identity.google_sub: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)";
+
+  test("detects a drizzle-wrapped D1 unique violation", () => {
+    const error = new Error("Failed query: insert into identity", {
+      cause: new Error(d1Message),
+    });
+    expect(isUniqueViolation(error)).toBe(true);
   });
 
-  test("detects plain coded errors", () => {
-    expect(isUniqueViolation({ code: "23505" })).toBe(true);
+  test("detects a D1 batch unique violation", () => {
+    expect(isUniqueViolation(new Error(d1Message))).toBe(true);
   });
 
   test("rejects other failures", () => {
-    expect(isUniqueViolation({ cause: { errno: "23503" } })).toBe(false);
+    const foreignKey = new Error(
+      "D1_ERROR: FOREIGN KEY constraint failed: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_FOREIGNKEY)",
+    );
+    expect(isUniqueViolation(new Error("Failed query", { cause: foreignKey }))).toBe(false);
     expect(isUniqueViolation(new Error("boom"))).toBe(false);
     expect(isUniqueViolation(null)).toBe(false);
-    expect(isUniqueViolation("23505")).toBe(false);
+    expect(isUniqueViolation(d1Message)).toBe(false);
   });
 });
 

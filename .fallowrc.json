@@ -2,10 +2,9 @@
   "$schema": "./node_modules/fallow/schema.json",
   "minimumVersion": "3.33.1",
   "entry": [
-    "apps/api/src/index.ts",
+    "apps/api/src/worker.ts",
     "apps/web/src/main.tsx",
     "apps/web/src/routes/**/*.tsx",
-    "packages/db/src/migrate.ts",
     "packages/db/drizzle.config.ts",
     "commitlint.config.ts",
     "apps/web/src/components/ui/*.tsx",
@@ -47,7 +46,7 @@
     "zones": [
       {
         "name": "api-entry",
-        "patterns": ["apps/api/src/index.ts", "apps/api/src/app.ts", "apps/api/src/app.*.ts"]
+        "patterns": ["apps/api/src/worker.ts", "apps/api/src/app.ts", "apps/api/src/app.*.ts"]
       },
       {
         "name": "api-modules",
@@ -151,12 +150,6 @@
     {
       "file": "apps/web/src/api/client/index.ts",
       "exports": ["authClient"]
-    }
-  ],
-  "usedClassMembers": [
-    {
-      "implements": "SecondaryStorage",
-      "members": ["get", "getAndDelete", "increment", "set", "delete"]
     }
   ]
 }

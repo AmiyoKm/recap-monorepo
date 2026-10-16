@@ -1,33 +1,12 @@
 {
   "version": "7",
-  "dialect": "postgresql",
+  "dialect": "sqlite",
   "entries": [
     {
       "idx": 0,
-      "version": "7",
-      "when": 1791647462599,
+      "version": "6",
+      "when": 1792176091889,
       "tag": "0000_init",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1791700747847,
-      "tag": "0001_identities-and-connections",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1791707721541,
-      "tag": "0002_identity-sub-per-user",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1791731159781,
-      "tag": "0003_connection-provider-site",
       "breakpoints": true
     }
   ]

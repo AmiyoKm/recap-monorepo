@@ -6,7 +6,6 @@ import {
   GOOGLE_CALENDAR_SCOPES,
   GOOGLE_IDENTITY_CONNECTED,
   IDENTITY_CREATE_SCOPES,
-  PENDING_GRANT_TTL_SECONDS,
 } from "#api/modules/identity/identity.constants";
 import {
   EConnectionStatus,
@@ -20,12 +19,12 @@ import {
   buildApiKeyConnectionRow,
   buildIdentityRow,
   buildOAuthConnectionRow,
+  buildPendingGrantRow,
   connectionTokenKey,
   createGrantState,
   hasCalendarScope,
   isWiredProvider,
   parsePendingGrant,
-  pendingGrantKey,
   toConnectionView,
   toIdentityView,
 } from "#api/modules/identity/identity.helpers";
@@ -56,13 +55,13 @@ import type {
   TIdentityRow,
   TPendingGrant,
 } from "#api/modules/identity/identity.types";
+import { CacheService } from "#api/shared/cache/cache.service";
+import { dayjs } from "#api/shared/date/date.helpers";
 import { logError } from "#api/shared/logger/logger.helpers";
 import type { IGoogleGrant, IGoogleTokens } from "#api/shared/providers/google/google.interfaces";
 import { providers } from "#api/shared/providers/providers.client";
 import { EProvider } from "#api/shared/providers/providers.enums";
 import type { IProviderAccount } from "#api/shared/providers/providers.interfaces";
-import { redis } from "#api/shared/redis/redis.client";
-import { ERedisCommand, ERedisSetOption } from "#api/shared/redis/redis.enums";
 import { ROUTES } from "#api/shared/routes/routes.constants";
 
 export abstract class IdentityService {
@@ -100,10 +99,11 @@ export abstract class IdentityService {
   }
 
   static async completeGoogleCallback(query: TGoogleCallbackQuery): Promise<string> {
-    const stored: unknown = await redis.send(ERedisCommand.GET_AND_DELETE, [
-      pendingGrantKey(query.state),
-    ]);
-    if (typeof stored !== "string" || stored.length === 0) {
+    const stored = await IdentityRepository.takePendingGrant({
+      state: query.state,
+      now: dayjs().toISOString(),
+    });
+    if (!stored) {
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.EXPIRED });
     }
     const grant = parsePendingGrant(stored);
@@ -120,6 +120,10 @@ export abstract class IdentityService {
       logError(EIdentityConnectError.FAILED, error);
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.FAILED });
     }
+  }
+
+  static async deleteExpiredPendingGrants(): Promise<void> {
+    await IdentityRepository.deleteExpiredPendingGrants(dayjs().toISOString());
   }
 
   static async deleteIdentity(userId: string, identityId: string): Promise<TDeleteResponse> {
@@ -378,17 +382,10 @@ export abstract class IdentityService {
       redirectUri: ROUTES.API.GOOGLE_CALLBACK_URL(),
       scopes,
     });
-    await IdentityService.storePendingGrant(state, { ...request, codeVerifier });
+    await IdentityRepository.storePendingGrant(
+      buildPendingGrantRow(state, { ...request, codeVerifier }),
+    );
     return { authorizeUrl };
-  }
-
-  private static async storePendingGrant(state: string, grant: TPendingGrant): Promise<void> {
-    await redis.send(ERedisCommand.SET, [
-      pendingGrantKey(state),
-      JSON.stringify(grant),
-      ERedisSetOption.EXPIRE_IN_SECONDS,
-      String(PENDING_GRANT_TTL_SECONDS),
-    ]);
   }
 
   private static async runCacheTask(task: Promise<void>): Promise<void> {
@@ -406,21 +403,17 @@ export abstract class IdentityService {
     if (tokens.expiresInSeconds === undefined || tokens.expiresInSeconds <= 0) {
       return;
     }
-    await redis.send(ERedisCommand.SET, [
-      connectionTokenKey(connectionId),
-      tokens.accessToken,
-      ERedisSetOption.EXPIRE_IN_SECONDS,
-      String(tokens.expiresInSeconds),
-    ]);
+    await CacheService.put({
+      key: connectionTokenKey(connectionId),
+      value: tokens.accessToken,
+      ttlSeconds: tokens.expiresInSeconds,
+    });
   }
 
   private static async deleteConnectionTokens(connectionIds: string[]): Promise<void> {
     if (connectionIds.length === 0) {
       return;
     }
-    await redis.send(
-      ERedisCommand.DELETE,
-      connectionIds.map((id) => connectionTokenKey(id)),
-    );
+    await CacheService.delete(connectionIds.map((id) => connectionTokenKey(id)));
   }
 }

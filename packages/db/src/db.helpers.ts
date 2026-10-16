@@ -1,7 +1,7 @@
-import { drizzle } from "drizzle-orm/bun-sql";
+import { type AnyD1Database, drizzle } from "drizzle-orm/d1";
 
 import * as schema from "#db/schema";
 
-export function createDb(url: string) {
-  return drizzle(url, { schema, casing: "snake_case" });
+export function createDb(d1: AnyD1Database) {
+  return drizzle(d1, { schema, casing: "snake_case" });
 }
