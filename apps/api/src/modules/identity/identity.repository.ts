@@ -72,15 +72,8 @@ export abstract class IdentityRepository {
     values: TConnectionInsert,
     staleConnectionId?: string,
   ): Promise<boolean> {
-    const insert = db.insert(schema.connection).values(values);
-    const write = staleConnectionId
-      ? db.batch([
-          db.delete(schema.connection).where(eq(schema.connection.id, staleConnectionId)),
-          insert,
-        ])
-      : insert;
     try {
-      await write;
+      await IdentityRepository.writeConnection(values, staleConnectionId);
       return true;
     } catch (error) {
       if (!isUniqueViolation(error)) {
@@ -88,6 +81,21 @@ export abstract class IdentityRepository {
       }
       return false;
     }
+  }
+
+  private static async writeConnection(
+    values: TConnectionInsert,
+    staleConnectionId?: string,
+  ): Promise<void> {
+    const insert = db.insert(schema.connection).values(values);
+    if (!staleConnectionId) {
+      await insert;
+      return;
+    }
+    await db.batch([
+      db.delete(schema.connection).where(eq(schema.connection.id, staleConnectionId)),
+      insert,
+    ]);
   }
 
   static listConnections(identityIds: string[]): Promise<TConnectionRow[]> {

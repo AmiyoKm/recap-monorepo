@@ -8,11 +8,9 @@ export function PageHeader({ title, description, actions }: IPageHeaderProps) {
         <Heading as={EHeadingTag.H1} variant={EHeadingVariant.PAGE}>
           {title}
         </Heading>
-        {description ? (
-          <p className="max-w-prose text-sm text-muted-foreground">{description}</p>
-        ) : null}
+        {description && <p className="max-w-prose text-sm text-muted-foreground">{description}</p>}
       </div>
-      {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
+      {Boolean(actions) && <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
     </div>
   );
 }

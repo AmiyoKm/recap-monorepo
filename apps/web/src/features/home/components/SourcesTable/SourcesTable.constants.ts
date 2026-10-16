@@ -1,4 +1,5 @@
 import { EProvider } from "@/api/identity/identity.enums";
+import type { TBadgeVariant } from "@/features/app-shell/app-shell.types";
 import { ESourceAvailability } from "@/features/home/home.enums";
 import type { ISourceRow } from "@/features/home/home.interfaces";
 
@@ -23,3 +24,7 @@ export const SOURCES_ROWS: ISourceRow[] = [
   { provider: EProvider.GOOGLE_CHAT, method: "Not yet", availability: ESourceAvailability.PLANNED },
   { provider: EProvider.GITHUB, method: "Not yet", availability: ESourceAvailability.PLANNED },
 ];
+export const SOURCES_AVAILABILITY_BADGE_VARIANTS: Record<ESourceAvailability, TBadgeVariant> = {
+  [ESourceAvailability.AVAILABLE]: "secondary",
+  [ESourceAvailability.PLANNED]: "outline",
+};

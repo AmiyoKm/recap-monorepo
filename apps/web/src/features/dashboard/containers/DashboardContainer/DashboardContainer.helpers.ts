@@ -16,5 +16,15 @@ export function dayPartFor(hour: number): EDayPart {
 
 export function firstName(name: string | undefined): string | undefined {
   const first = name?.trim().split(" ")[0];
-  return first && first.length > 0 ? first : undefined;
+  if (!first) {
+    return undefined;
+  }
+  return first;
+}
+
+export function greetingTitle(greeting: string, name: string | undefined): string {
+  if (!name) {
+    return `${greeting}.`;
+  }
+  return `${greeting}, ${name}.`;
 }

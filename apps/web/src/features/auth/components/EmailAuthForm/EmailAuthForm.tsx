@@ -11,9 +11,10 @@ import { EAuthMode } from "@/features/auth/auth.enums";
 import {
   EMAIL_AUTH_EMAIL_LABEL,
   EMAIL_AUTH_NAME_LABEL,
+  EMAIL_AUTH_PASSWORD_AUTOCOMPLETE,
   EMAIL_AUTH_PASSWORD_HINT,
   EMAIL_AUTH_PASSWORD_LABEL,
-  EMAIL_AUTH_PASSWORD_MIN_LENGTH,
+  EMAIL_AUTH_PASSWORD_MIN_LENGTHS,
   EMAIL_AUTH_PENDING,
   EMAIL_AUTH_SUBMIT,
   EMAIL_AUTH_SWITCH_ACTION,
@@ -29,7 +30,7 @@ export function EmailAuthForm({ mode, onModeChange }: IEmailAuthFormProps) {
   const signIn = useEmailSignInMutation();
   const signUp = useEmailSignUpMutation();
   const isSignUp = mode === EAuthMode.SIGN_UP;
-  const active = isSignUp ? signUp : signIn;
+  const active = { [EAuthMode.SIGN_IN]: signIn, [EAuthMode.SIGN_UP]: signUp }[mode];
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -49,7 +50,7 @@ export function EmailAuthForm({ mode, onModeChange }: IEmailAuthFormProps) {
   return (
     <form onSubmit={handleSubmit}>
       <FieldGroup className="gap-5">
-        {isSignUp ? (
+        {isSignUp && (
           <Field>
             <FieldLabel htmlFor="auth-name">{EMAIL_AUTH_NAME_LABEL}</FieldLabel>
             <Input
@@ -60,7 +61,7 @@ export function EmailAuthForm({ mode, onModeChange }: IEmailAuthFormProps) {
               onChange={(event) => setName(event.target.value)}
             />
           </Field>
-        ) : null}
+        )}
         <Field>
           <FieldLabel htmlFor="auth-email">{EMAIL_AUTH_EMAIL_LABEL}</FieldLabel>
           <Input
@@ -77,18 +78,19 @@ export function EmailAuthForm({ mode, onModeChange }: IEmailAuthFormProps) {
           <Input
             id="auth-password"
             type="password"
-            autoComplete={isSignUp ? "new-password" : "current-password"}
-            minLength={isSignUp ? EMAIL_AUTH_PASSWORD_MIN_LENGTH : undefined}
+            autoComplete={EMAIL_AUTH_PASSWORD_AUTOCOMPLETE[mode]}
+            minLength={EMAIL_AUTH_PASSWORD_MIN_LENGTHS[mode]}
             required
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
-          {isSignUp ? <FieldDescription>{EMAIL_AUTH_PASSWORD_HINT}</FieldDescription> : null}
+          {isSignUp && <FieldDescription>{EMAIL_AUTH_PASSWORD_HINT}</FieldDescription>}
         </Field>
-        {active.isError ? <FieldError>{apiErrorMessage(active.error)}</FieldError> : null}
+        {active.isError && <FieldError>{apiErrorMessage(active.error)}</FieldError>}
         <Button type="submit" size="lg" className="h-10 w-full" disabled={active.isPending}>
-          {active.isPending ? <Spinner /> : null}
-          {active.isPending ? EMAIL_AUTH_PENDING[mode] : EMAIL_AUTH_SUBMIT[mode]}
+          {active.isPending && <Spinner />}
+          {active.isPending && EMAIL_AUTH_PENDING[mode]}
+          {!active.isPending && EMAIL_AUTH_SUBMIT[mode]}
         </Button>
         <FieldDescription className="text-center">
           {EMAIL_AUTH_SWITCH_PROMPT[mode]}{" "}

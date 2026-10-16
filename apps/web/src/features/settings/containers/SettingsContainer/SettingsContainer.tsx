@@ -35,10 +35,10 @@ export function SettingsContainer() {
       actions={<AddIdentityDialog />}
     >
       <div className="flex w-full flex-col gap-6">
-        {identities.isPending ? (
+        {identities.isPending && (
           <Skeleton aria-label={SETTINGS_LOADING} className="h-24 w-full rounded-xl" />
-        ) : null}
-        {identities.isError ? (
+        )}
+        {identities.isError && (
           <Alert variant="destructive">
             <AlertTitle>{SETTINGS_LOAD_FAILED}</AlertTitle>
             <AlertAction>
@@ -47,8 +47,8 @@ export function SettingsContainer() {
               </Button>
             </AlertAction>
           </Alert>
-        ) : null}
-        {identities.data && identities.data.length === 0 ? (
+        )}
+        {identities.data && identities.data.length === 0 && (
           <Empty className="border border-dashed">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -61,7 +61,7 @@ export function SettingsContainer() {
               <AddIdentityDialog />
             </EmptyContent>
           </Empty>
-        ) : null}
+        )}
         {identities.data?.map((identity) => (
           <IdentityCard key={identity.id} identity={identity} />
         ))}

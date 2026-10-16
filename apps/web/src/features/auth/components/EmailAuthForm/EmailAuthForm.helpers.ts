@@ -1,5 +1,6 @@
-import { EAuthMode } from "@/features/auth/auth.enums";
+import type { EAuthMode } from "@/features/auth/auth.enums";
+import { EMAIL_AUTH_OTHER_MODE } from "@/features/auth/components/EmailAuthForm/EmailAuthForm.constants";
 
 export function otherMode(mode: EAuthMode): EAuthMode {
-  return mode === EAuthMode.SIGN_IN ? EAuthMode.SIGN_UP : EAuthMode.SIGN_IN;
+  return EMAIL_AUTH_OTHER_MODE[mode];
 }

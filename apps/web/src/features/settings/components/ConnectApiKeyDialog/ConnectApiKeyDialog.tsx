@@ -16,16 +16,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  CONNECT_API_KEY_DESCRIPTION,
+  CONNECT_API_KEY_DESCRIPTIONS,
   CONNECT_API_KEY_EMAIL_LABEL,
   CONNECT_API_KEY_FIELD_LABEL,
-  CONNECT_API_KEY_JIRA_DESCRIPTION,
   CONNECT_API_KEY_LABELS,
   CONNECT_API_KEY_SITE_LABEL,
   CONNECT_API_KEY_SITE_PLACEHOLDER,
   CONNECT_API_KEY_SUBMIT,
   CONNECT_API_KEY_SUBMITTING,
 } from "@/features/settings/components/ConnectApiKeyDialog/ConnectApiKeyDialog.constants";
+import { apiKeyConnectInput } from "@/features/settings/components/ConnectApiKeyDialog/ConnectApiKeyDialog.helpers";
 import type { IConnectApiKeyDialogProps } from "@/features/settings/components/ConnectApiKeyDialog/ConnectApiKeyDialog.interfaces";
 
 export function ConnectApiKeyDialog({
@@ -52,16 +52,9 @@ export function ConnectApiKeyDialog({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    connect.mutate(
-      {
-        identityId,
-        provider,
-        apiKey,
-        email: isJira ? email : undefined,
-        site: isJira ? site : undefined,
-      },
-      { onSuccess: () => handleOpenChange(false) },
-    );
+    connect.mutate(apiKeyConnectInput({ identityId, provider, apiKey, email, site }), {
+      onSuccess: () => handleOpenChange(false),
+    });
   }
 
   const canSubmit =
@@ -77,12 +70,10 @@ export function ConnectApiKeyDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{CONNECT_API_KEY_LABELS[provider]}</DialogTitle>
-          <DialogDescription>
-            {isJira ? CONNECT_API_KEY_JIRA_DESCRIPTION : CONNECT_API_KEY_DESCRIPTION}
-          </DialogDescription>
+          <DialogDescription>{CONNECT_API_KEY_DESCRIPTIONS[provider]}</DialogDescription>
         </DialogHeader>
         <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
-          {isJira ? (
+          {isJira && (
             <div className="flex flex-col gap-2">
               <Label htmlFor={`${provider}-email`}>{CONNECT_API_KEY_EMAIL_LABEL}</Label>
               <Input
@@ -93,8 +84,8 @@ export function ConnectApiKeyDialog({
                 onChange={(event) => setEmail(event.target.value)}
               />
             </div>
-          ) : null}
-          {isJira ? (
+          )}
+          {isJira && (
             <div className="flex flex-col gap-2">
               <Label htmlFor={`${provider}-site`}>{CONNECT_API_KEY_SITE_LABEL}</Label>
               <Input
@@ -106,7 +97,7 @@ export function ConnectApiKeyDialog({
                 onChange={(event) => setSite(event.target.value)}
               />
             </div>
-          ) : null}
+          )}
           <div className="flex flex-col gap-2">
             <Label htmlFor={`${provider}-api-key`}>{CONNECT_API_KEY_FIELD_LABEL}</Label>
             <Input
@@ -117,13 +108,14 @@ export function ConnectApiKeyDialog({
               onChange={(event) => setApiKey(event.target.value)}
             />
           </div>
-          {connect.isError ? (
+          {connect.isError && (
             <p role="alert" className="text-sm text-destructive">
               {apiErrorMessage(connect.error)}
             </p>
-          ) : null}
+          )}
           <Button type="submit" disabled={!canSubmit}>
-            {connect.isPending ? CONNECT_API_KEY_SUBMITTING : CONNECT_API_KEY_SUBMIT}
+            {connect.isPending && CONNECT_API_KEY_SUBMITTING}
+            {!connect.isPending && CONNECT_API_KEY_SUBMIT}
           </Button>
         </form>
       </DialogContent>

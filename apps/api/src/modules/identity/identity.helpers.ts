@@ -168,6 +168,16 @@ export function buildIdentityRow(
   };
 }
 
+function accessTokenExpiresAt(
+  now: ReturnType<typeof dayjs>,
+  expiresInSeconds: number | undefined,
+): string | null {
+  if (expiresInSeconds === undefined) {
+    return null;
+  }
+  return now.add(expiresInSeconds, "second").toISOString();
+}
+
 export function buildOAuthConnectionRow(input: IOAuthConnectionInput): TConnectionRow {
   const now = dayjs();
   return {
@@ -179,10 +189,7 @@ export function buildOAuthConnectionRow(input: IOAuthConnectionInput): TConnecti
     scopes: input.scopes.join(GOOGLE_SCOPE_SEPARATOR),
     refreshTokenEnc: encryptSecret(ENV.connectionEncryptionKey, input.refreshToken),
     apiKeyEnc: null,
-    accessTokenExpiresAt:
-      input.expiresInSeconds === undefined
-        ? null
-        : now.add(input.expiresInSeconds, "second").toISOString(),
+    accessTokenExpiresAt: accessTokenExpiresAt(now, input.expiresInSeconds),
     providerAccountId: input.profile.sub,
     providerAccountEmail: input.profile.email,
     providerSite: null,

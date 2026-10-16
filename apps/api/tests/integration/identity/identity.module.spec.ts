@@ -61,6 +61,17 @@ import { ETestMessages } from "#api-tests/fixtures/fixtures.enums";
 import { uniqueEmail, wipeCache, wipeDatabase } from "#api-tests/fixtures/fixtures.helpers";
 import type { ICalendarConnectCodes } from "#api-tests/integration/identity/identity.interfaces";
 
+function readOverride<TValue>(
+  overrides: Map<string, TValue | undefined>,
+  code: string,
+  fallback: TValue,
+): TValue | undefined {
+  if (!overrides.has(code)) {
+    return fallback;
+  }
+  return overrides.get(code);
+}
+
 class FakeGoogleClient {
   readonly profiles = new Map<string, IGoogleProfile>();
   readonly refreshTokens = new Map<string, string | undefined>();
@@ -83,12 +94,12 @@ class FakeGoogleClient {
       return Promise.reject(new Error(ETestMessages.UNKNOWN_TEST_CODE));
     }
     this.lastCodeVerifier = input.codeVerifier;
-    const refreshToken = this.refreshTokens.has(input.code)
-      ? this.refreshTokens.get(input.code)
-      : `refresh-${input.code}`;
-    const expiresInSeconds = this.tokenExpiries.has(input.code)
-      ? this.tokenExpiries.get(input.code)
-      : DEFAULT_TOKEN_EXPIRY_SECONDS;
+    const refreshToken = readOverride(this.refreshTokens, input.code, `refresh-${input.code}`);
+    const expiresInSeconds = readOverride(
+      this.tokenExpiries,
+      input.code,
+      DEFAULT_TOKEN_EXPIRY_SECONDS,
+    );
     const scopes = this.grantedScopes.get(input.code) ?? [...CALENDAR_GRANTED_SCOPES];
     return Promise.resolve({
       tokens: { accessToken: input.code, refreshToken, expiresInSeconds, scopes },

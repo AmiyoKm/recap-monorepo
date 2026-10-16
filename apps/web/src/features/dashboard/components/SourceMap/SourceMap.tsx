@@ -53,8 +53,8 @@ export function SourceMap({ identities, isPending, isError, onRetry }: ISourceMa
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-8">
-        {isPending ? <Skeleton className="h-24 w-full" /> : null}
-        {isError ? (
+        {isPending && <Skeleton className="h-24 w-full" />}
+        {isError && (
           <Alert variant="destructive">
             <AlertTitle>{SOURCE_MAP_FAILED}</AlertTitle>
             <AlertAction>
@@ -63,8 +63,8 @@ export function SourceMap({ identities, isPending, isError, onRetry }: ISourceMa
               </Button>
             </AlertAction>
           </Alert>
-        ) : null}
-        {isEmpty ? (
+        )}
+        {isEmpty && (
           <Empty className="p-6">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -79,7 +79,7 @@ export function SourceMap({ identities, isPending, isError, onRetry }: ISourceMa
               </Button>
             </EmptyContent>
           </Empty>
-        ) : null}
+        )}
         {identities?.map((identity, index) => (
           <SourceMapIdentity key={identity.id} identity={identity} order={index} />
         ))}

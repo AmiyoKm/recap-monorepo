@@ -25,9 +25,9 @@ export function IdentityCard({ identity }: IIdentityCardProps) {
       <CardHeader>
         <div className="flex min-w-0 items-center gap-3">
           <Avatar className="size-9 rounded-lg after:rounded-lg">
-            {identity.avatarUrl ? (
+            {identity.avatarUrl && (
               <AvatarImage src={identity.avatarUrl} alt={name} className="rounded-lg" />
-            ) : null}
+            )}
             <AvatarFallback className="rounded-lg font-medium text-foreground">
               {userInitial(identity.displayName ?? "", identity.email)}
             </AvatarFallback>
@@ -38,9 +38,9 @@ export function IdentityCard({ identity }: IIdentityCardProps) {
                 {name}
               </Heading>
             </CardTitle>
-            {identity.displayName ? (
+            {identity.displayName && (
               <CardDescription className="truncate">{identity.email}</CardDescription>
-            ) : null}
+            )}
           </div>
         </div>
         <CardAction>

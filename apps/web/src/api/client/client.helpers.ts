@@ -33,7 +33,10 @@ function readMessage(value: unknown): string | undefined {
   if (typeof value !== "object" || value === null || !("message" in value)) {
     return undefined;
   }
-  return typeof value.message === "string" ? value.message : undefined;
+  if (typeof value.message !== "string") {
+    return undefined;
+  }
+  return value.message;
 }
 
 export function apiErrorMessage(error: unknown): string {

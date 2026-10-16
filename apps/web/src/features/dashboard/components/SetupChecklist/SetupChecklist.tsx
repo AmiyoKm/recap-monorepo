@@ -33,13 +33,14 @@ export function SetupChecklist({ identities, isPending }: ISetupChecklistProps) 
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         <Progress value={percent} aria-label={SETUP_PROGRESS_LABEL} />
-        {isPending ? (
+        {isPending && (
           <div className="flex flex-col gap-4">
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
           </div>
-        ) : (
+        )}
+        {!isPending && (
           <ol className="flex flex-col gap-5">
             {steps.map((step, index) => (
               <SetupStepItem key={step.step} item={step} position={index + 1} />

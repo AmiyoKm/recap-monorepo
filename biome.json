@@ -829,6 +829,24 @@
       ]
     },
     {
+      "path": "./tooling/biome-plugins/core/no-ternary.grit",
+      "includes": [
+        "**/apps/*/src/**/*.ts",
+        "**/apps/*/src/**/*.tsx",
+        "**/apps/api/tests/**/*.ts",
+        "**/packages/*/src/**/*.ts",
+        "scripts/**/*.ts",
+        "tooling/**/*.ts",
+        "!**/*.config.*",
+        "!**/*.d.ts",
+        "!**/apps/web/src/components/ui/**",
+        "!**/apps/web/src/hooks/**",
+        "!**/apps/web/src/lib/**",
+        "!**/routeTree.gen.ts",
+        "!**/packages/db/src/schema/auth.ts"
+      ]
+    },
+    {
       "path": "./tooling/biome-plugins/core/no-else.grit",
       "includes": [
         "**/apps/*/src/**/*.ts",

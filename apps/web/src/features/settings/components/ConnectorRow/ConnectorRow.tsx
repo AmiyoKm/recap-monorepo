@@ -2,14 +2,13 @@ import { providerLabel } from "@/api/identity/identity.helpers";
 import { useDeleteConnectionMutation } from "@/api/identity/identity.mutations";
 import { Button } from "@/components/ui/button";
 import {
-  CONNECTOR_CONNECT,
   CONNECTOR_DISCONNECT,
   CONNECTOR_DISCONNECTING,
   CONNECTOR_DOT_CLASSES,
-  CONNECTOR_RECONNECT,
 } from "@/features/settings/components/ConnectorRow/ConnectorRow.constants";
 import { EConnectorState } from "@/features/settings/components/ConnectorRow/ConnectorRow.enums";
 import {
+  connectorConnectLabel,
   connectorDetail,
   connectorState,
 } from "@/features/settings/components/ConnectorRow/ConnectorRow.helpers";
@@ -44,7 +43,7 @@ export function ConnectorRow({ identityId, provider, connection }: IConnectorRow
         </p>
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1">
-        {connection ? (
+        {connection && (
           <Button
             variant="ghost"
             size="sm"
@@ -52,14 +51,15 @@ export function ConnectorRow({ identityId, provider, connection }: IConnectorRow
             disabled={disconnect.isPending}
             onClick={() => disconnect.mutate(connection.id)}
           >
-            {disconnect.isPending ? CONNECTOR_DISCONNECTING : CONNECTOR_DISCONNECT}
+            {disconnect.isPending && CONNECTOR_DISCONNECTING}
+            {!disconnect.isPending && CONNECTOR_DISCONNECT}
           </Button>
-        ) : null}
-        {state === EConnectorState.ACTIVE ? null : (
+        )}
+        {state !== EConnectorState.ACTIVE && (
           <ConnectorConnectButton
             identityId={identityId}
             provider={provider}
-            label={needsReconnect ? CONNECTOR_RECONNECT : CONNECTOR_CONNECT}
+            label={connectorConnectLabel(needsReconnect)}
           />
         )}
       </div>

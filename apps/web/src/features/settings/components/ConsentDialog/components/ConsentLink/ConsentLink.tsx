@@ -11,7 +11,8 @@ export function ConsentLink({ url, copyText, copiedText, openText }: IConsentLin
       <Input readOnly value={url} />
       <div className="flex items-center gap-2">
         <Button variant="outline" onClick={() => void copy(url)}>
-          {copied ? copiedText : copyText}
+          {copied && copiedText}
+          {!copied && copyText}
         </Button>
         <Button asChild>
           <a href={url} target="_blank" rel="noreferrer">

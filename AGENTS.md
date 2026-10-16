@@ -130,8 +130,20 @@ await db.batch([db.delete(schema.connection).where(eq(schema.connection.id, stal
 - Do not wrap the main work in `if (x) { ...; return; }` with the fallback after it. Invert the condition.
 - No `else` and no `else if`. Return early, or use a lookup object or `switch` for several cases.
 - Keep nesting shallow. If an `if` body grows, move it to a helper and return early in that helper.
+- No ternaries (`a ? b : c`), nested or not. Pick the form by where the choice is:
 
-Biome enforces this with `noUselessElse`, `noExcessiveCognitiveComplexity` (max 15) and 2 plugins: `no-else` fails on every `else`, and `no-inverted-guard` fails on an `if` without `!` that does the main work and ends in a bare `return;` with more code after it.
+| Choice | Write |
+|---|---|
+| Two code paths (`cond ? db.batch(...) : insert`) | `if (!cond) { ...; return; }` then the main path |
+| A value from a condition | A small helper that returns early: `if (!isVerified) { return "outline"; } return "secondary";` |
+| A value per enum member | A `Record<EName, T>` lookup in `.constants.ts`: `SOURCES_AVAILABILITY_BADGE_VARIANTS[row.availability]` |
+| An optional JSX element | `{isError && <FieldError>...</FieldError>}` |
+| One of two JSX children | Two lines: `{isPending && <Spinner />}` and `{!isPending && <GoogleMark />}` |
+| A Tailwind class | `cn("base", isDone && "line-through", !isDone && "text-foreground")` |
+
+Only use `&&` in JSX with a boolean, a string or an object on the left, never a number (`0` renders). Use `Boolean(x) &&` for a `ReactNode`.
+
+Biome enforces this with `noUselessElse`, `noNestedTernary`, `noExcessiveCognitiveComplexity` (max 15) and 3 plugins: `no-else` fails on every `else`, `no-ternary` fails on every conditional expression, and `no-inverted-guard` fails on an `if` without `!` that does the main work and ends in a bare `return;` with more code after it.
 
 ## Protocol strings
 

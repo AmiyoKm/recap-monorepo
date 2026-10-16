@@ -5,10 +5,9 @@ import { schema } from "@recap/db";
 
 import { CLIENT_IP_HEADERS } from "#api/shared/auth/auth.constants";
 import { EAuthDatabaseProvider } from "#api/shared/auth/auth.enums";
+import { crossSubDomainCookies, socialProviders } from "#api/shared/auth/auth.helpers";
 import { db } from "#api/shared/db/db.client";
 import { ENV } from "#api/shared/env/env.constants";
-
-const { clientId, clientSecret } = ENV.auth.google;
 
 export const auth = betterAuth({
   secret: ENV.auth.secret,
@@ -18,11 +17,9 @@ export const auth = betterAuth({
   session: { storeSessionInDatabase: true },
   rateLimit: { enabled: true, storage: "database" },
   emailAndPassword: { enabled: true },
-  socialProviders: clientId && clientSecret ? { google: { clientId, clientSecret } } : {},
+  socialProviders: socialProviders(ENV.auth.google),
   advanced: {
     ipAddress: { ipAddressHeaders: CLIENT_IP_HEADERS },
-    crossSubDomainCookies: ENV.auth.cookieDomain
-      ? { enabled: true, domain: ENV.auth.cookieDomain }
-      : undefined,
+    crossSubDomainCookies: crossSubDomainCookies(ENV.auth.cookieDomain),
   },
 });

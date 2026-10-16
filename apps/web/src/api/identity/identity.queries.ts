@@ -3,8 +3,8 @@ import { useEffect, useEffectEvent } from "react";
 
 import { api } from "@/api/client";
 import { type ApiError, ensureOk } from "@/api/client/client.helpers";
-import { IDENTITY_CONSENT_POLL_MS, IDENTITY_SYNC_CHANNEL } from "@/api/identity/identity.constants";
-import { readConnectResultMessage } from "@/api/identity/identity.helpers";
+import { IDENTITY_SYNC_CHANNEL } from "@/api/identity/identity.constants";
+import { consentPollInterval, readConnectResultMessage } from "@/api/identity/identity.helpers";
 import type {
   IConnectResultMessage,
   IIdentitiesQueryOptions,
@@ -23,7 +23,7 @@ function identitiesQueryOptions() {
 export function useIdentitiesQuery({ isWaitingForConsent = false }: IIdentitiesQueryOptions = {}) {
   return useQuery({
     ...identitiesQueryOptions(),
-    refetchInterval: isWaitingForConsent ? IDENTITY_CONSENT_POLL_MS : false,
+    refetchInterval: consentPollInterval(isWaitingForConsent),
   });
 }
 

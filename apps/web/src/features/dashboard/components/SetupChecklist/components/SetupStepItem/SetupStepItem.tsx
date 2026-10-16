@@ -24,7 +24,8 @@ export function SetupStepItem({ item, position }: ISetupStepItemProps) {
           !item.done && "bg-background text-muted-foreground",
         )}
       >
-        {item.done ? <CheckIcon aria-hidden="true" className="size-3.5" /> : position}
+        {item.done && <CheckIcon aria-hidden="true" className="size-3.5" />}
+        {!item.done && position}
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center justify-between gap-2">
@@ -36,14 +37,14 @@ export function SetupStepItem({ item, position }: ISetupStepItemProps) {
           >
             {SETUP_STEP_TITLES[item.step]}
           </p>
-          {item.available ? null : <Badge variant="outline">{SETUP_LATER}</Badge>}
+          {!item.available && <Badge variant="outline">{SETUP_LATER}</Badge>}
         </div>
         <p className="text-sm text-muted-foreground">{SETUP_STEP_DESCRIPTIONS[item.step]}</p>
-        {showAction ? (
+        {showAction && (
           <Button asChild size="sm" variant="outline" className="mt-1 self-start">
             <Link to="/settings">{SETUP_STEP_ACTIONS[item.step]}</Link>
           </Button>
-        ) : null}
+        )}
       </div>
     </li>
   );

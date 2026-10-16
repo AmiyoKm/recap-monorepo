@@ -43,20 +43,20 @@ export function ConsentDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        {isPending ? <p className="text-sm text-muted-foreground">{pendingText}</p> : null}
-        {isError ? (
+        {isPending && <p className="text-sm text-muted-foreground">{pendingText}</p>}
+        {isError && (
           <p role="alert" className="text-sm text-destructive">
             {failedText}
           </p>
-        ) : null}
-        {authorizeUrl ? (
+        )}
+        {authorizeUrl && (
           <ConsentLink
             url={authorizeUrl}
             copyText={copyText}
             copiedText={copiedText}
             openText={openText}
           />
-        ) : null}
+        )}
       </DialogContent>
     </Dialog>
   );

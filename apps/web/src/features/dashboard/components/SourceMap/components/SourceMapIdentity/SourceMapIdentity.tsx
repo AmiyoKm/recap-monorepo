@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
 
-import { EConnectionStatus } from "@/api/identity/identity.enums";
 import { providerLabel, statusLabel } from "@/api/identity/identity.helpers";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +8,8 @@ import {
   SOURCE_MAP_IDENTITY_CONNECT,
   SOURCE_MAP_IDENTITY_NO_CONNECTIONS,
   SOURCE_MAP_IDENTITY_STAGGER_MS,
+  SOURCE_MAP_STATUS_BADGE_VARIANTS,
+  SOURCE_MAP_STATUS_DOT_CLASSES,
 } from "@/features/dashboard/components/SourceMap/components/SourceMapIdentity/SourceMapIdentity.constants";
 import type { ISourceMapIdentityProps } from "@/features/dashboard/components/SourceMap/components/SourceMapIdentity/SourceMapIdentity.interfaces";
 import { cn } from "@/lib/utils";
@@ -21,7 +22,7 @@ export function SourceMapIdentity({ identity, order }: ISourceMapIdentityProps) 
     <section aria-label={identity.email} className="grid gap-4 sm:grid-cols-5 sm:gap-0">
       <div className="flex items-center gap-3 sm:col-span-2">
         <Avatar size="lg">
-          {identity.avatarUrl ? <AvatarImage src={identity.avatarUrl} alt={label} /> : null}
+          {identity.avatarUrl && <AvatarImage src={identity.avatarUrl} alt={label} />}
           <AvatarFallback>{label.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
         <div className="flex min-w-0 flex-col">
@@ -35,7 +36,7 @@ export function SourceMapIdentity({ identity, order }: ISourceMapIdentityProps) 
         />
       </div>
       <ul className="ml-5 flex flex-col gap-2 border-l pl-6 sm:col-span-3 sm:ml-0">
-        {identity.connections.length === 0 ? (
+        {identity.connections.length === 0 && (
           <li className="relative flex items-center justify-between gap-3 py-1">
             <span aria-hidden="true" className="absolute top-1/2 -left-6 h-px w-4 bg-border" />
             <p className="text-sm text-muted-foreground">{SOURCE_MAP_IDENTITY_NO_CONNECTIONS}</p>
@@ -43,9 +44,8 @@ export function SourceMapIdentity({ identity, order }: ISourceMapIdentityProps) 
               <Link to="/settings">{SOURCE_MAP_IDENTITY_CONNECT}</Link>
             </Button>
           </li>
-        ) : null}
+        )}
         {identity.connections.map((connection) => {
-          const isActive = connection.status === EConnectionStatus.ACTIVE;
           return (
             <li
               key={connection.id}
@@ -61,17 +61,17 @@ export function SourceMapIdentity({ identity, order }: ISourceMapIdentityProps) 
                   aria-hidden="true"
                   className={cn(
                     "size-2 shrink-0 rounded-full",
-                    isActive ? "bg-success" : "bg-destructive",
+                    SOURCE_MAP_STATUS_DOT_CLASSES[connection.status],
                   )}
                 />
                 <span className="text-sm font-medium">{providerLabel(connection.provider)}</span>
-                {connection.providerAccountEmail ? (
+                {connection.providerAccountEmail && (
                   <span className="truncate text-xs text-muted-foreground">
                     {connection.providerAccountEmail}
                   </span>
-                ) : null}
+                )}
               </span>
-              <Badge variant={isActive ? "secondary" : "destructive"}>
+              <Badge variant={SOURCE_MAP_STATUS_BADGE_VARIANTS[connection.status]}>
                 {statusLabel(connection.status)}
               </Badge>
             </li>
