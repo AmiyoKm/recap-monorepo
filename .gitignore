@@ -10,3 +10,4 @@ dist/
 .tanstack/
 .fallow/
 !apps/api/.env.test
+apps/api/worker-configuration.d.ts

@@ -21,7 +21,7 @@ export const MAX_DISPLAY_NAME_LENGTH = 256;
 export const MAX_URL_LENGTH = 8192;
 export const MAX_SCOPES_LENGTH = 2048;
 export const MAX_TIMESTAMP_LENGTH = 64;
-export const UNIQUE_VIOLATION_CODE = "23505";
+export const SQLITE_UNIQUE_VIOLATION = "SQLITE_CONSTRAINT_UNIQUE";
 export const PROVIDER_REGISTRY: Record<EProvider, IProviderRegistration> = {
   [EProvider.GOOGLE_CALENDAR]: { authKind: EIdentityAuthKind.OAUTH, wired: true },
   [EProvider.JIRA]: { authKind: EIdentityAuthKind.API_KEY, wired: true },

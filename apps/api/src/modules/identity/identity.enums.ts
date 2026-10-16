@@ -34,7 +34,6 @@ export enum EIdentityConnectError {
   FAILED = "failed",
 }
 
-export enum EIdentityRedisKeyPrefix {
-  PENDING_GRANT = "pending-grant:",
+export enum EIdentityCacheKeyPrefix {
   CONNECTION_TOKEN = "connection-token:",
 }

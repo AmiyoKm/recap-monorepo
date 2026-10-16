@@ -5,11 +5,11 @@ import { optionalEnv, requireEnv } from "#api/shared/env/env.helpers";
 
 describe("requireEnv", () => {
   test("returns a set value", () => {
-    expect(requireEnv("DATABASE_URL", "postgres://db")).toBe("postgres://db");
+    expect(requireEnv("WEB_ORIGIN", "http://localhost:5173")).toBe("http://localhost:5173");
   });
 
   test.each([undefined, ""])("throws with the variable name for %p", (value) => {
-    expect(() => requireEnv("DATABASE_URL", value)).toThrow(EEnvMessages.MISSING_VARIABLE);
+    expect(() => requireEnv("WEB_ORIGIN", value)).toThrow(EEnvMessages.MISSING_VARIABLE);
   });
 });
 

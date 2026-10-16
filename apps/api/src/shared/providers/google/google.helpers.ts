@@ -17,13 +17,25 @@ export function toGoogleProfile(payload: TokenPayload | undefined): IGoogleProfi
   };
 }
 
+function secondsUntil(expiryDate: Credentials["expiry_date"]): number | undefined {
+  if (!expiryDate) {
+    return undefined;
+  }
+  return dayjs(expiryDate).diff(dayjs(), "second");
+}
+
+function splitScopes(scope: Credentials["scope"]): string[] {
+  if (!scope) {
+    return [];
+  }
+  return scope.split(GOOGLE_SCOPE_SEPARATOR);
+}
+
 export function toGoogleTokens(accessToken: string, credentials: Credentials): IGoogleTokens {
   return {
     accessToken,
     refreshToken: credentials.refresh_token ?? undefined,
-    expiresInSeconds: credentials.expiry_date
-      ? dayjs(credentials.expiry_date).diff(dayjs(), "second")
-      : undefined,
-    scopes: credentials.scope ? credentials.scope.split(GOOGLE_SCOPE_SEPARATOR) : [],
+    expiresInSeconds: secondsUntil(credentials.expiry_date),
+    scopes: splitScopes(credentials.scope),
   };
 }

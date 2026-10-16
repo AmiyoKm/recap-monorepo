@@ -17,7 +17,7 @@ export function Principles() {
       <dl className="flex min-w-0 flex-col lg:col-span-7">
         {PRINCIPLES_ITEMS.map((item, index) => (
           <div key={item.title} className="flex flex-col gap-6">
-            {index === 0 ? null : <Separator />}
+            {index > 0 && <Separator />}
             <div className="grid grid-cols-1 gap-2 pb-6 sm:grid-cols-5 sm:gap-6">
               <dt className="sm:col-span-2">
                 <Heading as={EHeadingTag.SPAN} variant={EHeadingVariant.ITEM}>

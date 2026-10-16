@@ -19,6 +19,7 @@ import {
   PROFILE_DETAILS_VERIFIED,
   PROFILE_DETAILS_WORK_ACCOUNTS,
 } from "@/features/profile/components/ProfileDetails/ProfileDetails.constants";
+import { emailStatusBadgeVariant } from "@/features/profile/components/ProfileDetails/ProfileDetails.helpers";
 import type { IProfileDetailsProps } from "@/features/profile/components/ProfileDetails/ProfileDetails.interfaces";
 import { dayjs } from "@/shared/date/date.helpers";
 
@@ -43,8 +44,9 @@ export function ProfileDetails({ user }: IProfileDetailsProps) {
             <span className="truncate">{user.email}</span>
           </ProfileDetailRow>
           <ProfileDetailRow label={PROFILE_DETAILS_EMAIL_STATUS}>
-            <Badge variant={user.emailVerified ? "secondary" : "outline"}>
-              {user.emailVerified ? PROFILE_DETAILS_VERIFIED : PROFILE_DETAILS_NOT_VERIFIED}
+            <Badge variant={emailStatusBadgeVariant(user.emailVerified)}>
+              {user.emailVerified && PROFILE_DETAILS_VERIFIED}
+              {!user.emailVerified && PROFILE_DETAILS_NOT_VERIFIED}
             </Badge>
           </ProfileDetailRow>
           <ProfileDetailRow label={PROFILE_DETAILS_MEMBER_SINCE}>

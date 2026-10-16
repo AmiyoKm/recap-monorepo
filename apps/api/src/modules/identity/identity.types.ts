@@ -25,6 +25,7 @@ export type TIdentityRow = typeof schema.identity.$inferSelect;
 export type TConnectionRow = typeof schema.connection.$inferSelect;
 export type TIdentityInsert = typeof schema.identity.$inferInsert;
 export type TConnectionInsert = typeof schema.connection.$inferInsert;
+export type TPendingGrantInsert = typeof schema.pendingGrant.$inferInsert;
 export type TConnectConnectionBody = typeof connectConnectionBody.static;
 export type TGoogleCallbackQuery = typeof googleCallbackQuery.static;
 export type TConnectionResponse = typeof connectionResponse.static;

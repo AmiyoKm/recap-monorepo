@@ -11,6 +11,7 @@ import {
 import {
   dayPartFor,
   firstName,
+  greetingTitle,
 } from "@/features/dashboard/containers/DashboardContainer/DashboardContainer.helpers";
 import { dayjs } from "@/shared/date/date.helpers";
 
@@ -22,10 +23,7 @@ export function DashboardContainer() {
   const name = firstName(session.data?.user.name);
 
   return (
-    <AppPage
-      title={name ? `${greeting}, ${name}.` : `${greeting}.`}
-      description={now.format(DASHBOARD_DATE_FORMAT)}
-    >
+    <AppPage title={greetingTitle(greeting, name)} description={now.format(DASHBOARD_DATE_FORMAT)}>
       <div className="grid items-start gap-6 lg:grid-cols-3">
         <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
           <RecapPanel />

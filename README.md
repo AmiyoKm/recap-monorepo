@@ -6,21 +6,22 @@ Daily and weekly work overview with AI summaries, from Jira, Linear, GitHub, Sla
 
 | Path | What |
 |---|---|
-| `apps/api` | Bun + Elysia API. Better Auth, one Elysia plugin per module in `src/modules`. Deploys to Cloud Run. |
+| `apps/api` | Elysia API on Cloudflare Workers (D1, KV). Better Auth, one Elysia plugin per module in `src/modules`. |
 | `apps/web` | Vite + React + TanStack Router/Query + shadcn/ui. Deploys to Cloudflare Workers (static assets). |
-| `packages/db` | Drizzle schema, client, and migrations (Postgres). |
+| `packages/db` | Drizzle schema, client, and migrations (Cloudflare D1, SQLite). |
 
 ## Start
 
 ```bash
-for d in . apps/api apps/web packages/db; do cp $d/.env.example $d/.env; done
+for d in apps/api apps/web packages/db; do cp $d/.env.example $d/.env; done
 # then set BETTER_AUTH_SECRET in apps/api/.env (openssl rand -base64 32)
 bun install
-bun run services:up             # Postgres 18 + Redis 8
-bun run db:migrate
-bun run dev:api                 # http://localhost:3000 (OpenAPI at /openapi)
+bunx wrangler login             # dev uses the remote dev D1 and KV
+bun run dev:api                 # wrangler dev --env dev, http://localhost:3000 (OpenAPI at /openapi)
 bun run dev:web                 # http://localhost:5173
 ```
+
+Before the first deploy, run `scripts/provision-workers.sh` once. It creates the D1 databases and KV namespaces with `wrangler` and writes their IDs into `apps/api/wrangler.jsonc`.
 
 ## Scripts
 
@@ -31,7 +32,6 @@ bun run dev:web                 # http://localhost:5173
 | `lint:files` | ls-lint file and folder names (`.ls-lint.yml`) |
 | `lint:comments` | Only `TODO:` and tool directives are allowed as comments |
 | `lint:fallow` | Dead code, duplicates, complexity, architecture boundaries (`.fallowrc.json`) |
-| `db:generate` / `db:migrate` / `db:studio` | Drizzle migrations |
-| `services:up` / `services:down` | Local Docker services |
+| `db:generate` / `db:studio` | Drizzle migrations and studio (wrangler applies migrations) |
 
 Coding standards: see [AGENTS.md](AGENTS.md).

@@ -1,8 +1,8 @@
-import { index, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { index, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 import { user } from "#db/schema/auth";
 
-export const identity = pgTable(
+export const identity = sqliteTable(
   "identity",
   {
     id: text("id").primaryKey(),
@@ -13,8 +13,8 @@ export const identity = pgTable(
     email: text("email").notNull(),
     displayName: text("display_name"),
     avatarUrl: text("avatar_url"),
-    createdAt: timestamp("created_at", { mode: "string" }).notNull(),
-    updatedAt: timestamp("updated_at", { mode: "string" }).notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
   },
   (table) => [
     index("identity_user_id_idx").on(table.userId),
@@ -22,7 +22,7 @@ export const identity = pgTable(
   ],
 );
 
-export const connection = pgTable(
+export const connection = sqliteTable(
   "connection",
   {
     id: text("id").primaryKey(),
@@ -35,15 +35,25 @@ export const connection = pgTable(
     scopes: text("scopes"),
     refreshTokenEnc: text("refresh_token_enc"),
     apiKeyEnc: text("api_key_enc"),
-    accessTokenExpiresAt: timestamp("access_token_expires_at", { mode: "string" }),
+    accessTokenExpiresAt: text("access_token_expires_at"),
     providerAccountId: text("provider_account_id"),
     providerAccountEmail: text("provider_account_email"),
     providerSite: text("provider_site"),
-    createdAt: timestamp("created_at", { mode: "string" }).notNull(),
-    updatedAt: timestamp("updated_at", { mode: "string" }).notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
   },
   (table) => [
     index("connection_identity_id_idx").on(table.identityId),
     uniqueIndex("connection_identity_provider_uidx").on(table.identityId, table.provider),
   ],
+);
+
+export const pendingGrant = sqliteTable(
+  "pending_grant",
+  {
+    state: text("state").primaryKey(),
+    payload: text("payload").notNull(),
+    expiresAt: text("expires_at").notNull(),
+  },
+  (table) => [index("pending_grant_expires_at_idx").on(table.expiresAt)],
 );

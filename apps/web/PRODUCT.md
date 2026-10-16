@@ -23,7 +23,7 @@ Activity is anchored to professional identities, not to a login. A user proves o
 - Sources are connected once from the Settings page. The Google consent URL is explicitly designed to be completed in a different browser profile, where the work Google account actually lives; the cross-profile flow is a core workflow, not an edge case, and the UI must make copy-and-paste of the consent URL a first-class action.
 - Tool landscape: Google Calendar, Google Chat, Jira, Linear, Slack, GitHub.
 - Digests: daily and weekly, AI-summarized with the user's own key.
-- Deployment: web on Cloudflare Workers, API on GCP Cloud Run (dev and prod).
+- Deployment: web on Cloudflare Workers, API on Cloudflare Workers with D1 and KV (dev and prod).
 
 ## Capabilities and Constraints
 

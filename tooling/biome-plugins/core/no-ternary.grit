@@ -1,0 +1,6 @@
+engine biome(1.0)
+language js(typescript, jsx)
+
+JsConditionalExpression() as $ternary where {
+  register_diagnostic(span=$ternary, message="Do not use a ternary. Move the choice into a helper that returns early, use a lookup object, or use && in JSX.")
+}

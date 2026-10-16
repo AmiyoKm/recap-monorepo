@@ -1,6 +1,6 @@
 # Recap: agent and contributor guide
 
-Bun monorepo. `apps/api` (Elysia on Bun, Cloud Run), `apps/web` (Vite, React 19, TanStack Router and Query, shadcn/ui, Cloudflare Workers), `packages/db` (Drizzle, Postgres).
+Bun monorepo. `apps/api` (Elysia on Cloudflare Workers, with D1 and KV), `apps/web` (Vite, React 19, TanStack Router and Query, shadcn/ui, Cloudflare Workers), `packages/db` (Drizzle, Cloudflare D1 / SQLite).
 
 Run `bun run check` before you push. It runs Biome, ls-lint, the comment linter, fallow, typecheck and build. Do not turn off a rule, add an ignore comment, widen an exclusion or raise a threshold without explicit approval.
 
@@ -9,23 +9,27 @@ Run `bun run check` before you push. It runs Biome, ls-lint, the comment linter,
 ### API (`apps/api/src`)
 
 ```
-index.ts                     entry: create app, listen on ENV.port
+worker.ts                    Worker entry: createApp() with CloudflareAdapter, default export { fetch, scheduled }
 app.ts, app.types.ts         createApp() and TApp (the Eden contract)
 modules/<feature>/
   <feature>.module.ts        Elysia instance = controller. Routes only.
   <feature>.service.ts       class with the feature logic. Never takes Elysia Context.
-  <feature>.repository.ts    class with all Postgres access. The only file that imports `db`.
+  <feature>.repository.ts    class with all D1 access. The only file that imports `db`.
   <feature>.model.ts         t schemas: one source for types and validation
   <feature>.{types,interfaces,enums,constants,helpers}.ts
-shared/<name>/<name>.<kind>.ts   cross-module code (env, redis, date)
-shared/<name>/<name>.client.ts   singletons: `db`, `redis`, `auth`
+shared/<name>/<name>.<kind>.ts   cross-module code (env, bindings, cache, date)
+shared/<name>/<name>.client.ts   singletons: `bindings`, `db`, `cache`, `auth`
 shared/providers/providers.client.ts   `providers`: one object with every provider service
 shared/providers/providers.{enums,interfaces}.ts   EProvider, IProviderAccount
 shared/providers/<provider>/<provider>.<kind>.ts   one folder per external provider (google, jira, linear)
 ```
 
 - A module is `new Elysia({ name: "<feature>" })`. The `name` makes it a singleton. Use `.use(authModule)` and `{ auth: true }` for signed-in routes.
-- Import `db`, `redis` and `ENV` (`#api/shared/env/env.constants`). Do not pass them as arguments. Only `.repository.ts` files import `db`.
+- Import `db`, `cache` and `ENV` (`#api/shared/env/env.constants`). Do not pass them as arguments. Only `.repository.ts` files import `db`.
+- Worker bindings (`DB`, `CACHE`) come only from `bindings` (`#api/shared/bindings/bindings.client`), the only file that imports `cloudflare:workers`. Bindings exist only in the `dev` and `prod` wrangler environments, and both use remote resources. Run `wrangler types` (`bun run cf-typegen`) after you change `wrangler.jsonc`.
+- D1 has no interactive transactions. Use `db.batch([...])` for writes that must succeed or fail together. `isUniqueViolation` reads the D1 error message, because D1 errors have no code.
+- Store timestamps as ISO strings (`dayjs().toISOString()`) in `text` columns. Both Eden clients set `parseDate: false`, so the web gets the strings that the response schemas declare.
+- KV is eventually consistent and has no atomic operations. Use it only for caches, through `CacheService` (`#api/shared/cache/cache.service`). Data that must be read once (such as a pending grant) goes in D1 with `DELETE ... RETURNING`.
 - Services, repositories and provider services are `abstract class`es with `static` methods (Elysia best practice). Import them directly. Do not pass a service as an argument for tests: replace its static methods with `spyOn` from `bun:test` and call `mock.restore()` after the suite. A module is a `const` Elysia instance, not a factory function.
 - Talk to an external provider only through its SDK, never with a hand-written `fetch`: `google-auth-library` (`OAuth2Client`) for Google, `jira.js` (`createCloudClient`) for Jira, `@linear/sdk` (`LinearClient`) for Linear. Each provider has its own `shared/providers/<provider>/<provider>.service.ts`, registered in `providers` (`#api/shared/providers/providers.client`). Modules import `providers` and call `providers.google`, `providers.jira` or `providers.linear`, not the service classes. Biome plugin `no-direct-provider-service-import` fails on a `#api/shared/providers/**/*.service` import outside `shared/providers/`. Types from `<provider>.interfaces.ts` can be imported directly. Google OAuth uses PKCE: the pending grant stores the `codeVerifier`.
 - A provider service returns `null` for credentials that the provider rejects, and throws for every other failure. Use the SDK error guards (`isAuthError`, `AuthenticationLinearError`) to tell them apart. Do not compare error message strings.
@@ -36,9 +40,9 @@ shared/providers/<provider>/<provider>.<kind>.ts   one folder per external provi
 - Services `throw status("Not Found", { message: EIdentityMessages.IDENTITY_NOT_FOUND } satisfies TIdentityNotFoundError)`. Every `status()` body uses `satisfies` with the type of its schema (Biome plugin `typed-status-body`). Handlers stay one line.
 - Pass only the values a service needs, not the Elysia `Context`.
 - Every `t.String()` in a model has `maxLength`, `format` or `pattern`.
-- API tests run from `apps/api` with `bun test`. Bun loads `apps/api/.env.test` (committed, test values only), so `ENV`, `db` and `redis` point at the test services.
-- API tests live in `apps/api/tests` (`bunfig.toml` sets `root = "tests"`), and every file ends in `.spec.ts`. `tests/unit/` mirrors `src/` (`tests/unit/shared/redis/redis.service.spec.ts` tests `src/shared/redis/redis.service.ts`). `tests/integration/<feature>/` tests routes. `tests/fixtures/` holds shared constants and helpers. Import them as `#api-tests/*`.
-- Route tests call the app through Eden: `const api = treaty(createApp())`. Do not call `app.handle(new Request(...))` (Biome plugin `no-raw-request-in-api-test`). Sign up test users with `auth.api.signUpEmail({ body, returnHeaders: true })`.
+- API tests run from `apps/api` with `bun run test`. It applies the D1 migrations to a local database in `.wrangler/test-state`, then runs `bun test`. The preload `tests/setup/setup.preload.ts` points `cloudflare:workers` at a local simulated D1 and KV from `getPlatformProxy` (`remoteBindings: false`), so tests never touch the remote dev or prod resources. Bun loads `apps/api/.env.test` (committed, test values only) for `ENV`.
+- API tests live in `apps/api/tests` (`bunfig.toml` sets `root = "tests"`), and every file ends in `.spec.ts`. `tests/unit/` mirrors `src/` (`tests/unit/shared/env/env.helpers.spec.ts` tests `src/shared/env/env.helpers.ts`). `tests/integration/<feature>/` tests routes. `tests/fixtures/` holds shared constants and helpers. Import them as `#api-tests/*`.
+- Route tests call the app through Eden: `const api = treaty(createApp(), { parseDate: false })`. Do not call `app.handle(new Request(...))` (Biome plugin `no-raw-request-in-api-test`). Sign up test users with `auth.api.signUpEmail({ body, returnHeaders: true })`.
 - Mock with `spyOn` and call `mock.restore()` in `afterEach` or `afterAll`. A unit test never reaches the network: stub `fetch`, or spy on the SDK method when the SDK does not use the global `fetch`.
 - Use `test`, not `it`. Use `test.each` for a table of cases. Await every `expect(...).rejects` and `expect(...).resolves` (plugin `no-unawaited-expect-promise`). Put `expect` only inside a test. A helper throws an `Error` when its setup fails.
 
@@ -69,7 +73,8 @@ components/ui, hooks, lib    shadcn. Generated vendor code: do not edit by hand.
 ### DB (`packages/db`)
 
 - `src/schema/auth.ts` is the Better Auth default schema. When you add a Better Auth plugin or user field, update it from the Better Auth docs, then run `bun run db:generate`.
-- Make migrations with `bun run db:generate --name <change>`. Never edit a merged migration.
+- The schema is SQLite (`drizzle-orm/sqlite-core`) for Cloudflare D1. `createDb(d1)` takes a D1 binding.
+- Make migrations with `bun run db:generate --name <change>`. Never edit a merged migration. Wrangler applies them: `bun --filter @recap/api test:db` for the local test database, and the deploy workflows run `wrangler d1 migrations apply DB --remote --env <dev|prod>`.
 
 ## Naming and declarations
 
@@ -113,25 +118,36 @@ components/ui, hooks, lib    shadcn. Generated vendor code: do not edit by hand.
 Write Go-style "line of sight" code: handle the short or failure case first and return, then let the main path run unindented to the end of the function.
 
 ```ts
-if (!ttl) {
-  await this.redis.set(key, value);
+const insert = db.insert(schema.connection).values(values);
+if (!staleConnectionId) {
+  await insert;
   return;
 }
-await this.redis.send(ERedisCommand.SET, [key, value, ERedisSetOption.EXPIRE_IN_SECONDS, String(ttl)]);
+await db.batch([db.delete(schema.connection).where(eq(schema.connection.id, staleConnectionId)), insert]);
 ```
 
 - Check the missing, empty, invalid or error case with a negated condition, and return or throw at once.
 - Do not wrap the main work in `if (x) { ...; return; }` with the fallback after it. Invert the condition.
 - No `else` and no `else if`. Return early, or use a lookup object or `switch` for several cases.
 - Keep nesting shallow. If an `if` body grows, move it to a helper and return early in that helper.
+- No ternaries (`a ? b : c`), nested or not. Pick the form by where the choice is:
 
-Biome enforces this with `noUselessElse`, `noExcessiveCognitiveComplexity` (max 15) and 2 plugins: `no-else` fails on every `else`, and `no-inverted-guard` fails on an `if` without `!` that does the main work and ends in a bare `return;` with more code after it.
+| Choice | Write |
+|---|---|
+| Two code paths (`cond ? db.batch(...) : insert`) | `if (!cond) { ...; return; }` then the main path |
+| A value from a condition | A small helper that returns early: `if (!isVerified) { return "outline"; } return "secondary";` |
+| A value per enum member | A `Record<EName, T>` lookup in `.constants.ts`: `SOURCES_AVAILABILITY_BADGE_VARIANTS[row.availability]` |
+| An optional JSX element | `{isError && <FieldError>...</FieldError>}` |
+| One of two JSX children | Two lines: `{isPending && <Spinner />}` and `{!isPending && <GoogleMark />}` |
+| A Tailwind class | `cn("base", isDone && "line-through", !isDone && "text-foreground")` |
+
+Only use `&&` in JSX with a boolean, a string or an object on the left, never a number (`0` renders). Use `Boolean(x) &&` for a `ReactNode`.
+
+Biome enforces this with `noUselessElse`, `noNestedTernary`, `noExcessiveCognitiveComplexity` (max 15) and 3 plugins: `no-else` fails on every `else`, `no-ternary` fails on every conditional expression, and `no-inverted-guard` fails on an `if` without `!` that does the main work and ends in a bare `return;` with more code after it.
 
 ## Protocol strings
 
 - Command names, options and other fixed protocol strings come from an enum, never a string literal. Put the enum in the `.enums.ts` file of the module that owns the client.
-- Redis: use `ERedisCommand` and `ERedisSetOption` from `#api/shared/redis/redis.enums` in every `redis.send(command, [args])` call. Add a new member when you need a new command. Fixed non-enum arguments (such as a key count) go in `redis.constants.ts`.
-- Redis access for Better Auth goes through `RedisStorageService` (`#api/shared/redis/redis.service`), which implements `SecondaryStorage`. Keep one method per storage operation.
 
 ## Styling
 

@@ -1,5 +1,5 @@
 import { createDb } from "@recap/db";
 
-import { ENV } from "#api/shared/env/env.constants";
+import { bindings } from "#api/shared/bindings/bindings.client";
 
-export const db = createDb(ENV.databaseUrl);
+export const db = createDb(bindings.DB);

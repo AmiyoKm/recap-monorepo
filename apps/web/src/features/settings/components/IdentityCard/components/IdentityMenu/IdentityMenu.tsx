@@ -33,7 +33,8 @@ export function IdentityMenu({ identityId }: IIdentityMenuProps) {
       <DropdownMenuContent align="end" className="w-auto min-w-48">
         <DropdownMenuItem variant="destructive" onSelect={() => removeIdentity.mutate(identityId)}>
           <Trash2Icon />
-          {removeIdentity.isPending ? IDENTITY_MENU_REMOVING : IDENTITY_MENU_REMOVE}
+          {removeIdentity.isPending && IDENTITY_MENU_REMOVING}
+          {!removeIdentity.isPending && IDENTITY_MENU_REMOVE}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -11,6 +11,7 @@ import {
 import { Section } from "@/features/app-shell/components/Section";
 import { SectionHeader } from "@/features/app-shell/components/SectionHeader";
 import {
+  SOURCES_AVAILABILITY_BADGE_VARIANTS,
   SOURCES_AVAILABILITY_LABELS,
   SOURCES_BODY,
   SOURCES_HEAD_METHOD,
@@ -19,7 +20,6 @@ import {
   SOURCES_ROWS,
   SOURCES_TITLE,
 } from "@/features/home/components/SourcesTable/SourcesTable.constants";
-import { ESourceAvailability } from "@/features/home/home.enums";
 
 export function SourcesTable() {
   return (
@@ -41,7 +41,6 @@ export function SourcesTable() {
           </TableHeader>
           <TableBody>
             {SOURCES_ROWS.map((row) => {
-              const isAvailable = row.availability === ESourceAvailability.AVAILABLE;
               return (
                 <TableRow key={row.provider}>
                   <TableCell className="font-medium">{providerLabel(row.provider)}</TableCell>
@@ -49,7 +48,7 @@ export function SourcesTable() {
                     {row.method}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Badge variant={isAvailable ? "secondary" : "outline"}>
+                    <Badge variant={SOURCES_AVAILABILITY_BADGE_VARIANTS[row.availability]}>
                       {SOURCES_AVAILABILITY_LABELS[row.availability]}
                     </Badge>
                   </TableCell>

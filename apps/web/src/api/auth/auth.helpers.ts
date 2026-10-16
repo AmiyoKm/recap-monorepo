@@ -11,6 +11,9 @@ export function toAuthError(error: IAuthClientError): ApiError {
 }
 
 export function userInitial(name: string, email: string): string {
-  const source = name.trim().length > 0 ? name.trim() : email;
-  return source.charAt(0).toUpperCase();
+  const trimmedName = name.trim();
+  if (!trimmedName) {
+    return email.charAt(0).toUpperCase();
+  }
+  return trimmedName.charAt(0).toUpperCase();
 }

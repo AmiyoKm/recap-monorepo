@@ -1,9 +1,11 @@
 import { EConnectionStatus } from "@/api/identity/identity.enums";
 import type { TIdentityConnection } from "@/api/identity/identity.types";
 import {
+  CONNECTOR_CONNECT,
   CONNECTOR_CONNECTED,
   CONNECTOR_EXPIRED,
   CONNECTOR_NOT_CONNECTED,
+  CONNECTOR_RECONNECT,
 } from "@/features/settings/components/ConnectorRow/ConnectorRow.constants";
 import { EConnectorState } from "@/features/settings/components/ConnectorRow/ConnectorRow.enums";
 
@@ -29,4 +31,11 @@ export function connectorDetail(
     case EConnectorState.NEEDS_RECONNECT:
       return CONNECTOR_EXPIRED;
   }
+}
+
+export function connectorConnectLabel(needsReconnect: boolean): string {
+  if (!needsReconnect) {
+    return CONNECTOR_CONNECT;
+  }
+  return CONNECTOR_RECONNECT;
 }

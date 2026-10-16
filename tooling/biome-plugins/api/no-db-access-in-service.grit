@@ -9,5 +9,5 @@ or {
   `db.execute` as $call,
   `db.transaction` as $call
 } where {
-  register_diagnostic(span=$call, message="Services orchestrate. Put Postgres access in the <feature>.repository.ts file.")
+  register_diagnostic(span=$call, message="Services orchestrate. Put database access in the <feature>.repository.ts file.")
 }

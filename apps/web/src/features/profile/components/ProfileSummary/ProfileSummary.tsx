@@ -19,7 +19,7 @@ export function ProfileSummary({ user }: IProfileSummaryProps) {
     <Card>
       <CardContent className="flex flex-col items-start gap-6">
         <Avatar className="size-16">
-          {user.image ? <AvatarImage src={user.image} alt={user.name} /> : null}
+          {user.image && <AvatarImage src={user.image} alt={user.name} />}
           <AvatarFallback className="text-xl">{userInitial(user.name, user.email)}</AvatarFallback>
         </Avatar>
         <div className="flex w-full min-w-0 flex-col gap-1">
@@ -30,7 +30,8 @@ export function ProfileSummary({ user }: IProfileSummaryProps) {
         </div>
         <Button variant="outline" disabled={signOut.isPending} onClick={() => signOut.mutate()}>
           <LogOutIcon />
-          {signOut.isPending ? PROFILE_SUMMARY_SIGNING_OUT : PROFILE_SUMMARY_SIGN_OUT}
+          {signOut.isPending && PROFILE_SUMMARY_SIGNING_OUT}
+          {!signOut.isPending && PROFILE_SUMMARY_SIGN_OUT}
         </Button>
       </CardContent>
     </Card>

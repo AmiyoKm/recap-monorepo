@@ -1,6 +1,6 @@
 # OAuth connect state is resolved server-side, not from the session
 
-Connect flows store a pending grant in Redis keyed by a high-entropy `state`, and the callback resolves the grant from `state` alone, with no Recap session required. This is what lets a user copy the consent URL into a different Chrome profile — where their work Google account lives — and complete the consent there.
+Connect flows store a pending grant in the D1 `pending_grant` table, keyed by a high-entropy `state` and taken once with `DELETE ... RETURNING`, and the callback resolves the grant from `state` alone, with no Recap session required. This is what lets a user copy the consent URL into a different Chrome profile — where their work Google account lives — and complete the consent there.
 
 ## Consequences
 

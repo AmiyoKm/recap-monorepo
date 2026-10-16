@@ -6,7 +6,8 @@ export function Container({ className, fluid = false, children }: IContainerProp
     <div
       className={cn(
         "mx-auto w-full px-4 sm:px-6",
-        fluid ? "max-w-screen-2xl lg:px-10" : "max-w-6xl",
+        fluid && "max-w-screen-2xl lg:px-10",
+        !fluid && "max-w-6xl",
         className,
       )}
     >

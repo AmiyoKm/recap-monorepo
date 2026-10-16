@@ -13,7 +13,6 @@ export const JIRA_SITE = "acme.atlassian.net";
 export const VALID_JIRA_KEY = "valid-jira-api-key-12345678";
 export const VALID_LINEAR_KEY = "valid-linear-api-key-12345678";
 export const INVALID_API_KEY = "wrong-key-12345678";
-export const TEST_DATABASE_SUFFIX = "_test";
 export const HTTP_OK = 200;
 export const HTTP_FOUND = 302;
 export const HTTP_BAD_REQUEST = 400;

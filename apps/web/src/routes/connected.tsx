@@ -2,12 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { ConnectResultContainer } from "@/features/connect-result/containers/ConnectResultContainer";
 import type { IConnectResultSearch } from "@/shared/router/router.interfaces";
+import { readSearchString } from "@/shared/search/search.helpers";
 
 export const Route = createFileRoute("/connected")({
   validateSearch: (search: Record<string, unknown>): IConnectResultSearch => ({
-    connected: typeof search["connected"] === "string" ? search["connected"] : undefined,
-    email: typeof search["email"] === "string" ? search["email"] : undefined,
-    error: typeof search["error"] === "string" ? search["error"] : undefined,
+    connected: readSearchString(search, "connected"),
+    email: readSearchString(search, "email"),
+    error: readSearchString(search, "error"),
   }),
   component: ConnectedRoute,
 });

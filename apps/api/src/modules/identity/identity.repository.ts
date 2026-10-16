@@ -1,14 +1,18 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, gt, inArray, lte } from "drizzle-orm";
 
 import { schema } from "@recap/db";
 
 import { isUniqueViolation } from "#api/modules/identity/identity.helpers";
-import type { IConnectionOwnership } from "#api/modules/identity/identity.interfaces";
+import type {
+  IConnectionOwnership,
+  ITakePendingGrantInput,
+} from "#api/modules/identity/identity.interfaces";
 import type {
   TConnectionInsert,
   TConnectionRow,
   TIdentityInsert,
   TIdentityRow,
+  TPendingGrantInsert,
 } from "#api/modules/identity/identity.types";
 import { db } from "#api/shared/db/db.client";
 
@@ -69,12 +73,7 @@ export abstract class IdentityRepository {
     staleConnectionId?: string,
   ): Promise<boolean> {
     try {
-      await db.transaction(async (tx) => {
-        if (staleConnectionId) {
-          await tx.delete(schema.connection).where(eq(schema.connection.id, staleConnectionId));
-        }
-        await tx.insert(schema.connection).values(values);
-      });
+      await IdentityRepository.writeConnection(values, staleConnectionId);
       return true;
     } catch (error) {
       if (!isUniqueViolation(error)) {
@@ -82,6 +81,21 @@ export abstract class IdentityRepository {
       }
       return false;
     }
+  }
+
+  private static async writeConnection(
+    values: TConnectionInsert,
+    staleConnectionId?: string,
+  ): Promise<void> {
+    const insert = db.insert(schema.connection).values(values);
+    if (!staleConnectionId) {
+      await insert;
+      return;
+    }
+    await db.batch([
+      db.delete(schema.connection).where(eq(schema.connection.id, staleConnectionId)),
+      insert,
+    ]);
   }
 
   static listConnections(identityIds: string[]): Promise<TConnectionRow[]> {
@@ -112,6 +126,25 @@ export abstract class IdentityRepository {
 
   static async deleteIdentityRow(identityId: string): Promise<void> {
     await db.delete(schema.identity).where(eq(schema.identity.id, identityId));
+  }
+
+  static async storePendingGrant(values: TPendingGrantInsert): Promise<void> {
+    await db.insert(schema.pendingGrant).values(values);
+  }
+
+  static async takePendingGrant({
+    state,
+    now,
+  }: ITakePendingGrantInput): Promise<string | undefined> {
+    const rows = await db
+      .delete(schema.pendingGrant)
+      .where(and(eq(schema.pendingGrant.state, state), gt(schema.pendingGrant.expiresAt, now)))
+      .returning({ payload: schema.pendingGrant.payload });
+    return rows[0]?.payload;
+  }
+
+  static async deleteExpiredPendingGrants(now: string): Promise<void> {
+    await db.delete(schema.pendingGrant).where(lte(schema.pendingGrant.expiresAt, now));
   }
 
   static async deleteConnectionRow(connectionId: string): Promise<void> {

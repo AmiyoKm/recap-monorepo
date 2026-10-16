@@ -1,0 +1,51 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "recap-api",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
+  "env": {
+    "dev": {
+      "name": "recap-api-dev",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "recap-dev",
+          "database_id": "98640855-5e4b-4759-b502-e4e2d15cd4d8",
+          "migrations_dir": "../../packages/db/migrations",
+          "remote": true
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "CACHE",
+          "id": "515fcf3e1e044a27968c641d712509bf",
+          "remote": true
+        }
+      ]
+    },
+    "prod": {
+      "name": "recap-api-prod",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "recap-prod",
+          "database_id": "fc8cb8ad-fb9b-4faf-bae4-0121dcf43db0",
+          "migrations_dir": "../../packages/db/migrations"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "CACHE",
+          "id": "6a7a19684be24057a4a9d1ea18832909"
+        }
+      ]
+    }
+  }
+}

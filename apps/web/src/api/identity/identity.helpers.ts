@@ -7,6 +7,7 @@ import {
   IDENTITY_CONNECTED_GOOGLE,
   IDENTITY_CONNECTED_GOOGLE_TITLE,
   IDENTITY_CONNECTED_SUFFIX,
+  IDENTITY_CONSENT_POLL_MS,
   IDENTITY_SYNC_CHANNEL,
 } from "@/api/identity/identity.constants";
 import { EConnectionStatus, EConsentTarget, EProvider } from "@/api/identity/identity.enums";
@@ -63,7 +64,10 @@ function connectionEntry(identityId: string, provider: string, status: string): 
   return `${identityId}:${provider}:${status}`;
 }
 
-export function identitiesFingerprint(identities: TIdentitiesData): string {
+export function identitiesFingerprint(identities: TIdentitiesData | undefined): string | null {
+  if (!identities) {
+    return null;
+  }
   return identities
     .flatMap((identity) => [
       identity.id,
@@ -83,7 +87,10 @@ export function toKnownConnected(connected: string | undefined): string | undefi
 
 function readString(record: object, key: string): string | undefined {
   const value: unknown = Reflect.get(record, key);
-  return typeof value === "string" ? value : undefined;
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  return value;
 }
 
 export function readConnectResultMessage(data: unknown): IConnectResultMessage | null {
@@ -125,4 +132,11 @@ export function consentCompleted(before: string, after: string, target: TConsent
         connectionEntry(target.identityId, target.provider, EConnectionStatus.ACTIVE),
       );
   }
+}
+
+export function consentPollInterval(isWaitingForConsent: boolean): number | false {
+  if (!isWaitingForConsent) {
+    return false;
+  }
+  return IDENTITY_CONSENT_POLL_MS;
 }

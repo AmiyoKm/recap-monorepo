@@ -37,11 +37,11 @@ export function SignInContainer({ error, mode: initialMode }: ISignInContainerPr
             <p className="text-sm text-muted-foreground">{SIGN_IN_DESCRIPTION[mode]}</p>
           </div>
         </div>
-        {error ? (
+        {error && (
           <Alert variant="destructive">
             <AlertTitle>{SIGN_IN_GOOGLE_FAILED}</AlertTitle>
           </Alert>
-        ) : null}
+        )}
         <GoogleSignInButton />
         <FieldSeparator>{SIGN_IN_SEPARATOR}</FieldSeparator>
         <EmailAuthForm mode={mode} onModeChange={setMode} />

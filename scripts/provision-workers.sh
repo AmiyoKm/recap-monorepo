@@ -1,0 +1,359 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]]; then
+  BOLD=$(tput bold); DIM=$(tput dim); RESET=$(tput sgr0)
+  BLUE=$(tput setaf 4); GREEN=$(tput setaf 2); YELLOW=$(tput setaf 3)
+else
+  BOLD=""; DIM=""; RESET=""; BLUE=""; GREEN=""; YELLOW=""
+fi
+
+TOTAL_STAGES=0
+
+_STAGE_INDEX=0
+ENV_FILE="${ENV_FILE:-.env}"
+WRITTEN_ENV=()
+WRITTEN_SECRET=()
+SKIPPED=()
+
+_clear() {
+  [[ -t 1 ]] || return 0
+  if command -v tput >/dev/null 2>&1 && tput clear 2>/dev/null; then return 0; fi
+  printf '\033[2J\033[3J\033[H'
+}
+
+banner() {
+  _clear
+  printf '\n%s%s  %s%s\n' "$BOLD" "$BLUE" "$1" "$RESET"
+  printf '%s  %s stages%s\n\n' "$DIM" "$TOTAL_STAGES" "$RESET"
+  printf '%s  You drive the browser; this wizard tells you exactly what to do and\n' "$DIM"
+  printf '  captures the values you copy back. Stop any time with Ctrl-C and re-run\n'
+  printf '  later, since it remembers values already saved.%s\n' "$RESET"
+  pause "Ready to start?"
+}
+
+stage() {
+  _clear
+  _STAGE_INDEX=$((_STAGE_INDEX + 1))
+  printf '\n%s%s▸ Stage %s/%s · %s%s\n' \
+    "$BOLD" "$BLUE" "$_STAGE_INDEX" "$TOTAL_STAGES" "$1" "$RESET"
+}
+
+say()  { printf '  %s\n' "$1"; }
+step() { printf '  %s•%s %s\n' "$BLUE" "$RESET" "$1"; }
+note() { printf '  %s%s%s\n' "$DIM" "$1" "$RESET"; }
+warn() { printf '  %s⚠ %s%s\n' "$YELLOW" "$1" "$RESET"; }
+
+open_url() {
+  local url="$1"
+  printf '  %s↗ opening%s %s\n' "$GREEN" "$RESET" "$url"
+  { if   command -v wslview     >/dev/null 2>&1; then wslview "$url"
+    elif command -v explorer.exe >/dev/null 2>&1; then explorer.exe "$url"
+    elif command -v xdg-open    >/dev/null 2>&1; then xdg-open "$url"
+    elif command -v open        >/dev/null 2>&1; then open "$url"
+    else false; fi
+  } >/dev/null 2>&1 || warn "couldn't open a browser, so visit it manually: $url"
+}
+
+pause() {
+  printf '  %s%s%s ' "$DIM" "${1:-Press Enter to continue}" "$RESET"
+  read -r _ || true
+}
+
+confirm() {
+  local reply=""
+  printf '  %s? %s [y/N] ' "$YELLOW" "$1"
+  read -r reply || true
+  [[ "$reply" =~ ^[Yy] ]]
+}
+
+_existing() {
+  [[ -f "$ENV_FILE" ]] || return 1
+  local line value sq="'\\''"; line=$(grep -E "^${1}=" "$ENV_FILE" | tail -n1) || return 1
+  value="${line#*=}"
+  if [[ "$value" == \'*\' ]]; then value="${value:1:${#value}-2}"; value="${value//"$sq"/\'}"
+  elif [[ "$value" == \"*\" ]]; then
+    value="${value:1:${#value}-2}"
+    [[ "$value" == *[\\\$\"]* ]] && return 1
+  fi
+  printf '%s' "$value"
+}
+
+ask() {
+  local key="$1" prompt="$2" current input s=$'\001' e=$'\002' p rc=0
+  current=$(_existing "$key" || true)
+  p="  $s$BOLD$e$prompt$s$RESET$e "
+  [[ -n "$current" ]] && p+="$s$DIM$e[Enter keeps current]$s$RESET$e "
+  read -e -r -p "$p" input || rc=1
+  if (( rc )) && [[ -z "$input" ]]; then return 1; fi
+  [[ -z "$input" && -n "$current" ]] && input="$current"
+  printf -v "$key" '%s' "$input"
+}
+
+ask_secret() {
+  local key="$1" prompt="$2" current input rc=0
+  current=$(_existing "$key" || true)
+  if [[ -n "$current" ]]; then
+    printf '  %s%s%s %s[Enter keeps current]%s ' "$BOLD" "$prompt" "$RESET" "$DIM" "$RESET"
+  else
+    printf '  %s%s%s ' "$BOLD" "$prompt" "$RESET"
+  fi
+  read -rs input || rc=1
+  printf '\n'
+  if (( rc )) && [[ -z "$input" ]]; then return 1; fi
+  [[ -z "$input" && -n "$current" ]] && input="$current"
+  printf -v "$key" '%s' "$input"
+}
+
+write_env() {
+  local key="$1" value="$2" tmp sq="'\\''"
+  [[ -e "$ENV_FILE" ]] || (umask 077 && : > "$ENV_FILE")
+  tmp=$(mktemp)
+  grep -vE "^${key}=" "$ENV_FILE" > "$tmp" || true
+  printf "%s='%s'\n" "$key" "${value//\'/$sq}" >> "$tmp"
+  cat "$tmp" > "$ENV_FILE"
+  rm -f "$tmp"
+  printf -v "$key" '%s' "$value"
+  WRITTEN_ENV+=("$key")
+  printf '  %s✓ wrote%s %s → %s\n' "$GREEN" "$RESET" "$key" "$ENV_FILE"
+}
+
+set_secret() {
+  local name="$1" value="$2"
+  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    if printf '%s' "$value" | gh secret set "$name" >/dev/null 2>&1; then
+      WRITTEN_SECRET+=("$name")
+      printf '  %s✓ set%s GitHub secret %s\n' "$GREEN" "$RESET" "$name"
+      return
+    fi
+  fi
+  SKIPPED+=("GitHub secret $name (set it manually: gh secret set $name)")
+  warn "skipped GitHub secret $name: gh not ready; set it later"
+}
+
+set_var() {
+  local name="$1" value="$2"
+  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    if gh variable set "$name" --body "$value" >/dev/null 2>&1; then
+      printf '  %s✓ set%s GitHub variable %s\n' "$GREEN" "$RESET" "$name"
+      return
+    fi
+  fi
+  SKIPPED+=("GitHub variable $name")
+  warn "skipped GitHub variable $name, gh not ready; set it later"
+}
+
+finish() {
+  _clear
+  printf '\n%s%s  ✓ Setup complete%s\n' "$BOLD" "$GREEN" "$RESET"
+  (( ${#WRITTEN_ENV[@]} ))    && note "wrote ${#WRITTEN_ENV[@]} value(s) to $ENV_FILE: ${WRITTEN_ENV[*]}"
+  (( ${#WRITTEN_SECRET[@]} )) && note "set ${#WRITTEN_SECRET[@]} GitHub secret(s): ${WRITTEN_SECRET[*]}"
+  if (( ${#SKIPPED[@]} )); then
+    printf '\n'; warn "still to do by hand:"
+    for s in "${SKIPPED[@]}"; do note "  - $s"; done
+  fi
+  printf '\n'
+}
+
+run_wizard() {
+
+TOTAL_STAGES=7
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+API_DIR="$ROOT/apps/api"
+CONFIG="$API_DIR/wrangler.jsonc"
+
+wr() { (cd "$ROOT" && bunx wrangler --config "$CONFIG" "$@"); }
+
+GH_ACCOUNT="AmiyoKm"
+GH_REPO="AmiyoKm/recap-monorepo"
+
+declare -A WEB_HOST_PREFIX=([dev]="dev.recap" [prod]="recap")
+
+set_repo_var() {
+  if gh variable set "$1" --repo "$GH_REPO" --body "$2" >/dev/null; then
+    printf '  %s✓ set%s GitHub variable %s\n' "$GREEN" "$RESET" "$1"
+    return
+  fi
+  SKIPPED+=("GitHub variable $1")
+  warn "could not set GitHub variable $1"
+}
+
+build_env_file() {
+  local deploy_env="$1"
+  printf 'CLOUDFLARE_API_TOKEN=%s\n' "$CI_CLOUDFLARE_API_TOKEN"
+  printf 'WEB_ORIGIN=https://%s.%s\n' "${WEB_HOST_PREFIX[$deploy_env]}" "$APP_DOMAIN"
+  printf 'BETTER_AUTH_URL=https://recap-api-%s.%s\n' "$deploy_env" "$APP_DOMAIN"
+  printf 'BETTER_AUTH_SECRET=%s\n' "$(openssl rand -base64 32)"
+  printf 'CONNECTION_ENCRYPTION_KEY=%s\n' "$(openssl rand -base64 32)"
+  [[ -n "$GOOGLE_CLIENT_ID" ]] && printf 'GOOGLE_CLIENT_ID=%s\n' "$GOOGLE_CLIENT_ID"
+  [[ -n "$GOOGLE_CLIENT_SECRET" ]] && printf 'GOOGLE_CLIENT_SECRET=%s\n' "$GOOGLE_CLIENT_SECRET"
+  return 0
+}
+
+set_env_file() {
+  local deploy_env="$1"
+  if build_env_file "$deploy_env" | gh secret set ENV_FILE --repo "$GH_REPO" --env "$deploy_env" >/dev/null; then
+    WRITTEN_SECRET+=("ENV_FILE ($deploy_env)")
+    printf '  %s✓ set%s ENV_FILE secret of %s\n' "$GREEN" "$RESET" "$deploy_env"
+    return
+  fi
+  SKIPPED+=("ENV_FILE secret of the $deploy_env environment")
+  warn "could not set the ENV_FILE secret of $deploy_env"
+}
+
+set_config() {
+  local path="$1" value="$2" tmp
+  tmp=$(mktemp)
+  jq --arg v "$value" "$path = \$v" "$CONFIG" > "$tmp"
+  cat "$tmp" > "$CONFIG"
+  rm -f "$tmp"
+  (cd "$ROOT" && bunx biome format --write apps/api/wrangler.jsonc >/dev/null 2>&1) || true
+  printf '  %s✓ wrote%s %s → apps/api/wrangler.jsonc\n' "$GREEN" "$RESET" "$path"
+}
+
+d1_id() {
+  wr d1 list --json 2>/dev/null | jq -r --arg n "$1" '.[] | select(.name == $n) | .uuid' | head -n1
+}
+
+kv_id() {
+  wr kv namespace list 2>/dev/null | jq -r --arg n "$1" '.[] | select(.title == $n) | .id' | head -n1
+}
+
+ensure_d1() {
+  local name="$1" path="$2" id
+  id=$(d1_id "$name")
+  if [[ -n "$id" ]]; then
+    note "D1 database $name already exists ($id)."
+  elif confirm "Create D1 database $name?"; then
+    wr d1 create "$name" </dev/null
+    id=$(d1_id "$name")
+  fi
+  if [[ -z "$id" ]]; then
+    SKIPPED+=("D1 database $name: create it, then set $path in apps/api/wrangler.jsonc")
+    warn "no ID for $name, so wrangler.jsonc is unchanged"
+    return 0
+  fi
+  set_config "$path" "$id"
+}
+
+ensure_kv() {
+  local name="$1" path="$2" id
+  id=$(kv_id "$name")
+  if [[ -n "$id" ]]; then
+    note "KV namespace $name already exists ($id)."
+  elif confirm "Create KV namespace $name?"; then
+    wr kv namespace create "$name" </dev/null
+    id=$(kv_id "$name")
+  fi
+  if [[ -z "$id" ]]; then
+    SKIPPED+=("KV namespace $name: create it, then set $path in apps/api/wrangler.jsonc")
+    warn "no ID for $name, so wrangler.jsonc is unchanged"
+    return 0
+  fi
+  set_config "$path" "$id"
+}
+
+banner "Recap API: provision Cloudflare Workers (dev and prod)"
+
+stage "Sign in to Cloudflare"
+say "Wrangler needs your Cloudflare account to create D1 and KV."
+note "Wrangler opens the browser itself. Approve the access request there."
+if wr whoami 2>/dev/null | grep -q "You are logged in"; then
+  note "You are already signed in:"
+  wr whoami 2>/dev/null | grep -iE "logged in|account" | head -n5 || true
+  if confirm "Sign in again with another account?"; then
+    wr login
+  fi
+else
+  wr login
+fi
+pause "Make sure the account above is the Recap account, then press Enter."
+
+stage "Create the D1 databases"
+say "Each environment gets its own D1 database. The IDs go into apps/api/wrangler.jsonc."
+ensure_d1 "recap-dev" '.env.dev.d1_databases[0].database_id'
+ensure_d1 "recap-prod" '.env.prod.d1_databases[0].database_id'
+pause
+
+stage "Create the KV namespaces"
+say "Each environment gets its own KV namespace for the access-token cache."
+ensure_kv "recap-api-dev-cache" '.env.dev.kv_namespaces[0].id'
+ensure_kv "recap-api-prod-cache" '.env.prod.kv_namespaces[0].id'
+if grep -q "TODO-run-scripts-provision-workers" "$CONFIG"; then
+  warn "apps/api/wrangler.jsonc still has a TODO ID. Fix it before you deploy."
+else
+  note "All 4 IDs are in apps/api/wrangler.jsonc. Commit this file."
+fi
+pause
+
+stage "Apply the D1 migrations"
+say "This makes the tables in the new, empty databases. CI does this on every deploy too."
+note "Migrations come from packages/db/migrations."
+if confirm "Apply migrations to recap-dev now?"; then
+  wr d1 migrations apply DB --remote --env dev
+else
+  SKIPPED+=("D1 migrations on recap-dev (the first dev deploy applies them)")
+fi
+warn "recap-prod is production. The first prod deploy also applies the migrations."
+if confirm "Apply migrations to recap-prod now?"; then
+  wr d1 migrations apply DB --remote --env prod
+else
+  SKIPPED+=("D1 migrations on recap-prod (the first prod deploy applies them)")
+fi
+pause
+
+stage "Set the CI API token permissions"
+say "CI deploys both Workers with CLOUDFLARE_API_TOKEN from the ENV_FILE secret."
+open_url "https://dash.cloudflare.com/?to=/:account/api-tokens"
+step "Create a token, or edit the one in ENV_FILE."
+step "Make sure it has these permissions, limited to the Recap account:"
+note "    Account · Workers Scripts · Edit"
+note "    Account · D1 · Edit"
+note "    Account · Workers KV Storage · Edit"
+note "    Zone · Workers Routes · Edit (the zone of APP_DOMAIN)"
+note "    Zone · DNS · Edit (the zone of APP_DOMAIN)"
+step "Save. The token value stays the same when you only change permissions."
+pause "Press Enter when the token has these permissions."
+
+stage "Set the GitHub environment secrets"
+say "This stage writes the ENV_FILE secret of the dev and prod GitHub environments."
+say "It also sets the repository variables APP_DOMAIN and CLOUDFLARE_ACCOUNT_ID."
+warn "It replaces any ENV_FILE that exists. It makes a new auth secret and encryption key for each environment."
+if ! command -v gh >/dev/null 2>&1 || ! GH_TOKEN=$(gh auth token -u "$GH_ACCOUNT" 2>/dev/null); then
+  warn "gh has no token for $GH_ACCOUNT. Run: gh auth login, then run this wizard again."
+  SKIPPED+=("ENV_FILE secrets and repository variables")
+  pause
+else
+  export GH_TOKEN
+  ask APP_DOMAIN "Your APP_DOMAIN (for example example.com):"
+  ask CLOUDFLARE_ACCOUNT_ID "Your Cloudflare account ID (from stage 1):"
+  ask_secret CI_CLOUDFLARE_API_TOKEN "Paste the CI Cloudflare API token (hidden):"
+  ask_secret GOOGLE_CLIENT_ID "Google OAuth client ID (Enter to leave empty):" || GOOGLE_CLIENT_ID=""
+  ask_secret GOOGLE_CLIENT_SECRET "Google OAuth client secret (Enter to leave empty):" || GOOGLE_CLIENT_SECRET=""
+  set_repo_var APP_DOMAIN "$APP_DOMAIN"
+  set_repo_var CLOUDFLARE_ACCOUNT_ID "$CLOUDFLARE_ACCOUNT_ID"
+  for deploy_env in dev prod; do
+    if confirm "Replace the ENV_FILE secret of the $deploy_env environment?"; then
+      set_env_file "$deploy_env"
+    else
+      SKIPPED+=("ENV_FILE secret of the $deploy_env environment")
+    fi
+  done
+  unset GH_TOKEN
+  pause
+fi
+
+stage "Deploy"
+say "Provisioning is done. The deploy workflows do the rest:"
+step "Commit apps/api/wrangler.jsonc with the new IDs."
+step "Push to development. dev-deploy migrates recap-dev and deploys recap-api-dev."
+step "Check https://recap-api-dev.${APP_DOMAIN:-<APP_DOMAIN>}/health and sign in on the dev web app."
+step "Then merge to prod. prod-deploy does the same for prod."
+pause "Press Enter to see the summary."
+
+finish
+}
+
+run_wizard "$@"; exit

@@ -11,10 +11,6 @@ export interface IAuthEnv {
 }
 
 export interface IEnv {
-  port: number;
-  databaseUrl: string;
-  redisUrl: string;
-  redisKeyPrefix: string;
   webOrigin: string;
   connectionEncryptionKey: string;
   auth: IAuthEnv;

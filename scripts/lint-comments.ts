@@ -68,10 +68,13 @@ const violations = (await Promise.all(files.map(findViolations))).flat();
 for (const { path, line, text } of violations) {
   console.error(`${path}:${line} comment not allowed: ${text}`);
 }
-if (violations.length > 0) {
+const hasViolations = violations.length > 0;
+if (hasViolations) {
   console.error(
     `${violations.length} comments found. Only TODO: and tool directives are allowed. Make the code say it, or delete the comment.`,
   );
 }
 console.info(`Checked comments in ${files.length} files`);
-process.exitCode = violations.length > 0 ? 1 : 0;
+if (hasViolations) {
+  process.exitCode = 1;
+}

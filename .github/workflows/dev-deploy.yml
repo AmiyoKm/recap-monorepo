@@ -10,7 +10,6 @@ concurrency:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   deploy:
@@ -22,8 +21,7 @@ jobs:
       WEB_HOST: dev.recap.${{ vars.APP_DOMAIN }}
       API_HOST: recap-api-dev.${{ vars.APP_DOMAIN }}
       WORKER: recap-web-dev
-      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-      GCP_REGION: ${{ vars.GCP_REGION }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -32,26 +30,6 @@ jobs:
         with:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
-
-      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOY_SA }}
-      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-
-      - name: Set image name
-        id: image
-        run: echo "ref=$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/recap/api-${{ env.DEPLOY_ENV }}:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
-      - run: gcloud auth configure-docker "$GCP_REGION-docker.pkg.dev" --quiet
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          file: apps/api/Dockerfile
-          push: true
-          tags: ${{ steps.image.outputs.ref }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Load env file
         env:
@@ -63,31 +41,18 @@ jobs:
           bun --env-file="$env_file" -e 'console.log(JSON.stringify(process.env))' \
             | jq --argjson keys "$keys" '. as $env | $keys | map({key: ., value: $env[.]}) | from_entries' > "$RUNNER_TEMP/deploy-env.json"
           jq -r '.[] | select(. != "") | "::add-mask::" + .' "$RUNNER_TEMP/deploy-env.json"
-          jq 'del(.PORT, .CLOUDFLARE_API_TOKEN)' "$RUNNER_TEMP/deploy-env.json" > "$RUNNER_TEMP/api-env.yaml"
+          jq 'del(.CLOUDFLARE_API_TOKEN)' "$RUNNER_TEMP/deploy-env.json" > "$RUNNER_TEMP/api-secrets.json"
+
       - name: Migrate database
-        run: DATABASE_URL=$(jq -r .DATABASE_URL "$RUNNER_TEMP/deploy-env.json") bun run db:migrate
+        working-directory: apps/api
+        run: CLOUDFLARE_API_TOKEN=$(jq -r .CLOUDFLARE_API_TOKEN "$RUNNER_TEMP/deploy-env.json") bunx wrangler d1 migrations apply DB --remote --env "$DEPLOY_ENV"
 
       - name: Deploy API
-        run: |
-          gcloud run deploy "recap-api-${{ env.DEPLOY_ENV }}" \
-            --image "${{ steps.image.outputs.ref }}" \
-            --region "$GCP_REGION" \
-            --service-account "${{ vars.GCP_RUNTIME_SA }}" \
-            --allow-unauthenticated \
-            --min-instances 0 \
-            --max-instances 1 \
-            --cpu 1 \
-            --memory 512Mi \
-            --cpu-throttling \
-            --no-cpu-boost \
-            --env-vars-file "$RUNNER_TEMP/api-env.yaml" \
-            --clear-secrets \
-            --quiet
+        working-directory: apps/api
+        run: CLOUDFLARE_API_TOKEN=$(jq -r .CLOUDFLARE_API_TOKEN "$RUNNER_TEMP/deploy-env.json") bunx wrangler deploy --env "$DEPLOY_ENV" --domain "$API_HOST" --secrets-file "$RUNNER_TEMP/api-secrets.json"
 
       - name: Check API health
-        run: |
-          url=$(gcloud run services describe "recap-api-${{ env.DEPLOY_ENV }}" --region "$GCP_REGION" --format 'value(status.url)')
-          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 5 "$url/health"
+        run: curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 5 "https://$API_HOST/health"
 
       - run: bun --filter @recap/web build
         env:
@@ -95,5 +60,3 @@ jobs:
       - name: Deploy web
         working-directory: apps/web
         run: CLOUDFLARE_API_TOKEN=$(jq -r .CLOUDFLARE_API_TOKEN "$RUNNER_TEMP/deploy-env.json") bunx wrangler deploy --name "${{ env.WORKER }}" --domain "${{ env.WEB_HOST }}"
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}

@@ -7,9 +7,9 @@ export function SectionHeader({ title, description }: ISectionHeaderProps) {
       <Heading as={EHeadingTag.H2} variant={EHeadingVariant.SECTION}>
         {title}
       </Heading>
-      {description ? (
+      {description && (
         <p className="text-base leading-relaxed text-pretty text-muted-foreground">{description}</p>
-      ) : null}
+      )}
     </div>
   );
 }

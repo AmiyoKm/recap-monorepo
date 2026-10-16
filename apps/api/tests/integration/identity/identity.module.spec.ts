@@ -12,11 +12,14 @@ import {
   EConnectionStatus,
   EGrantPurpose,
   EIdentityMessages,
-  EIdentityRedisKeyPrefix,
 } from "#api/modules/identity/identity.enums";
+import { connectionTokenKey } from "#api/modules/identity/identity.helpers";
 import type { TConnectConnectionBody } from "#api/modules/identity/identity.types";
 import { auth } from "#api/shared/auth/auth.client";
+import { cache } from "#api/shared/cache/cache.client";
+import { CacheService } from "#api/shared/cache/cache.service";
 import { decryptSecret } from "#api/shared/crypto/crypto.helpers";
+import { dayjs } from "#api/shared/date/date.helpers";
 import { db } from "#api/shared/db/db.client";
 import { ENV } from "#api/shared/env/env.constants";
 import type {
@@ -31,8 +34,6 @@ import type { IJiraCredentials } from "#api/shared/providers/jira/jira.interface
 import { JiraService } from "#api/shared/providers/jira/jira.service";
 import { LinearService } from "#api/shared/providers/linear/linear.service";
 import type { IProviderAccount } from "#api/shared/providers/providers.interfaces";
-import { redis } from "#api/shared/redis/redis.client";
-import { ERedisCommand } from "#api/shared/redis/redis.enums";
 import {
   CALENDAR_EMAIL,
   CALENDAR_GRANTED_SCOPES,
@@ -57,8 +58,19 @@ import {
   VALID_LINEAR_KEY,
 } from "#api-tests/fixtures/fixtures.constants";
 import { ETestMessages } from "#api-tests/fixtures/fixtures.enums";
-import { uniqueEmail, wipeDatabase, wipeRedis } from "#api-tests/fixtures/fixtures.helpers";
+import { uniqueEmail, wipeCache, wipeDatabase } from "#api-tests/fixtures/fixtures.helpers";
 import type { ICalendarConnectCodes } from "#api-tests/integration/identity/identity.interfaces";
+
+function readOverride<TValue>(
+  overrides: Map<string, TValue | undefined>,
+  code: string,
+  fallback: TValue,
+): TValue | undefined {
+  if (!overrides.has(code)) {
+    return fallback;
+  }
+  return overrides.get(code);
+}
 
 class FakeGoogleClient {
   readonly profiles = new Map<string, IGoogleProfile>();
@@ -82,12 +94,12 @@ class FakeGoogleClient {
       return Promise.reject(new Error(ETestMessages.UNKNOWN_TEST_CODE));
     }
     this.lastCodeVerifier = input.codeVerifier;
-    const refreshToken = this.refreshTokens.has(input.code)
-      ? this.refreshTokens.get(input.code)
-      : `refresh-${input.code}`;
-    const expiresInSeconds = this.tokenExpiries.has(input.code)
-      ? this.tokenExpiries.get(input.code)
-      : DEFAULT_TOKEN_EXPIRY_SECONDS;
+    const refreshToken = readOverride(this.refreshTokens, input.code, `refresh-${input.code}`);
+    const expiresInSeconds = readOverride(
+      this.tokenExpiries,
+      input.code,
+      DEFAULT_TOKEN_EXPIRY_SECONDS,
+    );
     const scopes = this.grantedScopes.get(input.code) ?? [...CALENDAR_GRANTED_SCOPES];
     return Promise.resolve({
       tokens: { accessToken: input.code, refreshToken, expiresInSeconds, scopes },
@@ -117,18 +129,35 @@ class FakeProviderClients {
 }
 
 const provider = new FakeProviderClients();
-const api = treaty(createApp());
+const api = treaty(createApp(), { parseDate: false });
 
 function withCookie(cookie: string) {
   return { headers: { cookie } };
 }
 
-function pendingGrantKey(state: string): string {
-  return `${ENV.redisKeyPrefix}${EIdentityRedisKeyPrefix.PENDING_GRANT}${state}`;
+async function findPendingGrantRow(state: string) {
+  const rows = await db
+    .select()
+    .from(schema.pendingGrant)
+    .where(eq(schema.pendingGrant.state, state));
+  return rows[0];
 }
 
-function connectionTokenKey(connectionId: string): string {
-  return `${ENV.redisKeyPrefix}${EIdentityRedisKeyPrefix.CONNECTION_TOKEN}${connectionId}`;
+async function pendingGrantTtlSeconds(state: string): Promise<number> {
+  const row = await findPendingGrantRow(state);
+  if (!row) {
+    throw new Error(ETestMessages.PENDING_GRANT_IS_MISSING);
+  }
+  return dayjs(row.expiresAt).diff(dayjs(), "second");
+}
+
+async function cachedTokenTtlSeconds(connectionId: string): Promise<number> {
+  const { keys } = await cache.list({ prefix: connectionTokenKey(connectionId) });
+  const expiration = keys[0]?.expiration;
+  if (expiration === undefined) {
+    throw new Error(ETestMessages.CACHED_TOKEN_IS_MISSING);
+  }
+  return expiration - dayjs().unix();
 }
 
 function connectedUrl(connected: string, email: string): string {
@@ -236,11 +265,11 @@ function deleteConnection(cookie: string, connectionId: string) {
 }
 
 async function readPendingGrant(state: string): Promise<unknown> {
-  const stored = await redis.get(pendingGrantKey(state));
-  if (stored === null) {
+  const row = await findPendingGrantRow(state);
+  if (!row) {
     throw new Error(ETestMessages.PENDING_GRANT_IS_MISSING);
   }
-  const grant: unknown = JSON.parse(stored);
+  const grant: unknown = JSON.parse(row.payload);
   return grant;
 }
 
@@ -317,7 +346,7 @@ beforeAll(() => {
 
 beforeEach(async () => {
   await wipeDatabase();
-  await wipeRedis();
+  await wipeCache();
 });
 
 afterAll(() => {
@@ -355,7 +384,7 @@ describe("work identities", () => {
       purpose: EGrantPurpose.IDENTITY_CREATE,
       codeVerifier: `verifier-${state}`,
     });
-    const ttl = await redis.ttl(pendingGrantKey(state));
+    const ttl = await pendingGrantTtlSeconds(state);
     expect(ttl).toBeGreaterThan(0);
     expect(ttl).toBeLessThanOrEqual(PENDING_GRANT_TTL_SECONDS);
 
@@ -371,7 +400,7 @@ describe("work identities", () => {
     expect(completed.status).toBe(HTTP_FOUND);
     expect(provider.google.lastCodeVerifier).toBe(`verifier-${state}`);
     expect(readLocation(completed)).toBe(connectedUrl("google", GOOGLE_PROFILE.email));
-    expect(await redis.get(pendingGrantKey(state))).toBeNull();
+    expect(await findPendingGrantRow(state)).toBeUndefined();
 
     const { status, data } = await listIdentities(cookie);
     expect(status).toBe(HTTP_OK);
@@ -431,7 +460,10 @@ describe("work identities", () => {
     const { cookie } = await signUp(uniqueEmail());
     provider.google.profiles.set("code-corrupt", GOOGLE_PROFILE);
     const state = await startConnect(cookie);
-    await redis.set(pendingGrantKey(state), "not-json{");
+    await db
+      .update(schema.pendingGrant)
+      .set({ payload: "not-json{" })
+      .where(eq(schema.pendingGrant.state, state));
 
     const completed = await completeCallback("code-corrupt", state);
     expect(completed.status).toBe(HTTP_FOUND);
@@ -451,7 +483,7 @@ describe("work identities", () => {
     const completed = await denyCallback(state);
     expect(completed.status).toBe(HTTP_FOUND);
     expect(readLocation(completed)).toBe(errorUrl("access_denied"));
-    expect(await redis.get(pendingGrantKey(state))).toBeNull();
+    expect(await findPendingGrantRow(state)).toBeUndefined();
     expect(await db.select().from(schema.identity)).toEqual([]);
   });
 
@@ -530,7 +562,7 @@ describe("calendar connections", () => {
       provider: "google-calendar",
       codeVerifier: `verifier-${state}`,
     });
-    const ttl = await redis.ttl(pendingGrantKey(state));
+    const ttl = await pendingGrantTtlSeconds(state);
     expect(ttl).toBeGreaterThan(0);
     expect(ttl).toBeLessThanOrEqual(PENDING_GRANT_TTL_SECONDS);
 
@@ -590,8 +622,8 @@ describe("calendar connections", () => {
       "refresh-code-cal-ok",
     );
 
-    expect(await redis.get(connectionTokenKey(row.id))).toBe("code-cal-ok");
-    const ttl = await redis.ttl(connectionTokenKey(row.id));
+    expect(await cache.get(connectionTokenKey(row.id))).toBe("code-cal-ok");
+    const ttl = await cachedTokenTtlSeconds(row.id);
     expect(ttl).toBeGreaterThan(0);
     expect(ttl).toBeLessThanOrEqual(DEFAULT_TOKEN_EXPIRY_SECONDS);
 
@@ -645,15 +677,9 @@ describe("calendar connections", () => {
     const state = await startCalendarState(cookie, identityId);
     setCalendarProfile("code-cal-cache-2", "google-sub-cal-cache");
 
-    const send = redis.send.bind(redis);
-    const cacheSpy = spyOn(redis, "send").mockImplementation((command, args) => {
-      const isTokenWrite =
-        command === ERedisCommand.SET &&
-        args[0]?.includes(EIdentityRedisKeyPrefix.CONNECTION_TOKEN);
-      return isTokenWrite
-        ? Promise.reject(new Error(ETestMessages.REDIS_IS_DOWN))
-        : send(command, args);
-    });
+    const cacheSpy = spyOn(CacheService, "put").mockRejectedValue(
+      new Error(ETestMessages.CACHE_IS_DOWN),
+    );
     try {
       const completed = await completeCallback("code-cal-cache-2", state);
       expect(readLocation(completed)).toBe(connectedUrl("google-calendar", CALENDAR_EMAIL));
@@ -771,10 +797,10 @@ describe("calendar connections", () => {
       identitySub: "google-sub-cal-token",
       calendarCode: "code-cal-token-cal",
     });
-    expect(await redis.get(connectionTokenKey(connectionId))).not.toBeNull();
+    expect(await cache.get(connectionTokenKey(connectionId))).not.toBeNull();
 
     expect((await deleteConnection(cookie, connectionId)).status).toBe(HTTP_OK);
-    expect(await redis.get(connectionTokenKey(connectionId))).toBeNull();
+    expect(await cache.get(connectionTokenKey(connectionId))).toBeNull();
   });
 });
 

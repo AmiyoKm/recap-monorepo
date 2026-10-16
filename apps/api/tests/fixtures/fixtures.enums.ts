@@ -16,7 +16,7 @@ export enum ETestMessages {
   CONNECTION_ROW_HAS_NO_ENCRYPTED_REFRESH_TOKEN = "Connection row has no encrypted refresh token",
   CONNECTION_ROW_HAS_NO_ENCRYPTED_API_KEY = "Connection row has no encrypted api key",
   SECOND_IDENTITY_IS_MISSING = "Second identity is missing",
-  REDIS_IS_DOWN = "Redis is down",
+  CACHE_IS_DOWN = "Cache is down",
+  CACHED_TOKEN_IS_MISSING = "Cached token is missing",
   CONNECTION_HAS_NO_ID = "Connection has no id",
-  NOT_A_TEST_DATABASE = "Test database URL must name a database that ends in _test",
 }

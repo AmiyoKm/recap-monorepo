@@ -16,7 +16,7 @@ export function useConsentCompletion({
   const [baseline, setBaseline] = useState<string | null>(null);
   const isWaiting = open && hasAuthorizeUrl;
   const identities = useIdentitiesQuery({ isWaitingForConsent: isWaiting });
-  const fingerprint = identities.data ? identitiesFingerprint(identities.data) : null;
+  const fingerprint = identitiesFingerprint(identities.data);
   const finish = useEffectEvent(() => {
     setOpen(false);
     toast.success(doneText);

@@ -25,6 +25,7 @@ import {
   USER_MENU_SIGN_OUT,
   USER_MENU_SIGNING_OUT,
 } from "@/features/app-shell/components/UserMenu/UserMenu.constants";
+import { userMenuSide } from "@/features/app-shell/components/UserMenu/UserMenu.helpers";
 import type { IUserMenuProps } from "@/features/app-shell/components/UserMenu/UserMenu.interfaces";
 
 export function UserMenu({ user }: IUserMenuProps) {
@@ -42,7 +43,7 @@ export function UserMenu({ user }: IUserMenuProps) {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="rounded-lg">
-                {user.image ? <AvatarImage src={user.image} alt={user.name} /> : null}
+                {user.image && <AvatarImage src={user.image} alt={user.name} />}
                 <AvatarFallback className="rounded-lg">
                   {userInitial(user.name, user.email)}
                 </AvatarFallback>
@@ -55,7 +56,7 @@ export function UserMenu({ user }: IUserMenuProps) {
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            side={isMobile ? "top" : "right"}
+            side={userMenuSide(isMobile)}
             align="end"
             sideOffset={4}
             className="min-w-56"
@@ -76,7 +77,8 @@ export function UserMenu({ user }: IUserMenuProps) {
               </DropdownMenuItem>
               <DropdownMenuItem disabled={signOut.isPending} onSelect={() => signOut.mutate()}>
                 <LogOutIcon />
-                {signOut.isPending ? USER_MENU_SIGNING_OUT : USER_MENU_SIGN_OUT}
+                {signOut.isPending && USER_MENU_SIGNING_OUT}
+                {!signOut.isPending && USER_MENU_SIGN_OUT}
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>

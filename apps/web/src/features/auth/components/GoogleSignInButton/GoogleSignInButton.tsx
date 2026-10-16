@@ -22,10 +22,12 @@ export function GoogleSignInButton() {
         disabled={signIn.isPending}
         onClick={() => signIn.mutate()}
       >
-        {signIn.isPending ? <Spinner /> : <GoogleMark />}
-        {signIn.isPending ? GOOGLE_SIGN_IN_PENDING : GOOGLE_SIGN_IN_LABEL}
+        {signIn.isPending && <Spinner />}
+        {!signIn.isPending && <GoogleMark />}
+        {signIn.isPending && GOOGLE_SIGN_IN_PENDING}
+        {!signIn.isPending && GOOGLE_SIGN_IN_LABEL}
       </Button>
-      {signIn.isError ? <FieldError>{apiErrorMessage(signIn.error)}</FieldError> : null}
+      {signIn.isError && <FieldError>{apiErrorMessage(signIn.error)}</FieldError>}
     </div>
   );
 }
