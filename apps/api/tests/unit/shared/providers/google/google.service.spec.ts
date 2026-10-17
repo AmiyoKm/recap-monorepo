@@ -19,7 +19,7 @@ describe("GoogleService.createAuthorization", () => {
     });
     const url = new URL(authorizeUrl);
     expect(url.searchParams.get("state")).toBe("state-1");
-    expect(url.searchParams.get("client_id")).toBe(ENV.auth.google.clientId ?? null);
+    expect(url.searchParams.get("client_id")).toBe(ENV.auth.google.clientId);
     expect(url.searchParams.get("scope")).toBe("openid email");
     expect(url.searchParams.get("access_type")).toBe("offline");
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");

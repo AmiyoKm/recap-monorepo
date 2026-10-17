@@ -1,16 +1,29 @@
-import type { TCrossSubDomainCookies, TSocialProviders } from "#api/shared/auth/auth.types";
-import type { IGoogleAuthEnv } from "#api/shared/env/env.interfaces";
-
-export function socialProviders({ clientId, clientSecret }: IGoogleAuthEnv): TSocialProviders {
-  if (!(clientId && clientSecret)) {
-    return {};
-  }
-  return { google: { clientId, clientSecret } };
-}
+import type { ISignUpIdentityInput } from "#api/shared/auth/auth.interfaces";
+import type { TAuthIdentityInsert, TCrossSubDomainCookies } from "#api/shared/auth/auth.types";
+import { dayjs } from "#api/shared/date/date.helpers";
 
 export function crossSubDomainCookies(cookieDomain: string | undefined): TCrossSubDomainCookies {
   if (!cookieDomain) {
     return undefined;
   }
   return { enabled: true, domain: cookieDomain };
+}
+
+export function buildSignUpIdentityRow({
+  id,
+  userId,
+  googleSub,
+  profile,
+}: ISignUpIdentityInput): TAuthIdentityInsert {
+  const now = dayjs().toISOString();
+  return {
+    id,
+    userId,
+    googleSub,
+    email: profile.email,
+    displayName: profile.name,
+    avatarUrl: profile.image ?? null,
+    createdAt: now,
+    updatedAt: now,
+  };
 }

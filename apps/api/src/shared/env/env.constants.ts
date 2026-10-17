@@ -12,8 +12,8 @@ export const ENV: IEnv = {
     baseUrl: requireEnv("BETTER_AUTH_URL", process.env["BETTER_AUTH_URL"]),
     cookieDomain: optionalEnv(process.env["COOKIE_DOMAIN"]),
     google: {
-      clientId: optionalEnv(process.env["GOOGLE_CLIENT_ID"]),
-      clientSecret: optionalEnv(process.env["GOOGLE_CLIENT_SECRET"]),
+      clientId: requireEnv("GOOGLE_CLIENT_ID", process.env["GOOGLE_CLIENT_ID"]),
+      clientSecret: requireEnv("GOOGLE_CLIENT_SECRET", process.env["GOOGLE_CLIENT_SECRET"]),
     },
   },
 };
