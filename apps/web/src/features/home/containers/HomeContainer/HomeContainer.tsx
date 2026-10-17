@@ -3,6 +3,7 @@ import { Navigate } from "@tanstack/react-router";
 import { useSessionQuery } from "@/api/auth/auth.queries";
 import { ClosingBand } from "@/features/home/components/ClosingBand";
 import { HowItWorks } from "@/features/home/components/HowItWorks";
+import { LandingFooter } from "@/features/home/components/LandingFooter";
 import { LandingHeader } from "@/features/home/components/LandingHeader";
 import { LandingHero } from "@/features/home/components/LandingHero";
 import { Principles } from "@/features/home/components/Principles";
@@ -24,6 +25,7 @@ export function HomeContainer() {
         <SourcesTable />
         <ClosingBand />
       </main>
+      <LandingFooter />
     </div>
   );
 }
