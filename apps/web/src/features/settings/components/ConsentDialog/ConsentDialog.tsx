@@ -39,7 +39,7 @@ export function ConsentDialog({
       <DialogTrigger asChild disabled={!isReady}>
         {trigger}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-dvh overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
