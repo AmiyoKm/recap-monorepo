@@ -1,6 +1,5 @@
 import { ESource } from "#api/modules/activity/activity.enums";
 import { EDigestStatus } from "#api/modules/digest/digest.enums";
-import { PULL_FIXED_D1_STATEMENTS } from "#api/modules/pull/pull.constants";
 
 export const DEFAULT_DIGEST_TIME_ZONE = "Asia/Dhaka";
 export const DIGEST_RUN_HOUR = 8;
@@ -20,9 +19,6 @@ export const DIGEST_WEEKEND_BACK_DAYS = 3;
 export const DIGEST_STALE_MINUTES = 30;
 export const DIGEST_ACTIVITY_LIMIT = 300;
 export const DIGEST_MEETING_LIMIT = 50;
-export const DIGEST_FINAL_PULL_FIXED_D1_STATEMENTS = PULL_FIXED_D1_STATEMENTS + 1;
-export const DIGEST_FINAL_PULL_PAGES_PER_STEP = 1;
-export const DIGEST_FINAL_PULL_MAX_STEPS = 8;
 export const DIGEST_START_ROWS_PER_STATEMENT = 10;
 export const DIGEST_IDS_PER_STATEMENT = 90;
 export const DIGEST_PROMPT_DETAIL_LENGTH = 200;
