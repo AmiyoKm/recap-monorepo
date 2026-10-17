@@ -12,13 +12,22 @@ import type { IPullMessage } from "#api/shared/bindings/bindings.interfaces";
 import { cache } from "#api/shared/cache/cache.client";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { db } from "#api/shared/db/db.client";
+import { EGmailLabel } from "#api/shared/providers/google/google.enums";
 import type {
   IGoogleCalendarPage,
   IGoogleCalendarReadInput,
+  IGoogleGmailPage,
 } from "#api/shared/providers/google/google.interfaces";
 import { GoogleService } from "#api/shared/providers/google/google.service";
-import type { TGoogleCalendarEvent } from "#api/shared/providers/google/google.types";
-import { CALENDAR_EMAIL } from "#api-tests/fixtures/fixtures.constants";
+import type {
+  TGoogleCalendarEvent,
+  TGoogleGmailMessage,
+} from "#api/shared/providers/google/google.types";
+import {
+  CALENDAR_EMAIL,
+  CALENDAR_READ_SCOPE,
+  GMAIL_METADATA_SCOPE,
+} from "#api-tests/fixtures/fixtures.constants";
 import {
   createUser,
   seedGoogleConnection,
@@ -91,6 +100,48 @@ async function activityRows(connectionId: string) {
     .where(eq(schema.activity.connectionId, connectionId));
 }
 
+async function grantOnly(connectionId: string, scope: string) {
+  await db
+    .update(schema.connection)
+    .set({ scopes: scope })
+    .where(eq(schema.connection.id, connectionId));
+}
+
+function gmailMessage(id: string, labelIds: string[], internalDate: string): TGoogleGmailMessage {
+  return {
+    id,
+    threadId: `thread-${id}`,
+    labelIds,
+    internalDate,
+    payload: {
+      headers: [
+        { name: "Subject", value: `Mail ${id}` },
+        { name: "From", value: "boss@employer.example" },
+        { name: "To", value: CALENDAR_EMAIL },
+      ],
+    },
+  };
+}
+
+function gmailPage(
+  messages: TGoogleGmailMessage[],
+  overrides: Partial<IGoogleGmailPage> = {},
+): IGoogleGmailPage {
+  return {
+    messages,
+    nextPageToken: null,
+    historyId: "h-100",
+    isHistoryExpired: false,
+    ...overrides,
+  };
+}
+
+async function pullBackfillAndHistory() {
+  await PullService.pullConnection(seeded.connectionId);
+  await PullService.pullConnection(seeded.connectionId);
+  await PullService.pullConnection(seeded.connectionId);
+}
+
 async function connectionRow(connectionId: string) {
   const rows = await db
     .select()
@@ -107,6 +158,7 @@ beforeEach(async () => {
   await wipeDatabase();
   await wipeCache();
   seeded = await seedGoogleConnection(await createUser(uniqueEmail()));
+  await grantOnly(seeded.connectionId, CALENDAR_READ_SCOPE);
   spyOn(GoogleService, "refreshAccessToken").mockResolvedValue(REFRESHED_TOKEN);
   queue = new FakeQueue();
   Object.defineProperty(bindings, "PULL_QUEUE", { get: () => queue, configurable: true });
@@ -246,6 +298,94 @@ describe("PullService.pullConnection", () => {
     await PullService.pullConnection(seeded.connectionId);
 
     expect(list).not.toHaveBeenCalled();
+  });
+});
+
+describe("PullService.pullConnection for Gmail", () => {
+  const recent = () => String(dayjs().subtract(1, "day").valueOf());
+
+  beforeEach(async () => {
+    await grantOnly(seeded.connectionId, GMAIL_METADATA_SCOPE);
+  });
+
+  test("first pull reads SENT, then INBOX, then moves to the history cursor", async () => {
+    const list = spyOn(GoogleService, "listGmailMessages")
+      .mockResolvedValueOnce(gmailPage([gmailMessage("s1", ["SENT"], recent())]))
+      .mockResolvedValueOnce(
+        gmailPage([gmailMessage("i1", ["INBOX"], recent())], { historyId: null }),
+      );
+    const history = spyOn(GoogleService, "listGmailHistory").mockResolvedValue(
+      gmailPage([], { historyId: "h-200" }),
+    );
+
+    await PullService.pullConnection(seeded.connectionId);
+    await PullService.pullConnection(seeded.connectionId);
+    await PullService.pullConnection(seeded.connectionId);
+
+    expect(list.mock.calls.map(([input]) => input.label)).toEqual([
+      EGmailLabel.SENT,
+      EGmailLabel.INBOX,
+    ]);
+    expect(history.mock.calls[0]?.[0].startHistoryId).toBe("h-100");
+    const rows = await activityRows(seeded.connectionId);
+    expect(rows.map((row) => row.kind).sort()).toEqual(["email_received", "email_sent"]);
+    expect(rows[0]?.url).toContain(`authuser=${encodeURIComponent(CALENDAR_EMAIL)}`);
+    expect(queue.sent.length).toBe(1);
+    expect((await connectionRow(seeded.connectionId))?.lastPulledAt).not.toBeNull();
+  });
+
+  test("stops a label at the 7 day cutoff and ignores older mail", async () => {
+    const old = String(dayjs().subtract(10, "day").valueOf());
+    const list = spyOn(GoogleService, "listGmailMessages").mockResolvedValue(
+      gmailPage([gmailMessage("new", ["SENT"], recent()), gmailMessage("old", ["SENT"], old)], {
+        nextPageToken: "more",
+      }),
+    );
+
+    await PullService.pullConnection(seeded.connectionId);
+    await PullService.pullConnection(seeded.connectionId);
+
+    expect(list.mock.calls[1]?.[0].label).toBe(EGmailLabel.INBOX);
+    expect((await activityRows(seeded.connectionId)).map((row) => row.externalId)).toEqual(["new"]);
+  });
+
+  test("reads new mail from the history id and keeps the Promotions out", async () => {
+    spyOn(GoogleService, "listGmailMessages").mockResolvedValue(gmailPage([]));
+    const history = spyOn(GoogleService, "listGmailHistory").mockResolvedValue(
+      gmailPage(
+        [
+          gmailMessage("n1", ["INBOX"], recent()),
+          gmailMessage("n2", ["INBOX", "CATEGORY_PROMOTIONS"], recent()),
+        ],
+        { historyId: "h-300" },
+      ),
+    );
+    await pullBackfillAndHistory();
+    await PullService.pullConnection(seeded.connectionId);
+
+    expect(history.mock.calls[1]?.[0].startHistoryId).toBe("h-300");
+    expect((await activityRows(seeded.connectionId)).map((row) => row.externalId)).toEqual(["n1"]);
+  });
+
+  test("starts a new backfill when the history id has expired", async () => {
+    spyOn(GoogleService, "listGmailMessages").mockResolvedValue(gmailPage([]));
+    spyOn(GoogleService, "listGmailHistory").mockResolvedValue(
+      gmailPage([], { historyId: null, isHistoryExpired: true }),
+    );
+    await pullBackfillAndHistory();
+
+    expect(queue.sent.length).toBe(2);
+    expect((await connectionRow(seeded.connectionId))?.pullCursor).toContain("SENT");
+  });
+
+  test("marks the Connection needs_reconnect when Google rejects the access token", async () => {
+    spyOn(GoogleService, "listGmailMessages").mockResolvedValue(null);
+
+    await PullService.pullConnection(seeded.connectionId);
+
+    expect((await connectionRow(seeded.connectionId))?.status).toBe(
+      EConnectionStatus.NEEDS_RECONNECT,
+    );
   });
 });
 

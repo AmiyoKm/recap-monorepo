@@ -4,7 +4,7 @@ import {
 } from "#api/modules/activity/activity.constants";
 import { ESource } from "#api/modules/activity/activity.enums";
 import { GOOGLE_CALENDAR_PAGE_SIZE } from "#api/shared/providers/google/google.constants";
-import { EGoogleSource } from "#api/shared/providers/google/google.enums";
+import { EGmailLabel, EGoogleSource } from "#api/shared/providers/google/google.enums";
 import { EProvider } from "#api/shared/providers/providers.enums";
 
 export const PULL_MAX_PAGES_PER_MESSAGE = 1;
@@ -15,7 +15,8 @@ export const QUEUE_SEND_BATCH_MAX = 100;
 export const ACCESS_TOKEN_EXPIRY_MARGIN_SECONDS = 120;
 export const PULL_ERROR_MAX_LENGTH = 500;
 export const PULLABLE_PROVIDERS: EProvider[] = [EProvider.GOOGLE];
-export const READABLE_SOURCES: ESource[] = [ESource.CALENDAR];
+export const READABLE_SOURCES: ESource[] = [ESource.CALENDAR, ESource.GMAIL];
+export const GMAIL_BACKFILL_LABELS: EGmailLabel[] = [EGmailLabel.SENT, EGmailLabel.INBOX];
 
 export const GOOGLE_SOURCE_TO_SOURCE: Record<EGoogleSource, ESource> = {
   [EGoogleSource.CALENDAR]: ESource.CALENDAR,

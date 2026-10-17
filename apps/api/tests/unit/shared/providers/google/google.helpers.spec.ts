@@ -7,6 +7,7 @@ import {
   deniedSources,
   grantedSources,
   hasStatus,
+  historyMessageIds,
   sourceScopes,
   toGoogleProfile,
   toGoogleTokens,
@@ -160,5 +161,18 @@ describe("calendarRange", () => {
 describe("hasStatus", () => {
   test("rejects a plain error", () => {
     expect(hasStatus(new Error("x"), HTTP_GONE)).toBe(false);
+  });
+});
+
+describe("historyMessageIds", () => {
+  test("returns each added message id once and skips records without one", () => {
+    const history = [
+      { messagesAdded: [{ message: { id: "m1" } }, { message: {} }] },
+      { messagesAdded: [{ message: { id: "m1" } }, { message: { id: "m2" } }] },
+      { labelsAdded: [] },
+    ];
+
+    expect(historyMessageIds(history)).toEqual(["m1", "m2"]);
+    expect(historyMessageIds([])).toEqual([]);
   });
 });

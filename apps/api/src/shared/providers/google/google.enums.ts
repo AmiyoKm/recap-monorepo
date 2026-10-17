@@ -20,3 +20,27 @@ export enum EGoogleSource {
   DRIVE = "drive",
   CHAT = "chat",
 }
+
+export enum EGmailLabel {
+  INBOX = "INBOX",
+  SENT = "SENT",
+  SPAM = "SPAM",
+  TRASH = "TRASH",
+  CATEGORY_PROMOTIONS = "CATEGORY_PROMOTIONS",
+  CATEGORY_SOCIAL = "CATEGORY_SOCIAL",
+}
+
+export enum EGmailHeader {
+  SUBJECT = "Subject",
+  FROM = "From",
+  TO = "To",
+  CC = "Cc",
+}
+
+export enum EGmailFormat {
+  METADATA = "metadata",
+}
+
+export enum EGmailHistoryType {
+  MESSAGE_ADDED = "messageAdded",
+}

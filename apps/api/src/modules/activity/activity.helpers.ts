@@ -1,9 +1,16 @@
 import { randomUUID } from "node:crypto";
 
 import {
+  ACTIVITY_ACTOR_MAX_LENGTH,
+  ACTIVITY_DETAIL_MAX_LENGTH,
+  ACTIVITY_NO_SUBJECT,
   ACTIVITY_NO_TITLE,
+  ACTIVITY_TITLE_MAX_LENGTH,
   AUTHUSER_PARAM,
   CALENDAR_FALLBACK_TIME_ZONE,
+  GMAIL_EXCLUDED_LABELS,
+  GMAIL_RECIPIENT_SEPARATOR,
+  GMAIL_THREAD_HASH_PREFIX,
   LIKE_ESCAPE_CHARACTER,
   LIKE_WILDCARDS,
 } from "#api/modules/activity/activity.constants";
@@ -19,6 +26,7 @@ import type {
   IActivityDraft,
   IActivityWriteInput,
   ICalendarMapContext,
+  IGmailMapContext,
 } from "#api/modules/activity/activity.interfaces";
 import type {
   TActivityInsert,
@@ -27,7 +35,12 @@ import type {
 } from "#api/modules/activity/activity.types";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { logError } from "#api/shared/logger/logger.helpers";
-import type { TGoogleCalendarEvent } from "#api/shared/providers/google/google.types";
+import { EGmailHeader, EGmailLabel } from "#api/shared/providers/google/google.enums";
+import type {
+  TGoogleCalendarEvent,
+  TGoogleGmailMessage,
+} from "#api/shared/providers/google/google.types";
+import { ROUTES } from "#api/shared/routes/routes.constants";
 
 export function withAuthUser(link: string | null | undefined, email: string): string | null {
   if (!link) {
@@ -108,6 +121,90 @@ export function mapCalendarEvents(
     const draft = toCalendarDraft(event, event.id, context);
     if (!draft) {
       logError(EActivityMessages.ITEM_WITHOUT_URL_DROPPED, new Error(event.id));
+      continue;
+    }
+    batch.drafts.push(draft);
+  }
+  return batch;
+}
+
+function gmailHeader(message: TGoogleGmailMessage, name: EGmailHeader): string | null {
+  const header = message.payload?.headers?.find(
+    (entry) => entry.name?.toLowerCase() === name.toLowerCase(),
+  );
+  return header?.value || null;
+}
+
+function gmailKind(labels: string[]): EActivityKind | null {
+  if (GMAIL_EXCLUDED_LABELS.some((label) => labels.includes(label))) {
+    return null;
+  }
+  if (labels.includes(EGmailLabel.SENT)) {
+    return EActivityKind.EMAIL_SENT;
+  }
+  if (labels.includes(EGmailLabel.INBOX)) {
+    return EActivityKind.EMAIL_RECEIVED;
+  }
+  return null;
+}
+
+function gmailRecipients(message: TGoogleGmailMessage): string | null {
+  const recipients = [EGmailHeader.TO, EGmailHeader.CC]
+    .map((name) => gmailHeader(message, name))
+    .filter((value) => value !== null);
+  if (recipients.length === 0) {
+    return null;
+  }
+  return recipients.join(GMAIL_RECIPIENT_SEPARATOR).slice(0, ACTIVITY_DETAIL_MAX_LENGTH);
+}
+
+function gmailThreadUrl(email: string, threadId: string): string {
+  const url = new URL(ROUTES.GOOGLE.GMAIL_WEB);
+  url.searchParams.set(AUTHUSER_PARAM, email);
+  url.hash = `${GMAIL_THREAD_HASH_PREFIX}${threadId}`;
+  return url.toString();
+}
+
+function toGmailDraft(
+  message: TGoogleGmailMessage,
+  kind: EActivityKind,
+  context: IGmailMapContext,
+): IActivityDraft | null {
+  if (!(message.id && message.threadId && message.internalDate)) {
+    return null;
+  }
+  return {
+    source: ESource.GMAIL,
+    kind,
+    externalId: message.id,
+    occurredAt: dayjs(Number(message.internalDate)).toISOString(),
+    endsAt: null,
+    title: (gmailHeader(message, EGmailHeader.SUBJECT) ?? ACTIVITY_NO_SUBJECT).slice(
+      0,
+      ACTIVITY_TITLE_MAX_LENGTH,
+    ),
+    url: gmailThreadUrl(context.identityEmail, message.threadId),
+    actor: gmailHeader(message, EGmailHeader.FROM)?.slice(0, ACTIVITY_ACTOR_MAX_LENGTH) ?? null,
+    detail: gmailRecipients(message),
+  };
+}
+
+export function mapGmailMessages(
+  messages: TGoogleGmailMessage[],
+  context: IGmailMapContext,
+): IActivityBatch {
+  const batch: IActivityBatch = { drafts: [], removedExternalIds: [] };
+  for (const message of messages) {
+    const kind = gmailKind(message.labelIds ?? []);
+    if (!kind) {
+      continue;
+    }
+    const draft = toGmailDraft(message, kind, context);
+    if (!draft) {
+      logError(
+        EActivityMessages.ITEM_INCOMPLETE_DROPPED,
+        new Error(message.id ?? message.threadId ?? undefined),
+      );
       continue;
     }
     batch.drafts.push(draft);

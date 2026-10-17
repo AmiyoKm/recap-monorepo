@@ -1,5 +1,8 @@
-import type { EGoogleSource } from "#api/shared/providers/google/google.enums";
-import type { TGoogleCalendarEvent } from "#api/shared/providers/google/google.types";
+import type { EGmailLabel, EGoogleSource } from "#api/shared/providers/google/google.enums";
+import type {
+  TGoogleCalendarEvent,
+  TGoogleGmailMessage,
+} from "#api/shared/providers/google/google.types";
 import type { IProviderTokens } from "#api/shared/providers/providers.interfaces";
 
 export interface IGoogleProfile {
@@ -50,4 +53,23 @@ export interface IGoogleCalendarPage {
   nextSyncToken: string | null;
   usedSyncToken: boolean;
   timeZone: string | null;
+}
+
+export interface IGoogleGmailListInput {
+  accessToken: string;
+  label: EGmailLabel;
+  pageToken: string | null;
+}
+
+export interface IGoogleGmailHistoryInput {
+  accessToken: string;
+  startHistoryId: string;
+  pageToken: string | null;
+}
+
+export interface IGoogleGmailPage {
+  messages: TGoogleGmailMessage[];
+  nextPageToken: string | null;
+  historyId: string | null;
+  isHistoryExpired: boolean;
 }

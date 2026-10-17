@@ -1,3 +1,5 @@
+import { EGmailLabel } from "#api/shared/providers/google/google.enums";
+
 export const ACTIVITY_PAGE_SIZE_DEFAULT = 25;
 export const ACTIVITY_PAGE_SIZE_MAX = 100;
 export const ACTIVITY_PAGE_DEFAULT = 1;
@@ -18,3 +20,12 @@ export const CALENDAR_FALLBACK_TIME_ZONE = "UTC";
 export const AUTHUSER_PARAM = "authuser";
 export const ACTIVITY_INSERT_ROWS = 7;
 export const ACTIVITY_DELETE_CHUNK = 90;
+export const ACTIVITY_NO_SUBJECT = "(No subject)";
+export const GMAIL_THREAD_HASH_PREFIX = "all/";
+export const GMAIL_RECIPIENT_SEPARATOR = ", ";
+export const GMAIL_EXCLUDED_LABELS: EGmailLabel[] = [
+  EGmailLabel.SPAM,
+  EGmailLabel.TRASH,
+  EGmailLabel.CATEGORY_PROMOTIONS,
+  EGmailLabel.CATEGORY_SOCIAL,
+];

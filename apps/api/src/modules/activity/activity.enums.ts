@@ -24,6 +24,7 @@ export enum EActivityKind {
 
 export enum EActivityMessages {
   ITEM_WITHOUT_URL_DROPPED = "Activity item has no link and was dropped",
+  ITEM_INCOMPLETE_DROPPED = "Activity item has no id, thread or date and was dropped",
   UNKNOWN_ACTIVITY_VALUE = "Activity row holds an unknown value",
 }
 

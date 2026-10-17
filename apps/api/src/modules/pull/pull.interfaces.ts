@@ -1,6 +1,7 @@
 import type { ESource } from "#api/modules/activity/activity.enums";
 import type { IActivityBatch } from "#api/modules/activity/activity.interfaces";
 import type { TConnectionRow } from "#api/modules/pull/pull.types";
+import type { EGmailLabel } from "#api/shared/providers/google/google.enums";
 
 export interface IPullTarget {
   connection: TConnectionRow;
@@ -45,4 +46,16 @@ export interface IPullState {
 export interface IAccessToken {
   value: string;
   isCached: boolean;
+}
+
+export interface IGmailCursor {
+  historyId: string | null;
+  label: EGmailLabel | null;
+  pageToken: string | null;
+  cutoff: string;
+}
+
+export interface IGmailStep {
+  cursor: IGmailCursor;
+  hasMore: boolean;
 }

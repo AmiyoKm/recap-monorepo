@@ -25,3 +25,10 @@ export enum EPullOutcome {
   MORE_PAGES = "more_pages",
   REJECTED = "rejected",
 }
+
+export enum EGmailCursorKey {
+  HISTORY_ID = "historyId",
+  LABEL = "label",
+  PAGE_TOKEN = "pageToken",
+  CUTOFF = "cutoff",
+}

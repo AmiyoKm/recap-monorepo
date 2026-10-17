@@ -1,4 +1,5 @@
 import { calendar } from "@googleapis/calendar";
+import { gmail } from "@googleapis/gmail";
 import { CodeChallengeMethod, gaxios, OAuth2Client } from "google-auth-library";
 
 import { ENV } from "#api/shared/env/env.constants";
@@ -7,11 +8,18 @@ import {
   GOOGLE_CALENDAR_API_VERSION,
   GOOGLE_CALENDAR_ID,
   GOOGLE_CALENDAR_PAGE_SIZE,
+  GOOGLE_GMAIL_API_VERSION,
+  GOOGLE_GMAIL_PAGE_SIZE,
+  GOOGLE_GMAIL_USER_ID,
   GOOGLE_REQUEST_TIMEOUT_MS,
   HTTP_GONE,
+  HTTP_NOT_FOUND,
   HTTP_UNAUTHORIZED,
 } from "#api/shared/providers/google/google.constants";
 import {
+  EGmailFormat,
+  EGmailHeader,
+  EGmailHistoryType,
   EGoogleMessages,
   EGoogleOAuthError,
   EGoogleOAuthValue,
@@ -19,6 +27,7 @@ import {
 import {
   calendarRange,
   hasStatus,
+  historyMessageIds,
   toGoogleProfile,
   toGoogleTokens,
 } from "#api/shared/providers/google/google.helpers";
@@ -28,9 +37,13 @@ import type {
   IGoogleCalendarPage,
   IGoogleCalendarReadInput,
   IGoogleCodeExchangeInput,
+  IGoogleGmailHistoryInput,
+  IGoogleGmailListInput,
+  IGoogleGmailPage,
   IGoogleGrant,
   IGoogleProfile,
 } from "#api/shared/providers/google/google.interfaces";
+import type { TGoogleGmailMessage } from "#api/shared/providers/google/google.types";
 import type { IProviderTokens } from "#api/shared/providers/providers.interfaces";
 
 export abstract class GoogleService {
@@ -138,6 +151,119 @@ export abstract class GoogleService {
       usedSyncToken: input.syncToken !== null,
       timeZone: data.timeZone ?? null,
     };
+  }
+
+  static async listGmailMessages(input: IGoogleGmailListInput): Promise<IGoogleGmailPage | null> {
+    try {
+      return await GoogleService.requestGmailList(input);
+    } catch (error) {
+      if (hasStatus(error, HTTP_UNAUTHORIZED)) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  static async listGmailHistory(input: IGoogleGmailHistoryInput): Promise<IGoogleGmailPage | null> {
+    try {
+      return await GoogleService.requestGmailHistory(input);
+    } catch (error) {
+      if (hasStatus(error, HTTP_UNAUTHORIZED)) {
+        return null;
+      }
+      if (hasStatus(error, HTTP_NOT_FOUND)) {
+        return { messages: [], nextPageToken: null, historyId: null, isHistoryExpired: true };
+      }
+      throw error;
+    }
+  }
+
+  private static createGmail(accessToken: string) {
+    const client = GoogleService.createClient();
+    client.setCredentials({ access_token: accessToken });
+    return gmail({ version: GOOGLE_GMAIL_API_VERSION, auth: client });
+  }
+
+  private static async requestGmailList(input: IGoogleGmailListInput): Promise<IGoogleGmailPage> {
+    const historyId = await GoogleService.readGmailBaseline(input);
+    const api = GoogleService.createGmail(input.accessToken);
+    const { data } = await api.users.messages.list({
+      userId: GOOGLE_GMAIL_USER_ID,
+      labelIds: [input.label],
+      maxResults: GOOGLE_GMAIL_PAGE_SIZE,
+      pageToken: input.pageToken ?? undefined,
+    });
+    const ids = (data.messages ?? []).map((message) => message.id);
+    return {
+      messages: await GoogleService.readGmailMessages(input.accessToken, ids),
+      nextPageToken: data.nextPageToken ?? null,
+      historyId,
+      isHistoryExpired: false,
+    };
+  }
+
+  private static async readGmailBaseline(input: IGoogleGmailListInput): Promise<string | null> {
+    if (input.pageToken) {
+      return null;
+    }
+    const api = GoogleService.createGmail(input.accessToken);
+    const { data } = await api.users.getProfile({ userId: GOOGLE_GMAIL_USER_ID });
+    return data.historyId ?? null;
+  }
+
+  private static async requestGmailHistory(
+    input: IGoogleGmailHistoryInput,
+  ): Promise<IGoogleGmailPage> {
+    const api = GoogleService.createGmail(input.accessToken);
+    const { data } = await api.users.history.list({
+      userId: GOOGLE_GMAIL_USER_ID,
+      startHistoryId: input.startHistoryId,
+      historyTypes: [EGmailHistoryType.MESSAGE_ADDED],
+      maxResults: GOOGLE_GMAIL_PAGE_SIZE,
+      pageToken: input.pageToken ?? undefined,
+    });
+    return {
+      messages: await GoogleService.readGmailMessages(
+        input.accessToken,
+        historyMessageIds(data.history ?? []),
+      ),
+      nextPageToken: data.nextPageToken ?? null,
+      historyId: data.historyId ?? null,
+      isHistoryExpired: false,
+    };
+  }
+
+  private static async readGmailMessages(
+    accessToken: string,
+    ids: (string | null | undefined)[],
+  ): Promise<TGoogleGmailMessage[]> {
+    const api = GoogleService.createGmail(accessToken);
+    const messages = await Promise.all(
+      ids
+        .filter((id) => typeof id === "string")
+        .map((id) => GoogleService.readGmailMessage(api, id)),
+    );
+    return messages.filter((message) => message !== null);
+  }
+
+  private static async readGmailMessage(
+    api: ReturnType<typeof gmail>,
+    id: string,
+  ): Promise<TGoogleGmailMessage | null> {
+    try {
+      const { data } = await api.users.messages.get({
+        userId: GOOGLE_GMAIL_USER_ID,
+        id,
+        format: EGmailFormat.METADATA,
+        metadataHeaders: Object.values(EGmailHeader),
+      });
+      return data;
+    } catch (error) {
+      if (hasStatus(error, HTTP_NOT_FOUND)) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   private static createClient(): OAuth2Client {
