@@ -77,7 +77,8 @@ import {
 } from "#api/shared/providers/jira/jira.constants";
 import { EJiraChangeField } from "#api/shared/providers/jira/jira.enums";
 import { adfToText } from "#api/shared/providers/jira/jira.helpers";
-import type { TJiraHistory, TJiraIssue } from "#api/shared/providers/jira/jira.types";
+import type { IJiraIssuePages } from "#api/shared/providers/jira/jira.interfaces";
+import type { TJiraComment, TJiraHistory, TJiraIssue } from "#api/shared/providers/jira/jira.types";
 import type {
   ILinearComment,
   ILinearHistoryEntry,
@@ -746,10 +747,8 @@ function jiraHistoryItemDrafts(history: TJiraHistory, base: IJiraIssueBase): IAc
   });
 }
 
-function jiraHistoryDrafts(issue: TJiraIssue, base: IJiraIssueBase): IActivityDraft[] {
-  return (issue.changelog?.histories ?? []).flatMap((history) =>
-    jiraHistoryItemDrafts(history, base),
-  );
+function jiraHistoryDrafts(histories: TJiraHistory[], base: IJiraIssueBase): IActivityDraft[] {
+  return histories.flatMap((history) => jiraHistoryItemDrafts(history, base));
 }
 
 function jiraChangeKind(field: string | undefined): EActivityKind | null {
@@ -780,9 +779,9 @@ function jiraChangeDetail(
   return [ownString(item.fromString), to].filter(Boolean).join(JIRA_STATUS_CHANGE_DETAIL_SEPARATOR);
 }
 
-function jiraCommentDrafts(issue: TJiraIssue, base: IJiraIssueBase): IActivityDraft[] {
+function jiraCommentDrafts(comments: TJiraComment[], base: IJiraIssueBase): IActivityDraft[] {
   const drafts: IActivityDraft[] = [];
-  for (const comment of issue.fields?.comment?.comments ?? []) {
+  for (const comment of comments) {
     const occurredAt = toOptionalIso(comment.created);
     if (!(comment.id && occurredAt)) {
       continue;
@@ -835,12 +834,39 @@ function mapJiraIssue(issue: TJiraIssue, context: IJiraMapContext): IActivityDra
   }
   const summary = issue.fields?.summary ?? ACTIVITY_NO_TITLE;
   const base = { key: issue.key, title: `${issue.key}: ${summary}`, context };
-  const floor = dayjs(context.since).subtract(JIRA_OVERLAP_MINUTES, "minute");
-  return [
-    ...jiraCreatedDraft(issue, base),
-    ...jiraHistoryDrafts(issue, base),
-    ...jiraCommentDrafts(issue, base),
-  ].filter((draft) => !dayjs(draft.occurredAt).isBefore(floor));
+  return jiraDraftsSince(
+    [
+      ...jiraCreatedDraft(issue, base),
+      ...jiraHistoryDrafts(issue.changelog?.histories ?? [], base),
+      ...jiraCommentDrafts(issue.fields?.comment?.comments ?? [], base),
+    ],
+    context.since,
+  );
+}
+
+function jiraDraftsSince(drafts: IActivityDraft[], since: string): IActivityDraft[] {
+  const floor = dayjs(since).subtract(JIRA_OVERLAP_MINUTES, "minute");
+  return drafts.filter((draft) => !dayjs(draft.occurredAt).isBefore(floor));
+}
+
+export function mapJiraIssuePages(
+  pages: IJiraIssuePages,
+  pending: { issueKey: string; summary: string | null },
+  context: IJiraMapContext,
+): IActivityBatch {
+  const base = {
+    key: pending.issueKey,
+    title: `${pending.issueKey}: ${pending.summary ?? ACTIVITY_NO_TITLE}`,
+    context,
+  };
+  const drafts = jiraDraftsSince(
+    [
+      ...jiraHistoryDrafts(pages.histories.items, base),
+      ...jiraCommentDrafts(pages.comments.items, base),
+    ],
+    context.since,
+  );
+  return { drafts: drafts.sort(compareNewestFirst), removedExternalIds: [] };
 }
 
 function compareNewestFirst(left: IActivityDraft, right: IActivityDraft): number {

@@ -32,6 +32,14 @@ export enum EJiraCursorKey {
   STARTED_AT = "startedAt",
   PAGE_TOKEN = "pageToken",
   OFFSET = "offset",
+  PENDING = "pending",
+}
+
+export enum EJiraPendingKey {
+  ISSUE_KEY = "issueKey",
+  SUMMARY = "summary",
+  COMMENTS_START_AT = "commentsStartAt",
+  CHANGELOG_START_AT = "changelogStartAt",
 }
 
 export enum ELinearPendingKey {

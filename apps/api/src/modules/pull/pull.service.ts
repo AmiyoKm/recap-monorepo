@@ -4,6 +4,7 @@ import {
   mapChatMessages,
   mapDriveActivities,
   mapGmailMessages,
+  mapJiraIssuePages,
   mapJiraIssues,
   mapLinearIssues,
 } from "#api/modules/activity/activity.helpers";
@@ -27,6 +28,8 @@ import {
   completedChatCursor,
   gmailMessagesSince,
   isPullableProvider,
+  jiraCursorHasMore,
+  jiraGoneCursor,
   linearGoneStep,
   linearListStep,
   linearNestedStep,
@@ -38,6 +41,7 @@ import {
   nextGmailBackfillStep,
   nextGmailHistoryStep,
   nextJiraCursor,
+  nextJiraPendingCursor,
   nextLinearCursor,
   parseCalendarCursor,
   parseChatCursor,
@@ -56,6 +60,7 @@ import {
 import type {
   IAccessToken,
   IGmailCursor,
+  IJiraCursor,
   ILinearCursor,
   ILinearStep,
   IPullState,
@@ -74,6 +79,7 @@ import { dayjs } from "#api/shared/date/date.helpers";
 import { ENV } from "#api/shared/env/env.constants";
 import { describeError, logError } from "#api/shared/logger/logger.helpers";
 import { EGmailLabel } from "#api/shared/providers/google/google.enums";
+import type { IJiraPendingCursor } from "#api/shared/providers/jira/jira.interfaces";
 import type { ILinearNestedCursor } from "#api/shared/providers/linear/linear.interfaces";
 import { providers } from "#api/shared/providers/providers.client";
 import { EProvider } from "#api/shared/providers/providers.enums";
@@ -396,6 +402,10 @@ export abstract class PullService {
       throw new Error(EPullMessages.JIRA_SITE_MISSING);
     }
     const cursor = parseJiraCursor(input.cursor, input.now);
+    const [pending] = cursor.pending;
+    if (pending) {
+      return PullService.readJiraPendingPage(input, cursor, pending);
+    }
     const page = await providers.jira.searchIssues({
       accessToken: input.accessToken,
       cloudId: providerResourceId,
@@ -410,10 +420,47 @@ export abstract class PullService {
       since: cursor.since,
       offset: cursor.offset,
     });
+    return PullService.jiraSourcePage(batch, nextJiraCursor(cursor, page, overflow));
+  }
+
+  private static async readJiraPendingPage(
+    input: ISourceReadInput,
+    cursor: IJiraCursor,
+    pending: IJiraPendingCursor,
+  ): Promise<ISourcePage | null> {
+    const { providerSite, providerResourceId } = input.target.connection;
+    if (!(providerSite && providerResourceId)) {
+      throw new Error(EPullMessages.JIRA_SITE_MISSING);
+    }
+    const read = await providers.jira.readIssuePages({
+      ...pending,
+      accessToken: input.accessToken,
+      cloudId: providerResourceId,
+    });
+    if (!read) {
+      return null;
+    }
+    if (!read.pages) {
+      return PullService.jiraSourcePage(
+        { drafts: [], removedExternalIds: [] },
+        jiraGoneCursor(cursor),
+      );
+    }
+    return PullService.jiraSourcePage(
+      mapJiraIssuePages(read.pages, pending, {
+        site: providerSite,
+        since: cursor.since,
+        offset: 0,
+      }),
+      nextJiraPendingCursor(cursor, pending, read.pages),
+    );
+  }
+
+  private static jiraSourcePage(batch: IActivityBatch, cursor: IJiraCursor): ISourcePage {
     return {
       batch,
-      nextCursor: nextJiraCursor(cursor, page, overflow),
-      hasMore: overflow || page.nextPageToken !== null,
+      nextCursor: JSON.stringify(cursor),
+      hasMore: jiraCursorHasMore(cursor),
     };
   }
 

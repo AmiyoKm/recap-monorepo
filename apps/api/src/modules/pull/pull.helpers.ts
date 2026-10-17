@@ -17,6 +17,7 @@ import {
   EDriveCursorKey,
   EGmailCursorKey,
   EJiraCursorKey,
+  EJiraPendingKey,
   ELinearCursorKey,
   ELinearPendingKey,
   EPullMessageKey,
@@ -46,7 +47,13 @@ import type {
 } from "#api/shared/providers/google/google.interfaces";
 import type { TGoogleGmailMessage } from "#api/shared/providers/google/google.types";
 import { JIRA_MAX_ACTIVITIES_PER_PAGE } from "#api/shared/providers/jira/jira.constants";
-import type { IJiraIssuePage } from "#api/shared/providers/jira/jira.interfaces";
+import { jiraPendingCursor } from "#api/shared/providers/jira/jira.helpers";
+import type {
+  IJiraIssuePage,
+  IJiraIssuePages,
+  IJiraPendingCursor,
+} from "#api/shared/providers/jira/jira.interfaces";
+import type { TJiraIssue } from "#api/shared/providers/jira/jira.types";
 import { nestedContinuation } from "#api/shared/providers/linear/linear.helpers";
 import type {
   ILinearIssue,
@@ -336,6 +343,7 @@ function freshJiraCursor(now: string): IJiraCursor {
     startedAt: now,
     pageToken: null,
     offset: 0,
+    pending: [],
   };
 }
 
@@ -346,13 +354,45 @@ function nonNegativeIntegerOrZero(value: unknown): number {
   return value;
 }
 
+function nonNegativeIntegerOrNull(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    return null;
+  }
+  return value;
+}
+
+function readJiraPending(value: unknown): IJiraPendingCursor | null {
+  const record = toStringRecord(value);
+  const issueKey = record?.[EJiraPendingKey.ISSUE_KEY];
+  if (typeof issueKey !== "string") {
+    return null;
+  }
+  return {
+    issueKey,
+    summary: stringOrNull(record?.[EJiraPendingKey.SUMMARY]),
+    commentsStartAt: nonNegativeIntegerOrNull(record?.[EJiraPendingKey.COMMENTS_START_AT]),
+    changelogStartAt: nonNegativeIntegerOrNull(record?.[EJiraPendingKey.CHANGELOG_START_AT]),
+  };
+}
+
+function readJiraPendingList(value: unknown): IJiraPendingCursor[] | null {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  return value.map((item) => readJiraPending(item)).filter((item) => item !== null);
+}
+
 function readJiraCursor(stored: string): IJiraCursor | null {
   try {
     const parsed: unknown = JSON.parse(stored);
     const record = toStringRecord(parsed);
     const since = record?.[EJiraCursorKey.SINCE];
     const startedAt = record?.[EJiraCursorKey.STARTED_AT];
-    if (typeof since !== "string" || typeof startedAt !== "string") {
+    const pending = readJiraPendingList(record?.[EJiraCursorKey.PENDING]);
+    if (typeof since !== "string" || typeof startedAt !== "string" || !pending) {
       return null;
     }
     return {
@@ -360,6 +400,7 @@ function readJiraCursor(stored: string): IJiraCursor | null {
       startedAt,
       pageToken: stringOrNull(record?.[EJiraCursorKey.PAGE_TOKEN]),
       offset: nonNegativeIntegerOrZero(record?.[EJiraCursorKey.OFFSET]),
+      pending,
     };
   } catch {
     return null;
@@ -551,21 +592,56 @@ export function parseJiraCursor(stored: string | null, now: string): IJiraCursor
   if (!cursor) {
     return freshJiraCursor(now);
   }
-  if (cursor.pageToken || cursor.offset > 0) {
+  if (jiraCursorHasMore(cursor)) {
     return cursor;
   }
-  return { since: cursor.startedAt, startedAt: now, pageToken: null, offset: 0 };
+  return { ...freshJiraCursor(now), since: cursor.startedAt };
+}
+
+export function jiraCursorHasMore(cursor: IJiraCursor): boolean {
+  return cursor.pageToken !== null || cursor.offset > 0 || cursor.pending.length > 0;
 }
 
 export function nextJiraCursor(
   cursor: IJiraCursor,
   page: IJiraIssuePage,
   overflow: boolean,
-): string {
+): IJiraCursor {
   if (overflow) {
-    return JSON.stringify({ ...cursor, offset: cursor.offset + JIRA_MAX_ACTIVITIES_PER_PAGE });
+    return { ...cursor, offset: cursor.offset + JIRA_MAX_ACTIVITIES_PER_PAGE };
   }
-  return JSON.stringify({ ...cursor, pageToken: page.nextPageToken, offset: 0 });
+  return {
+    ...cursor,
+    pageToken: page.nextPageToken,
+    offset: 0,
+    pending: page.issues.flatMap((issue) => jiraPendingList(issue)),
+  };
+}
+
+function jiraPendingList(issue: TJiraIssue): IJiraPendingCursor[] {
+  const pending = jiraPendingCursor(issue);
+  if (!pending) {
+    return [];
+  }
+  return [pending];
+}
+
+export function nextJiraPendingCursor(
+  cursor: IJiraCursor,
+  pending: IJiraPendingCursor,
+  pages: IJiraIssuePages,
+): IJiraCursor {
+  const rest = cursor.pending.slice(1);
+  const commentsStartAt = pages.comments.nextStartAt;
+  const changelogStartAt = pages.histories.nextStartAt;
+  if (commentsStartAt === null && changelogStartAt === null) {
+    return { ...cursor, pending: rest };
+  }
+  return { ...cursor, pending: [{ ...pending, commentsStartAt, changelogStartAt }, ...rest] };
+}
+
+export function jiraGoneCursor(cursor: IJiraCursor): IJiraCursor {
+  return { ...cursor, pending: cursor.pending.slice(1) };
 }
 
 export function parseLinearCursor(stored: string | null, now: string): ILinearCursor {

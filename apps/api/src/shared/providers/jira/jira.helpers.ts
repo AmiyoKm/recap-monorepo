@@ -11,7 +11,8 @@ import {
   JIRA_WORK_SCOPE,
 } from "#api/shared/providers/jira/jira.constants";
 import { EJiraAdfNode, EJiraMessages } from "#api/shared/providers/jira/jira.enums";
-import type { IJiraSite } from "#api/shared/providers/jira/jira.interfaces";
+import type { IJiraPendingCursor, IJiraSite } from "#api/shared/providers/jira/jira.interfaces";
+import type { TJiraIssue } from "#api/shared/providers/jira/jira.types";
 import { OAUTH_SCOPE_SEPARATOR } from "#api/shared/providers/providers.constants";
 import type { IProviderAccount, IProviderTokens } from "#api/shared/providers/providers.interfaces";
 
@@ -97,4 +98,43 @@ function adfNodeText(node: unknown): string {
 
 export function adfToText(body: unknown): string {
   return adfNodeText(body).replace(JIRA_WHITESPACE_PATTERN, JIRA_ADF_BLOCK_SEPARATOR).trim();
+}
+
+export function nextJiraStartAt(page: {
+  startAt: number;
+  returned: number;
+  total: number | undefined;
+}): number | null {
+  const next = page.startAt + page.returned;
+  if (page.returned === 0 || page.total === undefined || next >= page.total) {
+    return null;
+  }
+  return next;
+}
+
+export function jiraPendingCursor(issue: TJiraIssue): IJiraPendingCursor | null {
+  if (!issue.key) {
+    return null;
+  }
+  const comments = issue.fields?.comment;
+  const changelog = issue.changelog;
+  const commentsStartAt = nextJiraStartAt({
+    startAt: 0,
+    returned: comments?.comments?.length ?? 0,
+    total: comments?.total,
+  });
+  const changelogStartAt = nextJiraStartAt({
+    startAt: 0,
+    returned: changelog?.histories?.length ?? 0,
+    total: changelog?.total,
+  });
+  if (commentsStartAt === null && changelogStartAt === null) {
+    return null;
+  }
+  return {
+    issueKey: issue.key,
+    summary: issue.fields?.summary ?? null,
+    commentsStartAt,
+    changelogStartAt,
+  };
 }

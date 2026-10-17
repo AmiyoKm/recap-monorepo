@@ -6,6 +6,7 @@ import { schema } from "@recap/db";
 
 import { EActivityKind } from "#api/modules/activity/activity.enums";
 import { EConnectionStatus } from "#api/modules/identity/identity.enums";
+import { EPullMessages } from "#api/modules/pull/pull.enums";
 import { PullService } from "#api/modules/pull/pull.service";
 import { decryptSecret } from "#api/shared/crypto/crypto.helpers";
 import { dayjs } from "#api/shared/date/date.helpers";
@@ -13,7 +14,7 @@ import { db } from "#api/shared/db/db.client";
 import { ENV } from "#api/shared/env/env.constants";
 import type { IJiraIssuePage } from "#api/shared/providers/jira/jira.interfaces";
 import { JiraService } from "#api/shared/providers/jira/jira.service";
-import type { TJiraIssue } from "#api/shared/providers/jira/jira.types";
+import type { TJiraComment, TJiraIssue } from "#api/shared/providers/jira/jira.types";
 import { JIRA_CLOUD_ID, JIRA_SITE } from "#api-tests/fixtures/fixtures.constants";
 import {
   createUser,
@@ -26,6 +27,7 @@ import {
 const LOOKBACK_DAYS = 7;
 const MINUTES_TOLERANCE = 2;
 const ROWS_PER_ISSUE = 3;
+const REMOTE_COMMENT_AGE_MINUTES = 30;
 const ROTATED_REFRESH_TOKEN = "jira-refresh-2";
 const REFRESHED_TOKENS = {
   accessToken: "jira-fresh-access",
@@ -211,5 +213,114 @@ describe("PullService.pullConnection for Jira", () => {
 
     await expect(pull).rejects.toThrow("boom");
     expect((await connectionRow(seeded.connectionId))?.lastPullError).toContain("boom");
+  });
+});
+
+function busyIssue(): TJiraIssue {
+  const base = issue("ERP-1", "1");
+  return {
+    ...base,
+    fields: {
+      ...base.fields,
+      comment: { comments: base.fields?.comment?.comments ?? [], total: 3 },
+    },
+  };
+}
+
+function remoteComment(id: string): TJiraComment {
+  return {
+    id,
+    created: dayjs().subtract(REMOTE_COMMENT_AGE_MINUTES, "minute").toDate(),
+    author: { displayName: "Sam" },
+    body: {
+      type: "doc",
+      version: 1,
+      content: [{ type: "paragraph", content: [{ type: "text", text: `Remote ${id}` }] }],
+    },
+  };
+}
+
+const NO_HISTORIES = { items: [], nextStartAt: null };
+
+describe("PullService.pullConnection for Jira with more comments than the search returned", () => {
+  test("reads the remaining comment pages before the pull completes", async () => {
+    const search = spyOn(JiraService, "searchIssues").mockResolvedValue(page([busyIssue()]));
+    const read = spyOn(JiraService, "readIssuePages")
+      .mockResolvedValueOnce({
+        pages: {
+          comments: { items: [remoteComment("c-2")], nextStartAt: 2 },
+          histories: NO_HISTORIES,
+        },
+      })
+      .mockResolvedValueOnce({
+        pages: {
+          comments: { items: [remoteComment("c-3")], nextStartAt: null },
+          histories: NO_HISTORIES,
+        },
+      });
+
+    await PullService.pullConnection(seeded.connectionId);
+    expect((await connectionRow(seeded.connectionId))?.lastPulledAt).toBeNull();
+    await PullService.pullConnection(seeded.connectionId);
+    expect((await connectionRow(seeded.connectionId))?.lastPulledAt).toBeNull();
+    await PullService.pullConnection(seeded.connectionId);
+
+    expect(search.mock.calls.length).toBe(1);
+    expect(read.mock.calls[0]?.[0]).toMatchObject({
+      issueKey: "ERP-1",
+      cloudId: JIRA_CLOUD_ID,
+      commentsStartAt: 1,
+      changelogStartAt: null,
+    });
+    expect(read.mock.calls[1]?.[0]).toMatchObject({ commentsStartAt: 2 });
+    const rows = await activityRows(seeded.connectionId);
+    expect(rows.map((row) => row.externalId).sort()).toEqual([
+      "c-1",
+      "c-2",
+      "c-3",
+      "created:1",
+      "h-1:status",
+    ]);
+    expect((await connectionRow(seeded.connectionId))?.lastPulledAt).not.toBeNull();
+  });
+
+  test("keeps the run since until every pending issue is read", async () => {
+    const search = spyOn(JiraService, "searchIssues").mockResolvedValue(page([busyIssue()]));
+    spyOn(JiraService, "readIssuePages").mockResolvedValue({
+      pages: {
+        comments: { items: [remoteComment("c-2")], nextStartAt: null },
+        histories: NO_HISTORIES,
+      },
+    });
+
+    await PullService.pullConnection(seeded.connectionId);
+    await PullService.pullConnection(seeded.connectionId);
+    await PullService.pullConnection(seeded.connectionId);
+
+    expect(search.mock.calls.length).toBe(2);
+    expect(dayjs().diff(dayjs(search.mock.calls[1]?.[0].since), "minute")).toBeLessThan(
+      MINUTES_TOLERANCE,
+    );
+  });
+
+  test("drops a pending issue that Jira no longer has and finishes the pull", async () => {
+    spyOn(JiraService, "searchIssues").mockResolvedValue(page([busyIssue()]));
+    const read = spyOn(JiraService, "readIssuePages").mockResolvedValue({ pages: null });
+
+    await PullService.pullConnection(seeded.connectionId);
+    await PullService.pullConnection(seeded.connectionId);
+
+    expect(read.mock.calls.length).toBe(1);
+    expect((await connectionRow(seeded.connectionId))?.lastPulledAt).not.toBeNull();
+  });
+
+  test("retries with a fresh token when Atlassian rejects the cached token on a pending read", async () => {
+    spyOn(JiraService, "searchIssues").mockResolvedValue(page([busyIssue()]));
+    spyOn(JiraService, "readIssuePages").mockResolvedValue(null);
+
+    await PullService.pullConnection(seeded.connectionId);
+    const second = PullService.pullConnection(seeded.connectionId);
+
+    await expect(second).rejects.toThrow(EPullMessages.CACHED_TOKEN_REJECTED);
   });
 });

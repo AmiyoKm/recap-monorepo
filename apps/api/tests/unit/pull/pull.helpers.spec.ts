@@ -7,6 +7,8 @@ import {
   chatSpacesToRead,
   completedChatCursor,
   isPullableProvider,
+  jiraCursorHasMore,
+  jiraGoneCursor,
   linearListStep,
   linearNestedStep,
   linearStepHasMore,
@@ -16,6 +18,7 @@ import {
   nextGmailBackfillStep,
   nextGmailHistoryStep,
   nextJiraCursor,
+  nextJiraPendingCursor,
   nextLinearCursor,
   orderSources,
   parseCalendarCursor,
@@ -202,18 +205,29 @@ describe("source selection", () => {
   });
 });
 
+const NEXT_START = 70;
+
 describe("Jira cursor", () => {
+  const PENDING = {
+    issueKey: "ERP-1",
+    summary: "Sum",
+    commentsStartAt: 20,
+    changelogStartAt: null,
+  };
+
   test("starts 7 days back with no stored cursor or a broken one", () => {
     const expected = {
       since: "2026-10-10T08:00:00.000Z",
       startedAt: NOW,
       pageToken: null,
       offset: 0,
+      pending: [],
     };
 
     expect(parseJiraCursor(null, NOW)).toEqual(expected);
     expect(parseJiraCursor("not json", NOW)).toEqual(expected);
     expect(parseJiraCursor('{"since":1}', NOW)).toEqual(expected);
+    expect(parseJiraCursor('{"since":"s","startedAt":"t","pending":"x"}', NOW)).toEqual(expected);
   });
 
   test("keeps the run since, page token and offset while pages remain", () => {
@@ -224,6 +238,7 @@ describe("Jira cursor", () => {
       startedAt: "t",
       pageToken: "p",
       offset: 200,
+      pending: [],
     });
   });
 
@@ -235,6 +250,25 @@ describe("Jira cursor", () => {
       startedAt: "t",
       pageToken: null,
       offset: 200,
+      pending: [],
+    });
+  });
+
+  test("keeps the run since while an issue has unread comment or changelog pages", () => {
+    const stored = JSON.stringify({
+      since: "s",
+      startedAt: "t",
+      pageToken: null,
+      offset: 0,
+      pending: [PENDING, { issueKey: 3 }],
+    });
+
+    expect(parseJiraCursor(stored, NOW)).toEqual({
+      since: "s",
+      startedAt: "t",
+      pageToken: null,
+      offset: 0,
+      pending: [PENDING],
     });
   });
 
@@ -244,6 +278,7 @@ describe("Jira cursor", () => {
       startedAt: "2026-10-17T07:00:00.000Z",
       pageToken: null,
       offset: 0,
+      pending: [],
     });
 
     expect(parseJiraCursor(stored, NOW)).toEqual({
@@ -251,28 +286,69 @@ describe("Jira cursor", () => {
       startedAt: NOW,
       pageToken: null,
       offset: 0,
+      pending: [],
     });
   });
 
   test("moves to the next page token when the page is fully written", () => {
-    const cursor = { since: "s", startedAt: "t", pageToken: "p", offset: 200 };
+    const cursor = { since: "s", startedAt: "t", pageToken: "p", offset: 200, pending: [] };
     const more = nextJiraCursor(cursor, { issues: [], nextPageToken: "n" }, false);
     const last = nextJiraCursor(cursor, { issues: [], nextPageToken: null }, false);
 
-    expect(JSON.parse(more)).toEqual({ since: "s", startedAt: "t", pageToken: "n", offset: 0 });
-    expect(JSON.parse(last)).toEqual({ since: "s", startedAt: "t", pageToken: null, offset: 0 });
+    expect(more).toEqual({ since: "s", startedAt: "t", pageToken: "n", offset: 0, pending: [] });
+    expect(last).toEqual({ since: "s", startedAt: "t", pageToken: null, offset: 0, pending: [] });
+    expect(jiraCursorHasMore(more)).toBe(true);
+    expect(jiraCursorHasMore(last)).toBe(false);
   });
 
   test("stays on the same page and advances the offset when changes remain", () => {
-    const cursor = { since: "s", startedAt: "t", pageToken: "p", offset: 0 };
+    const cursor = { since: "s", startedAt: "t", pageToken: "p", offset: 0, pending: [] };
     const stay = nextJiraCursor(cursor, { issues: [], nextPageToken: "n" }, true);
 
-    expect(JSON.parse(stay)).toEqual({
+    expect(stay).toEqual({
       since: "s",
       startedAt: "t",
       pageToken: "p",
       offset: JIRA_MAX_ACTIVITIES_PER_PAGE,
+      pending: [],
     });
+  });
+
+  test("queues an issue whose search result has more comments than it returned", () => {
+    const cursor = { since: "s", startedAt: "t", pageToken: null, offset: 0, pending: [] };
+    const issues = [
+      {
+        id: "1",
+        key: "ERP-1",
+        fields: { summary: "Sum", comment: { comments: [{ id: "c" }], total: 21 } },
+      },
+      { id: "2", key: "ERP-2", fields: { comment: { comments: [{ id: "d" }], total: 1 } } },
+    ];
+
+    const next = nextJiraCursor(cursor, { issues, nextPageToken: null }, false);
+
+    expect(next.pending).toEqual([
+      { issueKey: "ERP-1", summary: "Sum", commentsStartAt: 1, changelogStartAt: null },
+    ]);
+    expect(jiraCursorHasMore(next)).toBe(true);
+  });
+
+  test("moves a pending issue to its next pages and drops it when none remain", () => {
+    const cursor = { since: "s", startedAt: "t", pageToken: null, offset: 0, pending: [PENDING] };
+    const page = (nextStartAt: number | null) => ({ items: [], nextStartAt });
+
+    const more = nextJiraPendingCursor(cursor, PENDING, {
+      comments: page(NEXT_START),
+      histories: page(null),
+    });
+    const done = nextJiraPendingCursor(cursor, PENDING, {
+      comments: page(null),
+      histories: page(null),
+    });
+
+    expect(more.pending).toEqual([{ ...PENDING, commentsStartAt: NEXT_START }]);
+    expect(done.pending).toEqual([]);
+    expect(jiraGoneCursor(cursor).pending).toEqual([]);
   });
 });
 
