@@ -4,7 +4,7 @@ export const PRIVACY_TITLE = "Privacy policy";
 export const PRIVACY_DESCRIPTION =
   "This policy tells you what data Recap stores, why Recap stores it and how you delete it.";
 export const PRIVACY_EFFECTIVE_DATE = "Effective date: October 17, 2026";
-export const PRIVACY_CONTACT_EMAIL = "amiyo@lunedata.io";
+export const PRIVACY_CONTACT_EMAIL = "amiyokumar.dev@gmail.com";
 export const PRIVACY_CONTACT_LABEL = "Privacy contact";
 export const PRIVACY_CONTACT_BODY = "Send questions about your data or this policy to";
 export const PRIVACY_SECTIONS: IPrivacySection[] = [
