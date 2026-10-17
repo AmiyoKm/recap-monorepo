@@ -2,11 +2,12 @@ import { EClientMessages } from "@/api/client/client.enums";
 import {
   CONNECTION_PROVIDER_LABELS,
   CONNECTION_STATUS_LABELS,
+  GOOGLE_SOURCE_LABELS,
   IDENTITY_CONNECT_ERROR_MESSAGES,
   IDENTITY_CONNECT_UNKNOWN_ERROR,
-  IDENTITY_CONNECTED_GOOGLE,
-  IDENTITY_CONNECTED_GOOGLE_TITLE,
+  IDENTITY_CONNECTED,
   IDENTITY_CONNECTED_SUFFIX,
+  IDENTITY_CONNECTED_TITLE,
   IDENTITY_CONSENT_POLL_MS,
   IDENTITY_SYNC_CHANNEL,
 } from "@/api/identity/identity.constants";
@@ -35,6 +36,15 @@ export function providerLabel(provider: string): string {
   return provider;
 }
 
+export function sourceLabel(source: string): string {
+  for (const [name, label] of Object.entries(GOOGLE_SOURCE_LABELS)) {
+    if (name === source) {
+      return label;
+    }
+  }
+  return source;
+}
+
 export function statusLabel(status: string): string {
   for (const [name, label] of Object.entries(CONNECTION_STATUS_LABELS)) {
     if (name === status) {
@@ -54,14 +64,14 @@ export function connectErrorMessage(connectError: string): string {
 }
 
 export function connectedTitle(connected: string): string {
-  if (connected === IDENTITY_CONNECTED_GOOGLE) {
-    return IDENTITY_CONNECTED_GOOGLE_TITLE;
+  if (connected === IDENTITY_CONNECTED) {
+    return IDENTITY_CONNECTED_TITLE;
   }
   return `${providerLabel(connected)} ${IDENTITY_CONNECTED_SUFFIX}`;
 }
 
-function connectionEntry(identityId: string, provider: string, status: string): string {
-  return `${identityId}:${provider}:${status}`;
+function connectionPrefix(identityId: string, provider: string, status: string): string {
+  return `${identityId}:${provider}:${status}:`;
 }
 
 export function identitiesFingerprint(identities: TIdentitiesData | undefined): string | null {
@@ -71,15 +81,16 @@ export function identitiesFingerprint(identities: TIdentitiesData | undefined): 
   return identities
     .flatMap((identity) => [
       identity.id,
-      ...identity.connections.map((connection) =>
-        connectionEntry(identity.id, connection.provider, connection.status),
+      ...identity.connections.map(
+        (connection) =>
+          `${connectionPrefix(identity.id, connection.provider, connection.status)}${connection.id}`,
       ),
     ])
     .join("|");
 }
 
 export function toKnownConnected(connected: string | undefined): string | undefined {
-  if (connected === IDENTITY_CONNECTED_GOOGLE) {
+  if (connected === IDENTITY_CONNECTED) {
     return connected;
   }
   return Object.values(EProvider).find((provider) => provider === connected);
@@ -128,8 +139,10 @@ export function consentCompleted(before: string, after: string, target: TConsent
     case EConsentTarget.IDENTITY:
       return gained.some((entry) => !entry.includes(":"));
     case EConsentTarget.CONNECTION:
-      return gained.includes(
-        connectionEntry(target.identityId, target.provider, EConnectionStatus.ACTIVE),
+      return gained.some((entry) =>
+        entry.startsWith(
+          connectionPrefix(target.identityId, target.provider, EConnectionStatus.ACTIVE),
+        ),
       );
   }
 }

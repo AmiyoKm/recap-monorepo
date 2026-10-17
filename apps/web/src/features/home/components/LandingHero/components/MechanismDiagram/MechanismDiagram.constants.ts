@@ -8,7 +8,7 @@ export const MECHANISM_IDENTITIES: IExampleIdentity[] = [
   {
     email: "maya@northwind.example",
     role: "Northwind",
-    sources: [EProvider.GOOGLE_CALENDAR, EProvider.JIRA],
+    sources: [EProvider.GOOGLE, EProvider.JIRA],
     summary: [
       "Closed 6 Jira issues on the billing export.",
       "9 meetings. Wednesday was mostly the export review.",
@@ -17,7 +17,7 @@ export const MECHANISM_IDENTITIES: IExampleIdentity[] = [
   {
     email: "maya@fernstudio.example",
     role: "Fern Studio",
-    sources: [EProvider.GOOGLE_CALENDAR, EProvider.LINEAR],
+    sources: [EProvider.GOOGLE, EProvider.LINEAR],
     summary: ["Finished 4 Linear issues.", "3 client calls."],
   },
 ];

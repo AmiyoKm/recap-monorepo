@@ -43,7 +43,14 @@ export function SourcesTable() {
             {SOURCES_ROWS.map((row) => {
               return (
                 <TableRow key={row.provider}>
-                  <TableCell className="font-medium">{providerLabel(row.provider)}</TableCell>
+                  <TableCell className="font-medium">
+                    {providerLabel(row.provider)}
+                    {row.detail && (
+                      <span className="block text-xs font-normal whitespace-normal text-muted-foreground">
+                        {row.detail}
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell className="hidden text-muted-foreground sm:table-cell">
                     {row.method}
                   </TableCell>

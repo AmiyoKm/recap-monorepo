@@ -1,5 +1,5 @@
-import { EConnectionStatus } from "@/api/identity/identity.enums";
-import type { TIdentityConnection } from "@/api/identity/identity.types";
+import { EConnectionStatus, EProvider } from "@/api/identity/identity.enums";
+import type { TConnectorProvider, TIdentityConnection } from "@/api/identity/identity.types";
 import {
   CONNECTOR_CONNECT,
   CONNECTOR_CONNECTED,
@@ -33,9 +33,16 @@ export function connectorDetail(
   }
 }
 
-export function connectorConnectLabel(needsReconnect: boolean): string {
-  if (!needsReconnect) {
+export function connectorConnectLabel(state: EConnectorState): string {
+  if (state === EConnectorState.NOT_CONNECTED) {
     return CONNECTOR_CONNECT;
   }
   return CONNECTOR_RECONNECT;
+}
+
+export function canStartConsent(provider: TConnectorProvider, state: EConnectorState): boolean {
+  if (provider === EProvider.GOOGLE) {
+    return true;
+  }
+  return state !== EConnectorState.ACTIVE;
 }

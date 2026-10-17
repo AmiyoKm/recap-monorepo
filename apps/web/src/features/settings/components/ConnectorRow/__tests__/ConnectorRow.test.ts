@@ -4,11 +4,14 @@ import { EConnectionStatus, EProvider } from "@/api/identity/identity.enums";
 import { providerLabel, statusLabel } from "@/api/identity/identity.helpers";
 import type { TIdentityConnection } from "@/api/identity/identity.types";
 import { EConnectorState } from "@/features/settings/components/ConnectorRow/ConnectorRow.enums";
-import { connectorState } from "@/features/settings/components/ConnectorRow/ConnectorRow.helpers";
+import {
+  canStartConsent,
+  connectorState,
+} from "@/features/settings/components/ConnectorRow/ConnectorRow.helpers";
 
 describe("providerLabel", () => {
   test("labels known providers", () => {
-    expect(providerLabel("google-calendar")).toBe("Google Calendar");
+    expect(providerLabel("google")).toBe("Google");
     expect(providerLabel("jira")).toBe("Jira");
     expect(providerLabel("linear")).toBe("Linear");
   });
@@ -35,6 +38,7 @@ describe("connectorState", () => {
     provider: EProvider.JIRA,
     status: EConnectionStatus.ACTIVE,
     scopes: null,
+    sources: [],
     providerAccountId: "account-1",
     providerAccountEmail: "ada@acme.dev",
     providerSite: "acme.atlassian.net",
@@ -54,5 +58,17 @@ describe("connectorState", () => {
     expect(connectorState({ ...connection, status: EConnectionStatus.NEEDS_RECONNECT })).toBe(
       EConnectorState.NEEDS_RECONNECT,
     );
+  });
+});
+
+describe("canStartConsent", () => {
+  test.each([
+    { provider: EProvider.GOOGLE, state: EConnectorState.ACTIVE, canStart: true },
+    { provider: EProvider.GOOGLE, state: EConnectorState.NOT_CONNECTED, canStart: true },
+    { provider: EProvider.JIRA, state: EConnectorState.ACTIVE, canStart: false },
+    { provider: EProvider.JIRA, state: EConnectorState.NEEDS_RECONNECT, canStart: true },
+    { provider: EProvider.LINEAR, state: EConnectorState.NOT_CONNECTED, canStart: true },
+  ])("is $canStart for $provider when $state", ({ provider, state, canStart }) => {
+    expect(canStartConsent(provider, state)).toBe(canStart);
   });
 });

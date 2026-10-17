@@ -8,12 +8,14 @@ import {
 } from "@/features/settings/components/ConnectorRow/ConnectorRow.constants";
 import { EConnectorState } from "@/features/settings/components/ConnectorRow/ConnectorRow.enums";
 import {
+  canStartConsent,
   connectorConnectLabel,
   connectorDetail,
   connectorState,
 } from "@/features/settings/components/ConnectorRow/ConnectorRow.helpers";
 import type { IConnectorRowProps } from "@/features/settings/components/ConnectorRow/ConnectorRow.interfaces";
 import { ProviderLogo } from "@/features/settings/components/ConnectorRow/components/ProviderLogo";
+import { SourceBadges } from "@/features/settings/components/ConnectorRow/components/SourceBadges";
 import { ConnectProviderDialog } from "@/features/settings/components/ConnectProviderDialog";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +43,9 @@ export function ConnectorRow({ identityId, provider, connection }: IConnectorRow
             {connectorDetail(state, connection?.providerAccountEmail)}
           </span>
         </p>
+        {connection && state === EConnectorState.ACTIVE && (
+          <SourceBadges sources={connection.sources} />
+        )}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1">
         {connection && (
@@ -55,11 +60,12 @@ export function ConnectorRow({ identityId, provider, connection }: IConnectorRow
             {!disconnect.isPending && CONNECTOR_DISCONNECT}
           </Button>
         )}
-        {state !== EConnectorState.ACTIVE && (
+        {canStartConsent(provider, state) && (
           <ConnectProviderDialog
             identityId={identityId}
             provider={provider}
-            triggerLabel={connectorConnectLabel(needsReconnect)}
+            connection={connection}
+            triggerLabel={connectorConnectLabel(state)}
           />
         )}
       </div>

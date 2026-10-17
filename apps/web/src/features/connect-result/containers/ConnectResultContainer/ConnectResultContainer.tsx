@@ -15,15 +15,22 @@ import {
 import {
   connectResultDescription,
   connectResultTitle,
+  deniedSourcesNote,
   settingsButtonVariant,
 } from "@/features/connect-result/containers/ConnectResultContainer/ConnectResultContainer.helpers";
 import type { IConnectResultContainerProps } from "@/features/connect-result/containers/ConnectResultContainer/ConnectResultContainer.interfaces";
 
-export function ConnectResultContainer({ email, error, ...search }: IConnectResultContainerProps) {
+export function ConnectResultContainer({
+  email,
+  denied,
+  error,
+  ...search
+}: IConnectResultContainerProps) {
   const connected = toKnownConnected(search.connected);
   const isSuccess = !error && Boolean(connected);
   const title = connectResultTitle(connected, error);
   const description = connectResultDescription(connected, error);
+  const deniedNote = deniedSourcesNote(denied);
 
   useEffect(() => {
     publishConnectResult({ connected, email, error });
@@ -47,6 +54,7 @@ export function ConnectResultContainer({ email, error, ...search }: IConnectResu
               </Heading>
               {isSuccess && email && <p className="truncate text-sm font-medium">{email}</p>}
               <p className="text-sm text-muted-foreground">{description}</p>
+              {isSuccess && deniedNote && <p className="text-sm text-foreground">{deniedNote}</p>}
             </div>
             {isSuccess && (
               <p className="text-sm text-muted-foreground">{CONNECT_RESULT_CLOSE_NOTE}</p>

@@ -1,7 +1,14 @@
-import { IDENTITY_CONNECT_UNKNOWN_ERROR } from "@/api/identity/identity.constants";
+import {
+  GOOGLE_SOURCE_LABELS,
+  GOOGLE_SOURCE_SEPARATOR,
+  IDENTITY_CONNECT_UNKNOWN_ERROR,
+} from "@/api/identity/identity.constants";
+import { EGoogleSource } from "@/api/identity/identity.enums";
 import { connectErrorMessage, connectedTitle } from "@/api/identity/identity.helpers";
 import {
+  CONNECT_RESULT_DENIED_PREFIX,
   CONNECT_RESULT_ERROR_TITLE,
+  CONNECT_RESULT_LIST_LOCALE,
   CONNECT_RESULT_SUCCESS_DESCRIPTION,
 } from "@/features/connect-result/containers/ConnectResultContainer/ConnectResultContainer.constants";
 import type { TSettingsButtonVariant } from "@/features/connect-result/containers/ConnectResultContainer/ConnectResultContainer.types";
@@ -34,4 +41,16 @@ export function settingsButtonVariant(isSuccess: boolean): TSettingsButtonVarian
     return "default";
   }
   return "outline";
+}
+
+export function deniedSourcesNote(denied: string | undefined): string | null {
+  const values = denied?.split(GOOGLE_SOURCE_SEPARATOR) ?? [];
+  const labels = Object.values(EGoogleSource)
+    .filter((source) => values.includes(source))
+    .map((source) => GOOGLE_SOURCE_LABELS[source]);
+  if (labels.length === 0) {
+    return null;
+  }
+  const list = new Intl.ListFormat(CONNECT_RESULT_LIST_LOCALE, { type: "conjunction" });
+  return `${CONNECT_RESULT_DENIED_PREFIX} ${list.format(labels)}.`;
 }

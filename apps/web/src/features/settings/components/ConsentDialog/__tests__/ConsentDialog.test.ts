@@ -5,10 +5,10 @@ import { consentCompleted, readConnectResultMessage } from "@/api/identity/ident
 import type { TConsentTarget } from "@/api/identity/identity.types";
 
 const IDENTITY_TARGET: TConsentTarget = { kind: EConsentTarget.IDENTITY };
-const CALENDAR_TARGET: TConsentTarget = {
+const GOOGLE_TARGET: TConsentTarget = {
   kind: EConsentTarget.CONNECTION,
   identityId: "a",
-  provider: EProvider.GOOGLE_CALENDAR,
+  provider: EProvider.GOOGLE,
 };
 
 describe("consentCompleted", () => {
@@ -17,21 +17,26 @@ describe("consentCompleted", () => {
     expect(consentCompleted("", "a", IDENTITY_TARGET)).toBe(true);
   });
 
-  test("detects the expected calendar connection, new or reconnected", () => {
-    expect(consentCompleted("a", "a|a:google-calendar:active", CALENDAR_TARGET)).toBe(true);
+  test("detects the expected google connection, new or reconnected", () => {
+    expect(consentCompleted("a", "a|a:google:active:c1", GOOGLE_TARGET)).toBe(true);
     expect(
-      consentCompleted(
-        "a|a:google-calendar:needs_reconnect",
-        "a|a:google-calendar:active",
-        CALENDAR_TARGET,
-      ),
+      consentCompleted("a|a:google:needs_reconnect:c1", "a|a:google:active:c2", GOOGLE_TARGET),
     ).toBe(true);
+    expect(consentCompleted("a|a:google:active:c1", "a|a:google:active:c2", GOOGLE_TARGET)).toBe(
+      true,
+    );
   });
 
   test("ignores changes for another identity or provider", () => {
-    expect(consentCompleted("a|b", "a|b|b:google-calendar:active", CALENDAR_TARGET)).toBe(false);
-    expect(consentCompleted("a", "a|a:jira:active", CALENDAR_TARGET)).toBe(false);
-    expect(consentCompleted("a", "a|a:jira:active", IDENTITY_TARGET)).toBe(false);
+    expect(consentCompleted("a|b", "a|b|b:google:active:c1", GOOGLE_TARGET)).toBe(false);
+    expect(consentCompleted("a", "a|a:jira:active:c1", GOOGLE_TARGET)).toBe(false);
+    expect(consentCompleted("a", "a|a:jira:active:c1", IDENTITY_TARGET)).toBe(false);
+  });
+
+  test("ignores an unchanged active connection", () => {
+    expect(consentCompleted("a|a:google:active:c1", "a|a:google:active:c1", GOOGLE_TARGET)).toBe(
+      false,
+    );
   });
 
   test("ignores removals and no change", () => {

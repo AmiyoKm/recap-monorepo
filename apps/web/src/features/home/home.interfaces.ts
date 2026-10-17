@@ -10,6 +10,7 @@ export interface IExampleIdentity {
 
 export interface ISourceRow {
   provider: EProvider;
+  detail: string | null;
   method: string;
   availability: ESourceAvailability;
 }
