@@ -68,6 +68,27 @@ describe("sign-up work account", () => {
     expect(await listIdentities(user.id)).toHaveLength(0);
   });
 
+  test("Google link on an email user with no work account makes one from the user row", async () => {
+    const email = uniqueEmail();
+    const userId = await createUser(email);
+    const context = await auth.$context;
+
+    await context.internalAdapter.linkAccount({
+      userId,
+      providerId: EAuthSocialProvider.GOOGLE,
+      accountId: GOOGLE_PROFILE.sub,
+    });
+
+    const identities = await listIdentities(userId);
+    expect(identities).toHaveLength(1);
+    expect(identities[0]).toMatchObject({
+      googleSub: GOOGLE_PROFILE.sub,
+      email,
+      displayName: TEST_USER_NAME,
+      avatarUrl: null,
+    });
+  });
+
   test("Google link on a user with a work account adds no second one", async () => {
     const userId = await createUser(GOOGLE_PROFILE.email);
     const now = dayjs().toISOString();
