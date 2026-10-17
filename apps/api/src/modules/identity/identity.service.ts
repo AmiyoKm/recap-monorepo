@@ -361,7 +361,7 @@ export abstract class IdentityService {
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.FAILED });
     }
     const row = buildOAuthConnectionRow({
-      id: randomUUID(),
+      id: staleConnectionId ?? randomUUID(),
       identityId: identity.id,
       provider,
       refreshToken: tokens.refreshToken,

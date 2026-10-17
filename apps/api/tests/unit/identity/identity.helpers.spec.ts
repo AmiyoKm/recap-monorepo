@@ -223,6 +223,9 @@ describe("toConnectionView", () => {
     providerAccountEmail: "dev@employer.example",
     providerSite: "acme.atlassian.net",
     providerResourceId: null,
+    pullCursor: null,
+    lastPulledAt: null,
+    lastPullError: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   };

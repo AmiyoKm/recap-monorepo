@@ -5,11 +5,13 @@ export enum EGoogleOAuthValue {
 
 export enum EGoogleOAuthError {
   INVALID_TOKEN = "invalid_token",
+  INVALID_GRANT = "invalid_grant",
 }
 
 export enum EGoogleMessages {
   ID_TOKEN_MISSING = "Google token response has no id token",
   INVALID_PROFILE = "Google id token has no subject or email",
+  ACCESS_TOKEN_MISSING = "Google token refresh returned no access token",
 }
 
 export enum EGoogleSource {

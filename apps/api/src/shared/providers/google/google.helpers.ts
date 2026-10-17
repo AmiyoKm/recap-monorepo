@@ -1,12 +1,14 @@
-import type { Credentials, TokenPayload } from "google-auth-library";
+import { type Credentials, gaxios, type TokenPayload } from "google-auth-library";
 
 import { dayjs } from "#api/shared/date/date.helpers";
 import { GOOGLE_SOURCE_SCOPES } from "#api/shared/providers/google/google.constants";
 import { EGoogleMessages, EGoogleSource } from "#api/shared/providers/google/google.enums";
 import type {
+  IGoogleCalendarReadInput,
   IGoogleProfile,
   ISourceGrantResult,
 } from "#api/shared/providers/google/google.interfaces";
+import type { TGoogleCalendarRange } from "#api/shared/providers/google/google.types";
 import { OAUTH_SCOPE_SEPARATOR } from "#api/shared/providers/providers.constants";
 import type { IProviderTokens } from "#api/shared/providers/providers.interfaces";
 
@@ -65,4 +67,15 @@ export function parseSources(values: readonly unknown[]): EGoogleSource[] | null
 
 export function deniedSources({ requested, granted }: ISourceGrantResult): EGoogleSource[] {
   return requested.filter((source) => !granted.includes(source));
+}
+
+export function calendarRange(input: IGoogleCalendarReadInput): TGoogleCalendarRange {
+  if (input.syncToken) {
+    return { syncToken: input.syncToken };
+  }
+  return { timeMin: input.timeMin, timeMax: input.timeMax };
+}
+
+export function hasStatus(error: unknown, status: number): boolean {
+  return error instanceof gaxios.GaxiosError && error.status === status;
 }

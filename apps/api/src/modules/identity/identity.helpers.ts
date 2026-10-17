@@ -249,6 +249,9 @@ export function buildOAuthConnectionRow(input: IOAuthConnectionInput): TConnecti
     providerAccountEmail: input.account.accountEmail,
     providerSite: input.site,
     providerResourceId: input.resourceId,
+    pullCursor: null,
+    lastPulledAt: null,
+    lastPullError: null,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };

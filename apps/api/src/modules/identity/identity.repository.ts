@@ -89,15 +89,29 @@ export abstract class IdentityRepository {
     values: TConnectionInsert,
     staleConnectionId?: string,
   ): Promise<void> {
-    const insert = db.insert(schema.connection).values(values);
     if (!staleConnectionId) {
-      await insert;
+      await db.insert(schema.connection).values(values);
       return;
     }
-    await db.batch([
-      db.delete(schema.connection).where(eq(schema.connection.id, staleConnectionId)),
-      insert,
-    ]);
+    const updated = await db
+      .update(schema.connection)
+      .set({
+        status: EConnectionStatus.ACTIVE,
+        scopes: values.scopes,
+        refreshTokenEnc: values.refreshTokenEnc,
+        accessTokenExpiresAt: values.accessTokenExpiresAt,
+        providerAccountId: values.providerAccountId,
+        providerAccountEmail: values.providerAccountEmail,
+        providerSite: values.providerSite,
+        providerResourceId: values.providerResourceId,
+        lastPullError: null,
+        updatedAt: values.updatedAt,
+      })
+      .where(eq(schema.connection.id, staleConnectionId))
+      .returning({ id: schema.connection.id });
+    if (updated.length === 0) {
+      await db.insert(schema.connection).values(values);
+    }
   }
 
   static listConnections(identityIds: string[]): Promise<TConnectionRow[]> {

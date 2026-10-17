@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as ConnectedRouteImport } from './routes/connected'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as AppActivityRouteImport } from './routes/_app/activity'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
@@ -42,6 +43,11 @@ const SignInRoute = SignInRouteImport.update({
   path: '/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppActivityRoute = AppActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/connected': typeof ConnectedRoute
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
+  '/activity': typeof AppActivityRoute
   '/dashboard': typeof AppDashboardRoute
   '/profile': typeof AppProfileRoute
   '/settings': typeof AppSettingsRoute
@@ -72,6 +79,7 @@ export interface FileRoutesByTo {
   '/connected': typeof ConnectedRoute
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
+  '/activity': typeof AppActivityRoute
   '/dashboard': typeof AppDashboardRoute
   '/profile': typeof AppProfileRoute
   '/settings': typeof AppSettingsRoute
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   '/connected': typeof ConnectedRoute
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
+  '/_app/activity': typeof AppActivityRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/profile': typeof AppProfileRoute
   '/_app/settings': typeof AppSettingsRoute
@@ -94,6 +103,7 @@ export interface FileRouteTypes {
     | '/connected'
     | '/privacy'
     | '/sign-in'
+    | '/activity'
     | '/dashboard'
     | '/profile'
     | '/settings'
@@ -103,6 +113,7 @@ export interface FileRouteTypes {
     | '/connected'
     | '/privacy'
     | '/sign-in'
+    | '/activity'
     | '/dashboard'
     | '/profile'
     | '/settings'
@@ -113,6 +124,7 @@ export interface FileRouteTypes {
     | '/connected'
     | '/privacy'
     | '/sign-in'
+    | '/_app/activity'
     | '/_app/dashboard'
     | '/_app/profile'
     | '/_app/settings'
@@ -163,6 +175,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignInRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/activity': {
+      id: '/_app/activity'
+      path: '/activity'
+      fullPath: '/activity'
+      preLoaderRoute: typeof AppActivityRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/dashboard': {
       id: '/_app/dashboard'
       path: '/dashboard'
@@ -188,12 +207,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppActivityRoute: typeof AppActivityRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppProfileRoute: typeof AppProfileRoute
   AppSettingsRoute: typeof AppSettingsRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppActivityRoute: AppActivityRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppProfileRoute: AppProfileRoute,
   AppSettingsRoute: AppSettingsRoute,

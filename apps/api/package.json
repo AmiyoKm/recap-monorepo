@@ -4,6 +4,7 @@
     "@better-auth/drizzle-adapter": "^1.7.7",
     "@elysiajs/cors": "^1.4.2",
     "@elysiajs/openapi": "^1.4.16",
+    "@googleapis/calendar": "^20.1.0",
     "@linear/sdk": "^97.1.0",
     "@recap/db": "workspace:*",
     "arctic": "^3.7.0",

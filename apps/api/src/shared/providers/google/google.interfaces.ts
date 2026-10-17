@@ -1,4 +1,5 @@
 import type { EGoogleSource } from "#api/shared/providers/google/google.enums";
+import type { TGoogleCalendarEvent } from "#api/shared/providers/google/google.types";
 import type { IProviderTokens } from "#api/shared/providers/providers.interfaces";
 
 export interface IGoogleProfile {
@@ -33,4 +34,20 @@ export interface IGoogleGrant {
 export interface ISourceGrantResult {
   requested: EGoogleSource[];
   granted: EGoogleSource[];
+}
+
+export interface IGoogleCalendarReadInput {
+  accessToken: string;
+  syncToken: string | null;
+  pageToken: string | null;
+  timeMin: string;
+  timeMax: string;
+}
+
+export interface IGoogleCalendarPage {
+  events: TGoogleCalendarEvent[];
+  nextPageToken: string | null;
+  nextSyncToken: string | null;
+  usedSyncToken: boolean;
+  timeZone: string | null;
 }
