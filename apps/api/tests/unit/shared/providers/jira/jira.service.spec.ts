@@ -4,7 +4,9 @@ import { ENV } from "#api/shared/env/env.constants";
 import { EJiraMessages } from "#api/shared/providers/jira/jira.enums";
 import { JiraService } from "#api/shared/providers/jira/jira.service";
 import {
+  HTTP_BAD_REQUEST,
   HTTP_OK,
+  HTTP_SERVER_ERROR,
   HTTP_UNAUTHORIZED,
   PROVIDER_EMAIL,
 } from "#api-tests/unit/shared/providers/providers.constants";
@@ -100,5 +102,75 @@ describe("JiraService.exchangeCode", () => {
     stubFetch(HTTP_UNAUTHORIZED, { error: "invalid_grant" });
     const exchange = JiraService.exchangeCode({ code: "bad-code", redirectUri: REDIRECT_URI });
     await expect(exchange).rejects.toThrow();
+  });
+});
+
+describe("JiraService.refreshAccessToken", () => {
+  test("refreshes with the refresh token and returns the rotated one", async () => {
+    stubFetch(HTTP_OK, { ...TOKEN_BODY, refresh_token: "jira-refresh-2" });
+
+    const tokens = await JiraService.refreshAccessToken("jira-refresh");
+
+    expect(tokens?.refreshToken).toBe("jira-refresh-2");
+    expect(tokens?.accessToken).toBe("jira-access");
+    expect(JSON.parse(recordedRequests[0]?.body ?? "")).toEqual({
+      grant_type: "refresh_token",
+      client_id: ENV.jira.clientId,
+      client_secret: ENV.jira.clientSecret,
+      refresh_token: "jira-refresh",
+    });
+  });
+
+  test("returns null when Atlassian rejects the refresh token", async () => {
+    stubFetch(HTTP_BAD_REQUEST, {
+      error: "invalid_grant",
+      error_description: "Unknown or invalid refresh token.",
+    });
+
+    expect(await JiraService.refreshAccessToken("revoked")).toBeNull();
+  });
+
+  test("throws on other failures", async () => {
+    stubFetch(HTTP_SERVER_ERROR, { error: "server_error" });
+
+    await expect(JiraService.refreshAccessToken("jira-refresh")).rejects.toThrow();
+  });
+});
+
+describe("JiraService.searchIssues", () => {
+  const input = {
+    accessToken: "jira-access",
+    cloudId: "cloud-1",
+    since: "2026-10-17T08:00:00.000Z",
+  };
+
+  test("searches the cloud site with the changelog and the page token", async () => {
+    stubFetch(HTTP_OK, { issues: [{ id: "1", key: "ERP-1" }], nextPageToken: "next" });
+
+    const page = await JiraService.searchIssues({ ...input, pageToken: "token-1" });
+
+    expect(page?.nextPageToken).toBe("next");
+    expect(page?.issues.length).toBe(1);
+    const request = recordedRequests[0];
+    expect(request?.url).toStartWith(
+      "https://api.atlassian.com/ex/jira/cloud-1/rest/api/3/search/jql",
+    );
+    expect(request?.url).toContain("expand=changelog");
+    const fields = new URL(request?.url ?? "").searchParams.getAll("fields").join(",");
+    expect(fields).toBe("summary,created,reporter,comment");
+    expect(request?.url).toContain("nextPageToken=token-1");
+    expect(request?.headers.get("authorization")).toBe("Bearer jira-access");
+  });
+
+  test("returns null when Atlassian rejects the access token", async () => {
+    stubFetch(HTTP_UNAUTHORIZED, { message: "Unauthorized" });
+
+    expect(await JiraService.searchIssues({ ...input, pageToken: null })).toBeNull();
+  });
+
+  test("throws on other failures", async () => {
+    stubFetch(HTTP_SERVER_ERROR, { message: "boom" });
+
+    await expect(JiraService.searchIssues({ ...input, pageToken: null })).rejects.toThrow();
   });
 });

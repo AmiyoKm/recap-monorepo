@@ -40,6 +40,13 @@ export interface IDriveCursor {
   startedAt: string;
 }
 
+export interface IJiraCursor {
+  since: string;
+  startedAt: string;
+  pageToken: string | null;
+  offset: number;
+}
+
 export interface IPullState {
   target: IPullTarget;
   accessToken: string;

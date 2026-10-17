@@ -12,12 +12,14 @@ import {
   nextDriveCursor,
   nextGmailBackfillStep,
   nextGmailHistoryStep,
+  nextJiraCursor,
   orderSources,
   parseCalendarCursor,
   parseChatCursor,
   parseCursorMap,
   parseDriveCursor,
   parseGmailCursor,
+  parseJiraCursor,
   readableSources,
   remainingSources,
   restartGmailPage,
@@ -31,6 +33,7 @@ import type {
   IGoogleCalendarPage,
   IGoogleGmailPage,
 } from "#api/shared/providers/google/google.interfaces";
+import { JIRA_MAX_ACTIVITIES_PER_PAGE } from "#api/shared/providers/jira/jira.constants";
 import { ALL_SOURCES_GRANTED_SCOPES } from "#api-tests/fixtures/fixtures.constants";
 
 const NOW = "2026-10-17T08:00:00.000Z";
@@ -146,7 +149,8 @@ describe("source selection", () => {
       ESource.CHAT,
     ]);
     expect(readableSources(connection({ scopes: "openid email" }))).toEqual([]);
-    expect(readableSources(connection({ provider: "jira", scopes: null }))).toEqual([]);
+    expect(readableSources(connection({ provider: "jira", scopes: null }))).toEqual([ESource.JIRA]);
+    expect(readableSources(connection({ provider: "linear", scopes: null }))).toEqual([]);
   });
 
   test("puts Sources with pending pages first", () => {
@@ -168,7 +172,82 @@ describe("source selection", () => {
 
   test("knows which providers have a pull reader", () => {
     expect(isPullableProvider("google")).toBe(true);
-    expect(isPullableProvider("jira")).toBe(false);
+    expect(isPullableProvider("jira")).toBe(true);
+    expect(isPullableProvider("linear")).toBe(false);
+  });
+});
+
+describe("Jira cursor", () => {
+  test("starts 7 days back with no stored cursor or a broken one", () => {
+    const expected = {
+      since: "2026-10-10T08:00:00.000Z",
+      startedAt: NOW,
+      pageToken: null,
+      offset: 0,
+    };
+
+    expect(parseJiraCursor(null, NOW)).toEqual(expected);
+    expect(parseJiraCursor("not json", NOW)).toEqual(expected);
+    expect(parseJiraCursor('{"since":1}', NOW)).toEqual(expected);
+  });
+
+  test("keeps the run since, page token and offset while pages remain", () => {
+    const stored = JSON.stringify({ since: "s", startedAt: "t", pageToken: "p", offset: 200 });
+
+    expect(parseJiraCursor(stored, NOW)).toEqual({
+      since: "s",
+      startedAt: "t",
+      pageToken: "p",
+      offset: 200,
+    });
+  });
+
+  test("keeps the run on the first page while an offset remains", () => {
+    const stored = JSON.stringify({ since: "s", startedAt: "t", pageToken: null, offset: 200 });
+
+    expect(parseJiraCursor(stored, NOW)).toEqual({
+      since: "s",
+      startedAt: "t",
+      pageToken: null,
+      offset: 200,
+    });
+  });
+
+  test("starts the next run from the start time of the finished run", () => {
+    const stored = JSON.stringify({
+      since: "s",
+      startedAt: "2026-10-17T07:00:00.000Z",
+      pageToken: null,
+      offset: 0,
+    });
+
+    expect(parseJiraCursor(stored, NOW)).toEqual({
+      since: "2026-10-17T07:00:00.000Z",
+      startedAt: NOW,
+      pageToken: null,
+      offset: 0,
+    });
+  });
+
+  test("moves to the next page token when the page is fully written", () => {
+    const cursor = { since: "s", startedAt: "t", pageToken: "p", offset: 200 };
+    const more = nextJiraCursor(cursor, { issues: [], nextPageToken: "n" }, false);
+    const last = nextJiraCursor(cursor, { issues: [], nextPageToken: null }, false);
+
+    expect(JSON.parse(more)).toEqual({ since: "s", startedAt: "t", pageToken: "n", offset: 0 });
+    expect(JSON.parse(last)).toEqual({ since: "s", startedAt: "t", pageToken: null, offset: 0 });
+  });
+
+  test("stays on the same page and advances the offset when changes remain", () => {
+    const cursor = { since: "s", startedAt: "t", pageToken: "p", offset: 0 };
+    const stay = nextJiraCursor(cursor, { issues: [], nextPageToken: "n" }, true);
+
+    expect(JSON.parse(stay)).toEqual({
+      since: "s",
+      startedAt: "t",
+      pageToken: "p",
+      offset: JIRA_MAX_ACTIVITIES_PER_PAGE,
+    });
   });
 });
 

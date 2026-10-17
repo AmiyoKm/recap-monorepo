@@ -7,6 +7,7 @@ export enum EPullMessages {
   SOURCE_UNSUPPORTED = "No pull reader exists for this Source",
   CREDENTIALS_REJECTED = "Provider rejected the credentials",
   ACCOUNT_ID_MISSING = "Connection has no provider account id",
+  JIRA_SITE_MISSING = "Jira connection has no site or cloud id",
 }
 
 export enum EPullMessageKey {
@@ -25,6 +26,13 @@ export enum EDriveCursorKey {
   TIME_MIN = "timeMin",
   PAGE_TOKEN = "pageToken",
   STARTED_AT = "startedAt",
+}
+
+export enum EJiraCursorKey {
+  SINCE = "since",
+  STARTED_AT = "startedAt",
+  PAGE_TOKEN = "pageToken",
+  OFFSET = "offset",
 }
 
 export enum EPullOutcome {

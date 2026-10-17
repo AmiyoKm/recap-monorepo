@@ -6,15 +6,19 @@ import {
   mapCalendarEvents,
   mapChatMessages,
   mapGmailMessages,
+  mapJiraIssues,
   nonEmpty,
   toIsoBound,
   withAuthUser,
 } from "#api/modules/activity/activity.helpers";
+import { dayjs } from "#api/shared/date/date.helpers";
 import type {
   TGoogleCalendarEvent,
   TGoogleChatMessage,
   TGoogleGmailMessage,
 } from "#api/shared/providers/google/google.types";
+import { JIRA_MAX_ACTIVITIES_PER_PAGE } from "#api/shared/providers/jira/jira.constants";
+import type { TJiraIssue } from "#api/shared/providers/jira/jira.types";
 import { CALENDAR_EMAIL } from "#api-tests/fixtures/fixtures.constants";
 
 const CONTEXT = { identityEmail: CALENDAR_EMAIL, timeZone: null };
@@ -195,6 +199,54 @@ function chatMessage(overrides: TGoogleChatMessage): TGoogleChatMessage {
   };
 }
 
+const JIRA_CONTEXT = { site: "acme.atlassian.net", since: "2026-10-16T00:00:00.000Z", offset: 0 };
+
+function jiraIssue(overrides: Partial<TJiraIssue>): TJiraIssue {
+  return {
+    id: "10001",
+    key: "ERP-1",
+    fields: {
+      summary: "Fix login",
+      created: dayjs.utc("2026-10-16T01:00:00.000Z").toDate(),
+      reporter: { emailAddress: "rep@employer.example" },
+      comment: {
+        comments: [
+          {
+            id: "501",
+            created: dayjs.utc("2026-10-16T05:00:00.000Z").toDate(),
+            author: { displayName: "Sam" },
+            body: {
+              type: "doc",
+              version: 1,
+              content: [{ type: "paragraph", content: [{ type: "text", text: "Done" }] }],
+            },
+          },
+        ],
+      },
+    },
+    changelog: {
+      histories: [
+        {
+          id: "9001",
+          created: dayjs.utc("2026-10-16T03:00:00.000Z").toDate(),
+          author: { emailAddress: "dev@employer.example" },
+          items: [
+            { field: "status", fromString: "To Do", toString: "In Progress" },
+            { field: "assignee", fromString: null, toString: "Sam" },
+            { field: "priority", fromString: "Low", toString: "High" },
+          ],
+        },
+        {
+          id: "9002",
+          created: dayjs.utc("2026-10-16T04:00:00.000Z").toDate(),
+          items: [{ field: "assignee", fromString: "Sam", toString: null }],
+        },
+      ],
+    },
+    ...overrides,
+  };
+}
+
 describe("mapGmailMessages", () => {
   test("maps an Inbox message to email_received with a thread link in the right account", () => {
     const { drafts } = mapGmailMessages([mail({})], CONTEXT);
@@ -335,5 +387,108 @@ describe("mapChatMessages", () => {
     );
 
     expect(drafts[0]?.actor).toBeNull();
+  });
+});
+
+const HISTORY_COUNT = 250;
+
+function bareItem(field: string) {
+  return Object.assign(Object.create(Object.prototype), { field });
+}
+
+describe("mapJiraIssues", () => {
+  test("maps creation, status, assignment and comments to separate Activities", () => {
+    const { drafts, removedExternalIds } = mapJiraIssues([jiraIssue({})], JIRA_CONTEXT);
+
+    expect(removedExternalIds).toEqual([]);
+    const byId = Object.fromEntries(drafts.map((draft) => [draft.externalId, draft]));
+    expect(Object.keys(byId).sort()).toEqual(
+      ["501", "9001:assignee", "9001:status", "9002:assignee", "created:10001"].sort(),
+    );
+    expect(byId["created:10001"]).toMatchObject({
+      source: ESource.JIRA,
+      kind: EActivityKind.ISSUE_CREATED,
+      title: "ERP-1: Fix login",
+      actor: "rep@employer.example",
+      occurredAt: "2026-10-16T01:00:00.000Z",
+    });
+    expect(byId["9001:status"]).toMatchObject({
+      kind: EActivityKind.ISSUE_STATUS_CHANGED,
+      detail: "To Do to In Progress",
+      actor: "dev@employer.example",
+    });
+    expect(byId["9001:assignee"]).toMatchObject({
+      kind: EActivityKind.ISSUE_ASSIGNED,
+      detail: "Sam",
+    });
+    expect(byId["9002:assignee"]?.detail).toBe("Unassigned");
+    expect(byId["501"]).toMatchObject({
+      kind: EActivityKind.ISSUE_COMMENTED,
+      detail: "Done",
+      actor: "Sam",
+    });
+  });
+
+  test("links every kind to the issue and a comment to its focused comment id", () => {
+    const { drafts } = mapJiraIssues([jiraIssue({})], JIRA_CONTEXT);
+
+    for (const draft of drafts) {
+      expect(draft.url).toStartWith("https://acme.atlassian.net/browse/ERP-1");
+    }
+    const comment = drafts.find((draft) => draft.kind === EActivityKind.ISSUE_COMMENTED);
+    expect(comment?.url).toBe("https://acme.atlassian.net/browse/ERP-1?focusedCommentId=501");
+    const status = drafts.find((draft) => draft.kind === EActivityKind.ISSUE_STATUS_CHANGED);
+    expect(status?.url).toBe("https://acme.atlassian.net/browse/ERP-1");
+  });
+
+  test("skips changes older than the since time with a short overlap", () => {
+    const { drafts } = mapJiraIssues([jiraIssue({})], {
+      site: "acme.atlassian.net",
+      since: "2026-10-16T03:30:00.000Z",
+      offset: 0,
+    });
+
+    expect(drafts.map((draft) => draft.externalId).sort()).toEqual(["501", "9002:assignee"]);
+  });
+
+  test("drops an issue with no id or key", () => {
+    expect(mapJiraIssues([jiraIssue({ key: undefined })], JIRA_CONTEXT).drafts).toEqual([]);
+  });
+
+  test("reads every change across resume offsets when an issue has too many", () => {
+    const histories = Array.from({ length: HISTORY_COUNT }, (_, index) => ({
+      id: `h${index}`,
+      created: dayjs.utc("2026-10-16T00:00:00.000Z").add(index, "minute").toDate(),
+      items: [{ field: "status", fromString: "A", toString: "B" }],
+    }));
+    const issues = [jiraIssue({ changelog: { histories }, fields: {} })];
+
+    const first = mapJiraIssues(issues, JIRA_CONTEXT);
+    const second = mapJiraIssues(issues, { ...JIRA_CONTEXT, offset: JIRA_MAX_ACTIVITIES_PER_PAGE });
+
+    expect(first.drafts.length).toBe(JIRA_MAX_ACTIVITIES_PER_PAGE);
+    expect(first.overflow).toBe(true);
+    expect(second.overflow).toBe(false);
+    const ids = new Set([...first.drafts, ...second.drafts].map((draft) => draft.externalId));
+    expect(ids.size).toBe(HISTORY_COUNT);
+  });
+
+  test("ignores a change item with no own toString or fromString", () => {
+    const histories = [
+      {
+        id: "h1",
+        created: dayjs.utc("2026-10-16T02:00:00.000Z").toDate(),
+        items: [bareItem("assignee"), bareItem("status")],
+      },
+    ];
+
+    const { drafts } = mapJiraIssues(
+      [jiraIssue({ changelog: { histories }, fields: {} })],
+      JIRA_CONTEXT,
+    );
+
+    const byId = Object.fromEntries(drafts.map((draft) => [draft.externalId, draft]));
+    expect(byId["h1:assignee"]?.detail).toBe("Unassigned");
+    expect(byId["h1:status"]?.detail).toBe("");
   });
 });

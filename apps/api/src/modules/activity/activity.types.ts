@@ -5,6 +5,7 @@ import type {
   activityListResponse,
   activityResponse,
 } from "#api/modules/activity/activity.model";
+import type { dayjs } from "#api/shared/date/date.helpers";
 
 export type TActivityInsert = typeof schema.activity.$inferInsert;
 export type TActivityListQuery = typeof activityListQuery.static;
@@ -14,3 +15,5 @@ export type TActivityListRow = Omit<TActivityResponse, "source" | "kind"> & {
   source: string;
   kind: string;
 };
+
+export type TDateInput = Parameters<typeof dayjs>[0];

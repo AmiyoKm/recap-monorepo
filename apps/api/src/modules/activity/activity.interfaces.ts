@@ -54,3 +54,24 @@ export interface IChatMapContext {
   spaceId: string;
   isDirectMessage: boolean;
 }
+
+export interface IJiraMapContext {
+  site: string;
+  since: string;
+  offset: number;
+}
+
+export interface IJiraBatch extends IActivityBatch {
+  overflow: boolean;
+}
+
+export interface IJiraAuthor {
+  displayName?: string | undefined;
+  emailAddress?: string | undefined;
+}
+
+export interface IJiraIssueBase {
+  key: string;
+  title: string;
+  context: IJiraMapContext;
+}
