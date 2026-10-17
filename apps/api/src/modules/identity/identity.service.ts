@@ -13,55 +13,56 @@ import {
   EIdentityAuthKind,
   EIdentityConnectError,
   EIdentityMessages,
+  type EOAuthCallback,
 } from "#api/modules/identity/identity.enums";
 import {
-  apiKeySite,
-  buildApiKeyConnectionRow,
   buildIdentityRow,
   buildOAuthConnectionRow,
   buildPendingGrantRow,
   connectionTokenKey,
   createGrantState,
+  grantCallback,
   hasCalendarScope,
   isWiredProvider,
   parsePendingGrant,
-  toConnectionView,
+  requireCodeVerifier,
   toIdentityView,
+  toProvider,
 } from "#api/modules/identity/identity.helpers";
 import type {
-  IApiKeyConnectInput,
   IConnectionGrant,
+  IConnectionTarget,
+  IGoogleConnectionSave,
   IGrantVerifier,
   IIdentityCreateGrant,
-  IOAuthConnectionSave,
+  IProviderConnectionSave,
   IProviderSlot,
 } from "#api/modules/identity/identity.interfaces";
 import { IdentityRepository } from "#api/modules/identity/identity.repository";
 import type {
-  TApiKey,
-  TApiKeyValidationError,
   TAuthorizeResponse,
   TConnectBadRequestError,
-  TConnectConnectionBody,
-  TConnectionExistsError,
   TConnectionNotFoundError,
-  TConnectionResponse,
   TConnectionRow,
   TDeleteResponse,
-  TGoogleCallbackQuery,
   TGrantRequest,
   TIdentityNotFoundError,
   TIdentityResponse,
   TIdentityRow,
+  TOAuthCallbackQuery,
   TPendingGrant,
 } from "#api/modules/identity/identity.types";
 import { CacheService } from "#api/shared/cache/cache.service";
 import { dayjs } from "#api/shared/date/date.helpers";
+import { ENV } from "#api/shared/env/env.constants";
 import { logError } from "#api/shared/logger/logger.helpers";
-import type { IGoogleGrant, IGoogleTokens } from "#api/shared/providers/google/google.interfaces";
+import type { IGoogleGrant } from "#api/shared/providers/google/google.interfaces";
 import { providers } from "#api/shared/providers/providers.client";
 import { EProvider } from "#api/shared/providers/providers.enums";
-import type { IProviderAccount } from "#api/shared/providers/providers.interfaces";
+import type {
+  IProviderAuthorization,
+  IProviderTokens,
+} from "#api/shared/providers/providers.interfaces";
 import { ROUTES } from "#api/shared/routes/routes.constants";
 
 export abstract class IdentityService {
@@ -74,31 +75,43 @@ export abstract class IdentityService {
     return identities.map((row) => toIdentityView(row, connections));
   }
 
-  static startIdentityConnect(userId: string): Promise<TAuthorizeResponse> {
-    return IdentityService.authorize(
+  static async startIdentityConnect(userId: string): Promise<TAuthorizeResponse> {
+    const state = createGrantState();
+    const authorization = await providers.google.createAuthorization({
+      state,
+      redirectUri: ROUTES.API.GOOGLE_CALLBACK_URL(),
+      scopes: IDENTITY_CREATE_SCOPES,
+    });
+    return IdentityService.storeGrant(
+      state,
       { userId, purpose: EGrantPurpose.IDENTITY_CREATE },
-      IDENTITY_CREATE_SCOPES,
+      authorization,
     );
   }
 
-  static connect(
+  static async startConnection(
     userId: string,
     identityId: string,
-    body: TConnectConnectionBody,
-  ): Promise<TAuthorizeResponse | TConnectionResponse> {
-    const { apiKey } = body;
-    if (apiKey === undefined) {
-      return IdentityService.startConnection(userId, identityId, body.provider);
+    providerName: string,
+  ): Promise<TAuthorizeResponse> {
+    await IdentityService.requireOwnedIdentity(userId, identityId);
+    const provider = toProvider(providerName);
+    if (!(provider && isWiredProvider(provider, EIdentityAuthKind.OAUTH))) {
+      throw IdentityService.unsupportedProvider();
     }
-    return IdentityService.connectApiKey(userId, identityId, {
-      provider: body.provider,
-      apiKey,
-      email: body.email,
-      site: body.site,
-    });
+    const state = createGrantState();
+    const authorization = await IdentityService.createAuthorization(provider, state);
+    return IdentityService.storeGrant(
+      state,
+      { userId, purpose: EGrantPurpose.CONNECTION, identityId, provider },
+      authorization,
+    );
   }
 
-  static async completeGoogleCallback(query: TGoogleCallbackQuery): Promise<string> {
+  static async completeCallback(
+    callback: EOAuthCallback,
+    query: TOAuthCallbackQuery,
+  ): Promise<string> {
     const stored = await IdentityRepository.takePendingGrant({
       state: query.state,
       now: dayjs().toISOString(),
@@ -107,7 +120,7 @@ export abstract class IdentityService {
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.EXPIRED });
     }
     const grant = parsePendingGrant(stored);
-    if (!grant) {
+    if (!grant || grantCallback(grant) !== callback) {
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.FAILED });
     }
     const { code } = query;
@@ -146,57 +159,59 @@ export abstract class IdentityService {
     return { deleted: true };
   }
 
-  private static async startConnection(
-    userId: string,
-    identityId: string,
-    provider: string,
-  ): Promise<TAuthorizeResponse> {
-    await IdentityService.requireOwnedIdentity(userId, identityId);
-    if (!isWiredProvider(provider, EIdentityAuthKind.OAUTH)) {
-      throw status("Bad Request", {
-        message: EIdentityMessages.PROVIDER_UNSUPPORTED,
-      } satisfies TConnectBadRequestError);
+  private static createAuthorization(
+    provider: EProvider,
+    state: string,
+  ): Promise<IProviderAuthorization> {
+    switch (provider) {
+      case EProvider.GOOGLE_CALENDAR:
+        return providers.google.createAuthorization({
+          state,
+          redirectUri: ROUTES.API.GOOGLE_CALLBACK_URL(),
+          scopes: GOOGLE_CALENDAR_SCOPES,
+        });
+      case EProvider.JIRA:
+        if (!ENV.jira) {
+          throw IdentityService.unsupportedProvider();
+        }
+        return Promise.resolve(
+          providers.jira.createAuthorization({
+            state,
+            redirectUri: ROUTES.API.JIRA_CALLBACK_URL(),
+          }),
+        );
+      case EProvider.LINEAR:
+        if (!ENV.linear) {
+          throw IdentityService.unsupportedProvider();
+        }
+        return Promise.resolve(
+          providers.linear.createAuthorization({
+            state,
+            redirectUri: ROUTES.API.LINEAR_CALLBACK_URL(),
+          }),
+        );
+      case EProvider.SLACK:
+      case EProvider.GOOGLE_CHAT:
+      case EProvider.GITHUB:
+        throw IdentityService.unsupportedProvider();
     }
-    return IdentityService.authorize(
-      { userId, purpose: EGrantPurpose.CONNECTION, identityId, provider },
-      GOOGLE_CALENDAR_SCOPES,
-    );
   }
 
-  private static async connectApiKey(
-    userId: string,
-    identityId: string,
-    input: IApiKeyConnectInput,
-  ): Promise<TConnectionResponse> {
-    await IdentityService.requireOwnedIdentity(userId, identityId);
-    if (!isWiredProvider(input.provider, EIdentityAuthKind.API_KEY)) {
-      throw status("Bad Request", {
-        message: EIdentityMessages.PROVIDER_UNSUPPORTED,
-      } satisfies TConnectBadRequestError);
-    }
-    const slot = await IdentityService.findProviderSlot(identityId, input.provider);
-    if (slot.isTaken) {
-      throw status("Conflict", {
-        message: EIdentityMessages.CONNECTION_EXISTS,
-      } satisfies TConnectionExistsError);
-    }
-    const apiKey = IdentityService.toApiKey(input);
-    const account = await IdentityService.verifyApiKey(apiKey);
-    const row = buildApiKeyConnectionRow({
-      id: randomUUID(),
-      identityId,
-      provider: input.provider,
-      apiKey: input.apiKey,
-      site: apiKeySite(apiKey),
-      account,
-    });
-    const saved = await IdentityService.saveConnection(row, slot.staleConnectionId);
-    if (!saved) {
-      throw status("Conflict", {
-        message: EIdentityMessages.CONNECTION_EXISTS,
-      } satisfies TConnectionExistsError);
-    }
-    return toConnectionView(row);
+  private static unsupportedProvider() {
+    return status("Bad Request", {
+      message: EIdentityMessages.PROVIDER_UNSUPPORTED,
+    } satisfies TConnectBadRequestError);
+  }
+
+  private static async storeGrant(
+    state: string,
+    request: TGrantRequest,
+    authorization: IProviderAuthorization,
+  ): Promise<TAuthorizeResponse> {
+    await IdentityRepository.storePendingGrant(
+      buildPendingGrantRow(state, { ...request, codeVerifier: authorization.codeVerifier }),
+    );
+    return { authorizeUrl: authorization.authorizeUrl };
   }
 
   private static completeGrant(grant: TPendingGrant, code: string): Promise<string> {
@@ -212,7 +227,7 @@ export abstract class IdentityService {
     grant: IIdentityCreateGrant & IGrantVerifier,
     code: string,
   ): Promise<string> {
-    const { profile } = await IdentityService.exchangeCode(grant, code);
+    const { profile } = await IdentityService.exchangeGoogleCode(grant, code);
     const existing = await IdentityRepository.findIdentityBySub(grant.userId, profile.sub);
     if (existing) {
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.ALREADY_CONNECTED });
@@ -233,21 +248,54 @@ export abstract class IdentityService {
     grant: IConnectionGrant & IGrantVerifier,
     code: string,
   ): Promise<string> {
-    const { identityId, provider } = grant;
-    const identity = await IdentityRepository.findOwnedIdentity(grant.userId, identityId);
+    const identity = await IdentityRepository.findOwnedIdentity(grant.userId, grant.identityId);
     if (!identity) {
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.FAILED });
     }
-    const slot = await IdentityService.findProviderSlot(identity.id, provider);
+    const slot = await IdentityService.findProviderSlot(identity.id, grant.provider);
     if (slot.isTaken) {
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.ALREADY_CONNECTED });
     }
-    return IdentityService.saveOAuthConnection({
-      identity,
-      provider,
-      grant: await IdentityService.exchangeCode(grant, code),
-      staleConnectionId: slot.staleConnectionId,
-    });
+    return IdentityService.connectProvider(
+      { identity, provider: grant.provider, staleConnectionId: slot.staleConnectionId },
+      grant,
+      code,
+    );
+  }
+
+  private static async connectProvider(
+    target: IConnectionTarget,
+    grant: IGrantVerifier,
+    code: string,
+  ): Promise<string> {
+    switch (target.provider) {
+      case EProvider.GOOGLE_CALENDAR:
+        return IdentityService.saveGoogleConnection({
+          ...target,
+          grant: await IdentityService.exchangeGoogleCode(grant, code),
+        });
+      case EProvider.JIRA:
+        return IdentityService.saveConnection({
+          ...target,
+          grant: await providers.jira.exchangeCode({
+            code,
+            redirectUri: ROUTES.API.JIRA_CALLBACK_URL(),
+          }),
+        });
+      case EProvider.LINEAR:
+        return IdentityService.saveConnection({
+          ...target,
+          grant: await providers.linear.exchangeCode({
+            code,
+            codeVerifier: requireCodeVerifier(grant.codeVerifier),
+            redirectUri: ROUTES.API.LINEAR_CALLBACK_URL(),
+          }),
+        });
+      case EProvider.SLACK:
+      case EProvider.GOOGLE_CHAT:
+      case EProvider.GITHUB:
+        return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.FAILED });
+    }
   }
 
   private static async findProviderSlot(
@@ -264,7 +312,55 @@ export abstract class IdentityService {
     return { isTaken: false, staleConnectionId: existing.id };
   }
 
-  private static async saveConnection(
+  private static async saveGoogleConnection({
+    grant: { tokens, profile },
+    ...target
+  }: IGoogleConnectionSave): Promise<string> {
+    if (profile.sub !== target.identity.googleSub) {
+      return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.SUB_MISMATCH });
+    }
+    if (!hasCalendarScope(tokens.scopes)) {
+      return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.SCOPE_DENIED });
+    }
+    return await IdentityService.saveConnection({
+      ...target,
+      grant: {
+        tokens,
+        account: { accountId: profile.sub, accountEmail: profile.email },
+        site: null,
+        resourceId: null,
+      },
+    });
+  }
+
+  private static async saveConnection({
+    identity,
+    provider,
+    grant: { tokens, account, site, resourceId },
+    staleConnectionId,
+  }: IProviderConnectionSave): Promise<string> {
+    if (tokens.refreshToken === undefined) {
+      return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.FAILED });
+    }
+    const row = buildOAuthConnectionRow({
+      id: randomUUID(),
+      identityId: identity.id,
+      provider,
+      refreshToken: tokens.refreshToken,
+      tokens,
+      account,
+      site,
+      resourceId,
+    });
+    const saved = await IdentityService.replaceConnection(row, staleConnectionId);
+    if (!saved) {
+      return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.ALREADY_CONNECTED });
+    }
+    await IdentityService.runCacheTask(IdentityService.cacheConnectionToken(row.id, tokens));
+    return ROUTES.WEB.CONNECT_RESULT({ connected: provider, email: account.accountEmail });
+  }
+
+  private static async replaceConnection(
     row: TConnectionRow,
     staleConnectionId: string | undefined,
   ): Promise<boolean> {
@@ -276,87 +372,12 @@ export abstract class IdentityService {
     return true;
   }
 
-  private static async saveOAuthConnection({
-    identity,
-    provider,
-    grant: { tokens, profile },
-    staleConnectionId,
-  }: IOAuthConnectionSave): Promise<string> {
-    if (profile.sub !== identity.googleSub) {
-      return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.SUB_MISMATCH });
-    }
-    if (tokens.refreshToken === undefined) {
-      return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.FAILED });
-    }
-    if (!hasCalendarScope(tokens.scopes)) {
-      return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.SCOPE_DENIED });
-    }
-    const row = buildOAuthConnectionRow({
-      id: randomUUID(),
-      identityId: identity.id,
-      provider,
-      refreshToken: tokens.refreshToken,
-      expiresInSeconds: tokens.expiresInSeconds,
-      scopes: tokens.scopes,
-      profile,
-    });
-    const saved = await IdentityService.saveConnection(row, staleConnectionId);
-    if (!saved) {
-      return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.ALREADY_CONNECTED });
-    }
-    await IdentityService.runCacheTask(IdentityService.cacheConnectionToken(row.id, tokens));
-    return ROUTES.WEB.CONNECT_RESULT({ connected: provider, email: profile.email });
-  }
-
-  private static exchangeCode(grant: TPendingGrant, code: string): Promise<IGoogleGrant> {
+  private static exchangeGoogleCode(grant: IGrantVerifier, code: string): Promise<IGoogleGrant> {
     return providers.google.exchangeCode({
       code,
-      codeVerifier: grant.codeVerifier,
+      codeVerifier: requireCodeVerifier(grant.codeVerifier),
       redirectUri: ROUTES.API.GOOGLE_CALLBACK_URL(),
     });
-  }
-
-  private static toApiKey(input: IApiKeyConnectInput): TApiKey {
-    if (input.provider === EProvider.LINEAR) {
-      return { provider: EProvider.LINEAR, apiKey: input.apiKey };
-    }
-    const { email, site } = input;
-    if (input.provider !== EProvider.JIRA || !(email && site)) {
-      throw status("Bad Request", {
-        message: EIdentityMessages.JIRA_DETAILS_REQUIRED,
-      } satisfies TConnectBadRequestError);
-    }
-    return { provider: EProvider.JIRA, credentials: { site, email, apiToken: input.apiKey } };
-  }
-
-  private static async verifyApiKey(apiKey: TApiKey): Promise<IProviderAccount> {
-    const account = await IdentityService.requestProviderAccount(apiKey);
-    if (!account) {
-      throw status("Bad Request", {
-        message: EIdentityMessages.INVALID_API_KEY,
-      } satisfies TConnectBadRequestError);
-    }
-    return account;
-  }
-
-  private static async requestProviderAccount(apiKey: TApiKey): Promise<IProviderAccount | null> {
-    try {
-      return await IdentityService.verifyWithProvider(apiKey);
-    } catch (error) {
-      logError(EIdentityMessages.API_KEY_VALIDATION_FAILED, error);
-      throw status("Bad Gateway", {
-        message: EIdentityMessages.API_KEY_VALIDATION_FAILED,
-      } satisfies TApiKeyValidationError);
-    }
-  }
-
-  private static verifyWithProvider(apiKey: TApiKey): Promise<IProviderAccount | null> {
-    switch (apiKey.provider) {
-      case EProvider.JIRA:
-        return providers.jira.verifyApiKey(apiKey.credentials);
-      case EProvider.LINEAR:
-        return providers.linear.verifyApiKey(apiKey.apiKey);
-    }
   }
 
   private static async requireOwnedIdentity(
@@ -372,22 +393,6 @@ export abstract class IdentityService {
     return identity;
   }
 
-  private static async authorize(
-    request: TGrantRequest,
-    scopes: string[],
-  ): Promise<TAuthorizeResponse> {
-    const state = createGrantState();
-    const { authorizeUrl, codeVerifier } = await providers.google.createAuthorization({
-      state,
-      redirectUri: ROUTES.API.GOOGLE_CALLBACK_URL(),
-      scopes,
-    });
-    await IdentityRepository.storePendingGrant(
-      buildPendingGrantRow(state, { ...request, codeVerifier }),
-    );
-    return { authorizeUrl };
-  }
-
   private static async runCacheTask(task: Promise<void>): Promise<void> {
     try {
       await task;
@@ -398,7 +403,7 @@ export abstract class IdentityService {
 
   private static async cacheConnectionToken(
     connectionId: string,
-    tokens: IGoogleTokens,
+    tokens: IProviderTokens,
   ): Promise<void> {
     if (tokens.expiresInSeconds === undefined || tokens.expiresInSeconds <= 0) {
       return;

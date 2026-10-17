@@ -14,9 +14,7 @@ export enum ETestMessages {
   IDENTITY_LIST_IS_EMPTY_AFTER_CONNECT = "Identity list is empty after connect",
   CALENDAR_CONNECT_CALLBACK_FAILED = "Calendar connect callback failed",
   CONNECTION_ROW_HAS_NO_ENCRYPTED_REFRESH_TOKEN = "Connection row has no encrypted refresh token",
-  CONNECTION_ROW_HAS_NO_ENCRYPTED_API_KEY = "Connection row has no encrypted api key",
-  SECOND_IDENTITY_IS_MISSING = "Second identity is missing",
   CACHE_IS_DOWN = "Cache is down",
   CACHED_TOKEN_IS_MISSING = "Cached token is missing",
-  CONNECTION_HAS_NO_ID = "Connection has no id",
+  PROVIDER_CONNECT_START_FAILED = "Provider connect start failed",
 }

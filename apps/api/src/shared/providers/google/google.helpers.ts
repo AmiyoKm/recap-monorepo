@@ -1,9 +1,10 @@
 import type { Credentials, TokenPayload } from "google-auth-library";
 
 import { dayjs } from "#api/shared/date/date.helpers";
-import { GOOGLE_SCOPE_SEPARATOR } from "#api/shared/providers/google/google.constants";
 import { EGoogleMessages } from "#api/shared/providers/google/google.enums";
-import type { IGoogleProfile, IGoogleTokens } from "#api/shared/providers/google/google.interfaces";
+import type { IGoogleProfile } from "#api/shared/providers/google/google.interfaces";
+import { OAUTH_SCOPE_SEPARATOR } from "#api/shared/providers/providers.constants";
+import type { IProviderTokens } from "#api/shared/providers/providers.interfaces";
 
 export function toGoogleProfile(payload: TokenPayload | undefined): IGoogleProfile {
   if (!(payload?.sub && payload.email)) {
@@ -28,10 +29,10 @@ function splitScopes(scope: Credentials["scope"]): string[] {
   if (!scope) {
     return [];
   }
-  return scope.split(GOOGLE_SCOPE_SEPARATOR);
+  return scope.split(OAUTH_SCOPE_SEPARATOR);
 }
 
-export function toGoogleTokens(accessToken: string, credentials: Credentials): IGoogleTokens {
+export function toGoogleTokens(accessToken: string, credentials: Credentials): IProviderTokens {
   return {
     accessToken,
     refreshToken: credentials.refresh_token ?? undefined,

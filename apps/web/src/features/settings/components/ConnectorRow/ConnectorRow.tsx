@@ -13,8 +13,8 @@ import {
   connectorState,
 } from "@/features/settings/components/ConnectorRow/ConnectorRow.helpers";
 import type { IConnectorRowProps } from "@/features/settings/components/ConnectorRow/ConnectorRow.interfaces";
-import { ConnectorConnectButton } from "@/features/settings/components/ConnectorRow/components/ConnectorConnectButton";
 import { ProviderLogo } from "@/features/settings/components/ConnectorRow/components/ProviderLogo";
+import { ConnectProviderDialog } from "@/features/settings/components/ConnectProviderDialog";
 import { cn } from "@/lib/utils";
 
 export function ConnectorRow({ identityId, provider, connection }: IConnectorRowProps) {
@@ -56,10 +56,10 @@ export function ConnectorRow({ identityId, provider, connection }: IConnectorRow
           </Button>
         )}
         {state !== EConnectorState.ACTIVE && (
-          <ConnectorConnectButton
+          <ConnectProviderDialog
             identityId={identityId}
             provider={provider}
-            label={connectorConnectLabel(needsReconnect)}
+            triggerLabel={connectorConnectLabel(needsReconnect)}
           />
         )}
       </div>

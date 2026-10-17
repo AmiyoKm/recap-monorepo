@@ -1,7 +1,7 @@
 import type { TConnectorProvider } from "@/api/identity/identity.types";
 
-export interface IConnectorConnectButtonProps {
+export interface IConnectProviderDialogProps {
   identityId: string;
   provider: TConnectorProvider;
-  label: string;
+  triggerLabel: string;
 }

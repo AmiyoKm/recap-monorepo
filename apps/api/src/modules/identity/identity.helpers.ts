@@ -12,14 +12,13 @@ import {
   EIdentityAuthKind,
   EIdentityCacheKeyPrefix,
   EIdentityMessages,
+  EOAuthCallback,
 } from "#api/modules/identity/identity.enums";
 import type {
-  IApiKeyConnectionInput,
   IOAuthConnectionInput,
   IProviderRegistration,
 } from "#api/modules/identity/identity.interfaces";
 import type {
-  TApiKey,
   TConnectionResponse,
   TConnectionRow,
   TIdentityResponse,
@@ -31,9 +30,8 @@ import { encryptSecret } from "#api/shared/crypto/crypto.helpers";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { ENV } from "#api/shared/env/env.constants";
 import { toStringRecord } from "#api/shared/json/json.helpers";
-import { GOOGLE_SCOPE_SEPARATOR } from "#api/shared/providers/google/google.constants";
 import type { IGoogleProfile } from "#api/shared/providers/google/google.interfaces";
-import { normalizeJiraSite } from "#api/shared/providers/jira/jira.helpers";
+import { OAUTH_SCOPE_SEPARATOR } from "#api/shared/providers/providers.constants";
 import { EProvider } from "#api/shared/providers/providers.enums";
 import { ROUTES } from "#api/shared/routes/routes.constants";
 
@@ -68,6 +66,33 @@ export function isWiredProvider(provider: string, authKind: EIdentityAuthKind): 
   return registration?.wired === true && registration.authKind === authKind;
 }
 
+export function toProvider(value: string): EProvider | undefined {
+  return Object.values(EProvider).find((provider) => provider === value);
+}
+
+export function grantCallback(grant: TPendingGrant): EOAuthCallback | null {
+  switch (grant.purpose) {
+    case EGrantPurpose.IDENTITY_CREATE:
+      return EOAuthCallback.GOOGLE;
+    case EGrantPurpose.CONNECTION:
+      return PROVIDER_REGISTRY[grant.provider].callback;
+  }
+}
+
+export function requireCodeVerifier(codeVerifier: string | null): string {
+  if (codeVerifier === null) {
+    throw new Error(EIdentityMessages.CODE_VERIFIER_MISSING);
+  }
+  return codeVerifier;
+}
+
+function readCodeVerifier(value: unknown): string | null | undefined {
+  if (typeof value === "string" || value === null) {
+    return value;
+  }
+  return undefined;
+}
+
 export function parsePendingGrant(stored: string): TPendingGrant | null {
   try {
     return readPendingGrant(stored);
@@ -82,8 +107,9 @@ function readPendingGrant(stored: string): TPendingGrant | null {
   if (!record) {
     return null;
   }
-  const { userId, purpose, codeVerifier } = record;
-  if (typeof userId !== "string" || typeof codeVerifier !== "string") {
+  const { userId, purpose, codeVerifier: storedVerifier } = record;
+  const codeVerifier = readCodeVerifier(storedVerifier);
+  if (typeof userId !== "string" || codeVerifier === undefined) {
     return null;
   }
   if (purpose === EGrantPurpose.IDENTITY_CREATE) {
@@ -92,8 +118,12 @@ function readPendingGrant(stored: string): TPendingGrant | null {
   if (purpose !== EGrantPurpose.CONNECTION) {
     return null;
   }
-  const { identityId, provider } = record;
-  if (typeof identityId !== "string" || typeof provider !== "string") {
+  const { identityId, provider: providerName } = record;
+  if (typeof identityId !== "string" || typeof providerName !== "string") {
+    return null;
+  }
+  const provider = toProvider(providerName);
+  if (!provider) {
     return null;
   }
   return { userId, purpose, identityId, provider, codeVerifier };
@@ -186,43 +216,17 @@ export function buildOAuthConnectionRow(input: IOAuthConnectionInput): TConnecti
     provider: input.provider,
     authKind: EIdentityAuthKind.OAUTH,
     status: EConnectionStatus.ACTIVE,
-    scopes: input.scopes.join(GOOGLE_SCOPE_SEPARATOR),
+    scopes: input.tokens.scopes.join(OAUTH_SCOPE_SEPARATOR),
     refreshTokenEnc: encryptSecret(ENV.connectionEncryptionKey, input.refreshToken),
     apiKeyEnc: null,
-    accessTokenExpiresAt: accessTokenExpiresAt(now, input.expiresInSeconds),
-    providerAccountId: input.profile.sub,
-    providerAccountEmail: input.profile.email,
-    providerSite: null,
-    createdAt: now.toISOString(),
-    updatedAt: now.toISOString(),
-  };
-}
-
-export function buildApiKeyConnectionRow(input: IApiKeyConnectionInput): TConnectionRow {
-  const now = dayjs().toISOString();
-  return {
-    id: input.id,
-    identityId: input.identityId,
-    provider: input.provider,
-    authKind: EIdentityAuthKind.API_KEY,
-    status: EConnectionStatus.ACTIVE,
-    scopes: null,
-    refreshTokenEnc: null,
-    apiKeyEnc: encryptSecret(ENV.connectionEncryptionKey, input.apiKey),
-    accessTokenExpiresAt: null,
+    accessTokenExpiresAt: accessTokenExpiresAt(now, input.tokens.expiresInSeconds),
     providerAccountId: input.account.accountId,
     providerAccountEmail: input.account.accountEmail,
     providerSite: input.site,
-    createdAt: now,
-    updatedAt: now,
+    providerResourceId: input.resourceId,
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
   };
-}
-
-export function apiKeySite(apiKey: TApiKey): string | null {
-  if (apiKey.provider !== EProvider.JIRA) {
-    return null;
-  }
-  return normalizeJiraSite(apiKey.credentials.site);
 }
 
 export function hasCalendarScope(scopes: string[]): boolean {

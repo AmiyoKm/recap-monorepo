@@ -11,6 +11,7 @@ import { PENDING_GRANT_TTL_SECONDS } from "#api/modules/identity/identity.consta
 import {
   EConnectionStatus,
   EGrantPurpose,
+  EIdentityAuthKind,
   EIdentityMessages,
 } from "#api/modules/identity/identity.enums";
 import { connectionTokenKey } from "#api/modules/identity/identity.helpers";
@@ -30,10 +31,15 @@ import type {
   IGoogleProfile,
 } from "#api/shared/providers/google/google.interfaces";
 import { GoogleService } from "#api/shared/providers/google/google.service";
-import type { IJiraCredentials } from "#api/shared/providers/jira/jira.interfaces";
 import { JiraService } from "#api/shared/providers/jira/jira.service";
+import type { ILinearCodeExchangeInput } from "#api/shared/providers/linear/linear.interfaces";
 import { LinearService } from "#api/shared/providers/linear/linear.service";
-import type { IProviderAccount } from "#api/shared/providers/providers.interfaces";
+import type {
+  IProviderAuthorization,
+  IProviderAuthorizeInput,
+  IProviderCodeExchangeInput,
+  IProviderGrant,
+} from "#api/shared/providers/providers.interfaces";
 import {
   CALENDAR_EMAIL,
   CALENDAR_GRANTED_SCOPES,
@@ -42,24 +48,21 @@ import {
   GOOGLE_ACCESS_DENIED,
   GOOGLE_PROFILE,
   HTTP_BAD_REQUEST,
-  HTTP_CONFLICT,
   HTTP_FOUND,
   HTTP_NOT_FOUND,
   HTTP_OK,
   HTTP_UNAUTHORIZED,
-  INVALID_API_KEY,
-  JIRA_ACCOUNT,
-  JIRA_EMAIL,
-  JIRA_SITE,
-  LINEAR_ACCOUNT,
+  JIRA_GRANT,
+  LINEAR_GRANT,
   TEST_PASSWORD,
   TEST_USER_NAME,
-  VALID_JIRA_KEY,
-  VALID_LINEAR_KEY,
 } from "#api-tests/fixtures/fixtures.constants";
 import { ETestMessages } from "#api-tests/fixtures/fixtures.enums";
 import { uniqueEmail, wipeCache, wipeDatabase } from "#api-tests/fixtures/fixtures.helpers";
-import type { ICalendarConnectCodes } from "#api-tests/integration/identity/identity.interfaces";
+import type {
+  ICalendarConnectCodes,
+  IProviderCallbackCase,
+} from "#api-tests/integration/identity/identity.interfaces";
 
 function readOverride<TValue>(
   overrides: Map<string, TValue | undefined>,
@@ -108,9 +111,40 @@ class FakeGoogleClient {
   }
 }
 
+class FakeOAuthClient {
+  readonly grants = new Map<string, IProviderGrant>();
+  lastCodeVerifier: string | undefined;
+
+  constructor(private readonly name: string) {}
+
+  createAuthorization(input: IProviderAuthorizeInput, hasPkce: boolean): IProviderAuthorization {
+    return {
+      authorizeUrl: `https://consent.test/${this.name}?state=${input.state}`,
+      codeVerifier: this.codeVerifier(input.state, hasPkce),
+    };
+  }
+
+  exchangeCode(input: IProviderCodeExchangeInput, codeVerifier?: string): Promise<IProviderGrant> {
+    const grant = this.grants.get(input.code);
+    if (!grant) {
+      return Promise.reject(new Error(ETestMessages.UNKNOWN_TEST_CODE));
+    }
+    this.lastCodeVerifier = codeVerifier;
+    return Promise.resolve(grant);
+  }
+
+  private codeVerifier(state: string, hasPkce: boolean): string | null {
+    if (!hasPkce) {
+      return null;
+    }
+    return `${this.name}-verifier-${state}`;
+  }
+}
+
 class FakeProviderClients {
   readonly google = new FakeGoogleClient();
-  readonly apiKeys = new Map<string, IProviderAccount>();
+  readonly jira = new FakeOAuthClient("jira");
+  readonly linear = new FakeOAuthClient("linear");
 
   install(): void {
     spyOn(GoogleService, "createAuthorization").mockImplementation((input) =>
@@ -119,11 +153,15 @@ class FakeProviderClients {
     spyOn(GoogleService, "exchangeCode").mockImplementation((input) =>
       this.google.exchangeCode(input),
     );
-    spyOn(JiraService, "verifyApiKey").mockImplementation((credentials: IJiraCredentials) =>
-      Promise.resolve(this.apiKeys.get(`jira:${credentials.apiToken}`) ?? null),
+    spyOn(JiraService, "createAuthorization").mockImplementation((input) =>
+      this.jira.createAuthorization(input, false),
     );
-    spyOn(LinearService, "verifyApiKey").mockImplementation((apiKey: string) =>
-      Promise.resolve(this.apiKeys.get(`linear:${apiKey}`) ?? null),
+    spyOn(JiraService, "exchangeCode").mockImplementation((input) => this.jira.exchangeCode(input));
+    spyOn(LinearService, "createAuthorization").mockImplementation((input) =>
+      this.linear.createAuthorization(input, true),
+    );
+    spyOn(LinearService, "exchangeCode").mockImplementation((input: ILinearCodeExchangeInput) =>
+      this.linear.exchangeCode(input, input.codeVerifier),
     );
   }
 }
@@ -326,19 +364,66 @@ async function connectCalendar(
   return { identityId, connectionId: row.id };
 }
 
-function seedApiKeys(): void {
-  provider.apiKeys.set(`jira:${VALID_JIRA_KEY}`, JIRA_ACCOUNT);
-  provider.apiKeys.set(`linear:${VALID_LINEAR_KEY}`, LINEAR_ACCOUNT);
+function completeJiraCallback(code: string, state: string) {
+  return api.api.connect.jira.callback.get({ query: { code, state } });
 }
 
-function connectJira(cookie: string, identityId: string, apiKey: string) {
-  return connect(cookie, identityId, {
-    provider: "jira",
-    apiKey,
-    email: JIRA_EMAIL,
-    site: JIRA_SITE,
-  });
+function completeLinearCallback(code: string, state: string) {
+  return api.api.connect.linear.callback.get({ query: { code, state } });
 }
+
+async function startProviderState(
+  cookie: string,
+  identityId: string,
+  providerName: TConnectConnectionBody["provider"],
+): Promise<string> {
+  const { data, status } = await connect(cookie, identityId, { provider: providerName });
+  if (status !== HTTP_OK) {
+    throw new Error(ETestMessages.PROVIDER_CONNECT_START_FAILED);
+  }
+  return readState(readAuthorizeUrl(data));
+}
+
+async function insertApiKeyConnection(identityId: string, providerName: string): Promise<string> {
+  const id = `api-key-${providerName}`;
+  const now = dayjs().toISOString();
+  await db.insert(schema.connection).values({
+    id,
+    identityId,
+    provider: providerName,
+    authKind: EIdentityAuthKind.API_KEY,
+    status: EConnectionStatus.NEEDS_RECONNECT,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return id;
+}
+
+function expectedCodeVerifier(
+  providerName: string,
+  state: string,
+  hasPkce: boolean,
+): string | undefined {
+  if (!hasPkce) {
+    return undefined;
+  }
+  return `${providerName}-verifier-${state}`;
+}
+
+const PROVIDER_CALLBACK_CASES: IProviderCallbackCase[] = [
+  {
+    provider: "jira",
+    grant: JIRA_GRANT,
+    complete: completeJiraCallback,
+    hasPkce: false,
+  },
+  {
+    provider: "linear",
+    grant: LINEAR_GRANT,
+    complete: completeLinearCallback,
+    hasPkce: true,
+  },
+];
 
 beforeAll(() => {
   provider.install();
@@ -804,231 +889,239 @@ describe("calendar connections", () => {
   });
 });
 
-describe("api key connections", () => {
-  beforeEach(seedApiKeys);
+describe("jira and linear connections", () => {
+  test("starts jira connect with a pending grant that has no code verifier", async () => {
+    const { cookie, userId } = await signUp(uniqueEmail());
+    provider.google.profiles.set("code-jira-start", { ...GOOGLE_PROFILE, sub: "sub-jira-start" });
+    const identityId = await createIdentity(cookie, "code-jira-start");
 
-  test("connects jira with a valid api key", async () => {
-    const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-jira", { ...GOOGLE_PROFILE, sub: "google-sub-jira" });
-    const identityId = await createIdentity(cookie, "code-jira");
-
-    const { status, data } = await connectJira(cookie, identityId, VALID_JIRA_KEY);
+    const { status, data } = await connect(cookie, identityId, { provider: "jira" });
     expect(status).toBe(HTTP_OK);
-    expect(data).toEqual({
-      id: expect.any(String),
+    const authorizeUrl = readAuthorizeUrl(data);
+    expect(authorizeUrl.startsWith("https://consent.test/jira")).toBe(true);
+    expect(await readPendingGrant(readState(authorizeUrl))).toEqual({
+      userId,
+      purpose: EGrantPurpose.CONNECTION,
+      identityId,
       provider: "jira",
-      authKind: "api_key",
-      status: "active",
-      scopes: null,
-      providerAccountId: JIRA_ACCOUNT.accountId,
-      providerAccountEmail: JIRA_ACCOUNT.accountEmail,
-      providerSite: JIRA_SITE,
-      createdAt: expect.anything(),
-      updatedAt: expect.anything(),
+      codeVerifier: null,
     });
-
-    const stored = await readOnlyConnectionRow();
-    if (typeof stored.apiKeyEnc !== "string") {
-      throw new Error(ETestMessages.CONNECTION_ROW_HAS_NO_ENCRYPTED_API_KEY);
-    }
-    expect(stored.apiKeyEnc).not.toContain(VALID_JIRA_KEY);
-    expect(stored.apiKeyEnc.startsWith("v1.")).toBe(true);
-    expect(decryptSecret(ENV.connectionEncryptionKey, stored.apiKeyEnc)).toBe(VALID_JIRA_KEY);
-    expect(stored.refreshTokenEnc).toBeNull();
-  });
-
-  test("connects linear with a valid api key", async () => {
-    const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-linear", { ...GOOGLE_PROFILE, sub: "google-sub-linear" });
-    const identityId = await createIdentity(cookie, "code-linear");
-
-    const { status, data } = await connect(cookie, identityId, {
-      provider: "linear",
-      apiKey: VALID_LINEAR_KEY,
-    });
-    expect(status).toBe(HTTP_OK);
-    expect(data).toMatchObject({
-      provider: "linear",
-      authKind: "api_key",
-      status: "active",
-      providerAccountId: LINEAR_ACCOUNT.accountId,
-      providerAccountEmail: LINEAR_ACCOUNT.accountEmail,
-    });
-  });
-
-  test("rejects an invalid api key with a clear error and no row", async () => {
-    const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-badkey", { ...GOOGLE_PROFILE, sub: "google-sub-badkey" });
-    const identityId = await createIdentity(cookie, "code-badkey");
-
-    const { status, error } = await connectJira(cookie, identityId, INVALID_API_KEY);
-    expect(status).toBe(HTTP_BAD_REQUEST);
-    expect(error?.value).toEqual({ message: EIdentityMessages.INVALID_API_KEY });
     expect(await db.select().from(schema.connection)).toEqual([]);
   });
 
-  test("refuses a duplicate provider under the same identity", async () => {
+  test("starts linear connect with a pkce code verifier", async () => {
     const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-dup", { ...GOOGLE_PROFILE, sub: "google-sub-dup" });
-    const identityId = await createIdentity(cookie, "code-dup");
+    provider.google.profiles.set("code-lin-start", { ...GOOGLE_PROFILE, sub: "sub-lin-start" });
+    const identityId = await createIdentity(cookie, "code-lin-start");
 
-    expect((await connectJira(cookie, identityId, VALID_JIRA_KEY)).status).toBe(HTTP_OK);
+    const state = await startProviderState(cookie, identityId, "linear");
+    expect(await readPendingGrant(state)).toMatchObject({
+      provider: "linear",
+      codeVerifier: `linear-verifier-${state}`,
+    });
+  });
 
-    const { status, error } = await connectJira(cookie, identityId, VALID_JIRA_KEY);
-    expect(status).toBe(HTTP_CONFLICT);
-    expect(error?.value).toEqual({ message: EIdentityMessages.CONNECTION_EXISTS });
+  test.each(PROVIDER_CALLBACK_CASES)(
+    "connects $provider through its callback",
+    async ({ provider: providerName, grant, complete, hasPkce }) => {
+      const { cookie } = await signUp(uniqueEmail());
+      provider.google.profiles.set(`code-${providerName}-id`, {
+        ...GOOGLE_PROFILE,
+        sub: `sub-${providerName}-ok`,
+      });
+      const identityId = await createIdentity(cookie, `code-${providerName}-id`);
+      const state = await startProviderState(cookie, identityId, providerName);
+      provider[providerName].grants.set(`code-${providerName}-ok`, grant);
+
+      const completed = await complete(`code-${providerName}-ok`, state);
+      expect(completed.status).toBe(HTTP_FOUND);
+      expect(readLocation(completed)).toBe(connectedUrl(providerName, grant.account.accountEmail));
+      expect(provider[providerName].lastCodeVerifier).toEqual(
+        expectedCodeVerifier(providerName, state, hasPkce),
+      );
+
+      const row = await readOnlyConnectionRow();
+      expect(row).toMatchObject({
+        identityId,
+        provider: providerName,
+        authKind: "oauth",
+        status: "active",
+        apiKeyEnc: null,
+        providerAccountId: grant.account.accountId,
+        providerAccountEmail: grant.account.accountEmail,
+        providerSite: grant.site,
+        providerResourceId: grant.resourceId,
+      });
+      if (typeof row.refreshTokenEnc !== "string") {
+        throw new Error(ETestMessages.CONNECTION_ROW_HAS_NO_ENCRYPTED_REFRESH_TOKEN);
+      }
+      expect<string | undefined>(
+        decryptSecret(ENV.connectionEncryptionKey, row.refreshTokenEnc),
+      ).toBe(grant.tokens.refreshToken);
+      expect(await cache.get(connectionTokenKey(row.id))).toBe(grant.tokens.accessToken);
+
+      const { data } = await listIdentities(cookie);
+      const serialized = JSON.stringify(data);
+      expect(serialized).not.toContain("refreshTokenEnc");
+      expect(serialized).not.toContain(grant.tokens.accessToken);
+      expect(data?.[0]?.connections[0]).toMatchObject({
+        provider: providerName,
+        authKind: "oauth",
+        providerSite: grant.site,
+      });
+    },
+  );
+
+  test("rejects a jira grant that comes back on the google callback", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    provider.google.profiles.set("code-jira-cross", { ...GOOGLE_PROFILE, sub: "sub-jira-cross" });
+    const identityId = await createIdentity(cookie, "code-jira-cross");
+    const state = await startProviderState(cookie, identityId, "jira");
+    provider.jira.grants.set("code-jira-cross-ok", JIRA_GRANT);
+
+    const completed = await completeCallback("code-jira-cross-ok", state);
+    expect(readLocation(completed)).toBe(errorUrl("failed"));
+    expect(await findPendingGrantRow(state)).toBeUndefined();
+    expect(await db.select().from(schema.connection)).toEqual([]);
+  });
+
+  test("redirects a cancelled jira consent to access denied", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    provider.google.profiles.set("code-jira-deny", { ...GOOGLE_PROFILE, sub: "sub-jira-deny" });
+    const identityId = await createIdentity(cookie, "code-jira-deny");
+    const state = await startProviderState(cookie, identityId, "jira");
+
+    const completed = await api.api.connect.jira.callback.get({
+      query: { error: GOOGLE_ACCESS_DENIED, state },
+    });
+    expect(readLocation(completed)).toBe(errorUrl("access_denied"));
+    expect(await db.select().from(schema.connection)).toEqual([]);
+  });
+
+  test("rejects a linear grant without a refresh token", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    provider.google.profiles.set("code-lin-norefresh", { ...GOOGLE_PROFILE, sub: "sub-lin-nr" });
+    const identityId = await createIdentity(cookie, "code-lin-norefresh");
+    const state = await startProviderState(cookie, identityId, "linear");
+    provider.linear.grants.set("code-lin-nr-ok", {
+      ...LINEAR_GRANT,
+      tokens: { ...LINEAR_GRANT.tokens, refreshToken: undefined },
+    });
+
+    const completed = await completeLinearCallback("code-lin-nr-ok", state);
+    expect(readLocation(completed)).toBe(errorUrl("failed"));
+    expect(await db.select().from(schema.connection)).toEqual([]);
+  });
+
+  test("redirects to an error when the jira code exchange fails", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    provider.google.profiles.set("code-jira-fail", { ...GOOGLE_PROFILE, sub: "sub-jira-fail" });
+    const identityId = await createIdentity(cookie, "code-jira-fail");
+    const state = await startProviderState(cookie, identityId, "jira");
+
+    const completed = await completeJiraCallback("unknown-jira-code", state);
+    expect(readLocation(completed)).toBe(errorUrl("failed"));
+    expect(await db.select().from(schema.connection)).toEqual([]);
+  });
+
+  test("refuses a second jira connection under the same work identity", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    provider.google.profiles.set("code-jira-dup", { ...GOOGLE_PROFILE, sub: "sub-jira-dup" });
+    const identityId = await createIdentity(cookie, "code-jira-dup");
+    provider.jira.grants.set("code-jira-dup-ok", JIRA_GRANT);
+    const firstState = await startProviderState(cookie, identityId, "jira");
+    expect(readLocation(await completeJiraCallback("code-jira-dup-ok", firstState))).toBe(
+      connectedUrl("jira", JIRA_GRANT.account.accountEmail),
+    );
+
+    const secondState = await startProviderState(cookie, identityId, "jira");
+    const completed = await completeJiraCallback("code-jira-dup-ok", secondState);
+    expect(readLocation(completed)).toBe(errorUrl("already_connected"));
     expect((await db.select().from(schema.connection)).length).toBe(1);
   });
 
-  test("replaces an api key connection that needs a reconnect", async () => {
+  test("replaces a retired api key connection with an oauth connection", async () => {
     const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-key-re", { ...GOOGLE_PROFILE, sub: "google-sub-key-re" });
-    const identityId = await createIdentity(cookie, "code-key-re");
-    expect((await connectJira(cookie, identityId, VALID_JIRA_KEY)).status).toBe(HTTP_OK);
-    const stale = await readOnlyConnectionRow();
-    await markNeedsReconnect(stale.id);
+    provider.google.profiles.set("code-lin-retire", { ...GOOGLE_PROFILE, sub: "sub-lin-retire" });
+    const identityId = await createIdentity(cookie, "code-lin-retire");
+    const staleId = await insertApiKeyConnection(identityId, "linear");
+    const state = await startProviderState(cookie, identityId, "linear");
+    provider.linear.grants.set("code-lin-retire-ok", LINEAR_GRANT);
 
-    expect((await connectJira(cookie, identityId, VALID_JIRA_KEY)).status).toBe(HTTP_OK);
-
+    const completed = await completeLinearCallback("code-lin-retire-ok", state);
+    expect(readLocation(completed)).toBe(connectedUrl("linear", LINEAR_GRANT.account.accountEmail));
     const row = await readOnlyConnectionRow();
-    expect(row.id).not.toBe(stale.id);
+    expect(row.id).not.toBe(staleId);
+    expect(row.authKind).toBe("oauth");
     expect(row.status).toBe(EConnectionStatus.ACTIVE);
   });
 
-  test("keeps an api key connection that needs a reconnect when the new key is invalid", async () => {
+  test("keeps a retired api key connection when the code exchange fails", async () => {
     const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-key-keep", {
-      ...GOOGLE_PROFILE,
-      sub: "google-sub-key-keep",
-    });
-    const identityId = await createIdentity(cookie, "code-key-keep");
-    expect((await connectJira(cookie, identityId, VALID_JIRA_KEY)).status).toBe(HTTP_OK);
-    const stale = await readOnlyConnectionRow();
-    await markNeedsReconnect(stale.id);
+    provider.google.profiles.set("code-jira-keep", { ...GOOGLE_PROFILE, sub: "sub-jira-keep" });
+    const identityId = await createIdentity(cookie, "code-jira-keep");
+    const staleId = await insertApiKeyConnection(identityId, "jira");
+    const state = await startProviderState(cookie, identityId, "jira");
 
-    expect((await connectJira(cookie, identityId, INVALID_API_KEY)).status).toBe(HTTP_BAD_REQUEST);
-
+    const completed = await completeJiraCallback("unknown-jira-code", state);
+    expect(readLocation(completed)).toBe(errorUrl("failed"));
     const row = await readOnlyConnectionRow();
-    expect(row.id).toBe(stale.id);
+    expect(row.id).toBe(staleId);
     expect(row.status).toBe(EConnectionStatus.NEEDS_RECONNECT);
   });
 
-  test("allows the same provider under a different identity", async () => {
-    const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-multi-a", { ...GOOGLE_PROFILE, sub: "google-sub-multi-a" });
-    provider.google.profiles.set("code-multi-b", {
-      ...GOOGLE_PROFILE,
-      sub: "google-sub-multi-b",
-      email: "other@employer.example",
-    });
-    const firstId = await createIdentity(cookie, "code-multi-a");
-    const secondState = await startConnect(cookie);
-    expect((await completeCallback("code-multi-b", secondState)).status).toBe(HTTP_FOUND);
-    const { data } = await listIdentities(cookie);
-    const second = data?.find((entry) => entry.id !== firstId);
-    if (!second) {
-      throw new Error(ETestMessages.SECOND_IDENTITY_IS_MISSING);
-    }
-
-    expect((await connectJira(cookie, firstId, VALID_JIRA_KEY)).status).toBe(HTTP_OK);
-    expect((await connectJira(cookie, second.id, VALID_JIRA_KEY)).status).toBe(HTTP_OK);
-    expect((await db.select().from(schema.connection)).length).toBe(2);
-  });
-
-  test("refuses to connect to another user's identity", async () => {
+  test("refuses to start a connection on another user's identity", async () => {
     const first = await signUp(uniqueEmail());
     const second = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-mine", { ...GOOGLE_PROFILE, sub: "google-sub-mine" });
-    const identityId = await createIdentity(first.cookie, "code-mine");
+    provider.google.profiles.set("code-jira-mine", { ...GOOGLE_PROFILE, sub: "sub-jira-mine" });
+    const identityId = await createIdentity(first.cookie, "code-jira-mine");
 
-    const { status } = await connectJira(second.cookie, identityId, VALID_JIRA_KEY);
+    const { status } = await connect(second.cookie, identityId, { provider: "jira" });
     expect(status).toBe(HTTP_NOT_FOUND);
+  });
+
+  test("disconnect removes a jira connection and its cached token", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    provider.google.profiles.set("code-jira-del", { ...GOOGLE_PROFILE, sub: "sub-jira-del" });
+    const identityId = await createIdentity(cookie, "code-jira-del");
+    const state = await startProviderState(cookie, identityId, "jira");
+    provider.jira.grants.set("code-jira-del-ok", JIRA_GRANT);
+    await completeJiraCallback("code-jira-del-ok", state);
+    const row = await readOnlyConnectionRow();
+
+    expect((await deleteConnection(cookie, row.id)).status).toBe(HTTP_OK);
     expect(await db.select().from(schema.connection)).toEqual([]);
+    expect(await cache.get(connectionTokenKey(row.id))).toBeNull();
   });
 
-  test("rejects unauthenticated api key connect", async () => {
-    const { status } = await api
-      .identities({ identityId: "some-id" })
-      .connections.post({ provider: "jira", apiKey: VALID_JIRA_KEY });
-    expect(status).toBe(HTTP_UNAUTHORIZED);
-  });
+  test.each(["jira", "linear"] as const)(
+    "rejects %s when its oauth client is not configured",
+    async (providerName) => {
+      const { cookie } = await signUp(uniqueEmail());
+      provider.google.profiles.set(`code-${providerName}-noenv`, {
+        ...GOOGLE_PROFILE,
+        sub: `sub-${providerName}-noenv`,
+      });
+      const identityId = await createIdentity(cookie, `code-${providerName}-noenv`);
+      const configured = ENV[providerName];
+      ENV[providerName] = undefined;
+      try {
+        const { status, error } = await connect(cookie, identityId, { provider: providerName });
+        expect(status).toBe(HTTP_BAD_REQUEST);
+        expect(error?.value).toEqual({ message: EIdentityMessages.PROVIDER_UNSUPPORTED });
+      } finally {
+        ENV[providerName] = configured;
+      }
+    },
+  );
 
-  test("never leaks secrets in GET identities", async () => {
+  test("rejects an unwired provider", async () => {
     const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-leak", { ...GOOGLE_PROFILE, sub: "google-sub-leak" });
-    const identityId = await createIdentity(cookie, "code-leak");
-    expect((await connectJira(cookie, identityId, VALID_JIRA_KEY)).status).toBe(HTTP_OK);
+    provider.google.profiles.set("code-gh", { ...GOOGLE_PROFILE, sub: "sub-gh" });
+    const identityId = await createIdentity(cookie, "code-gh");
 
-    const { status, data } = await listIdentities(cookie);
-    expect(status).toBe(HTTP_OK);
-    const raw = JSON.stringify(data);
-    expect(raw).not.toContain(VALID_JIRA_KEY);
-    expect(raw).not.toContain("apiKeyEnc");
-    expect(raw).not.toContain("refreshTokenEnc");
-  });
-
-  test("disconnect removes an api key connection", async () => {
-    const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-disc", { ...GOOGLE_PROFILE, sub: "google-sub-disc" });
-    const identityId = await createIdentity(cookie, "code-disc");
-    const { status, data } = await connect(cookie, identityId, {
-      provider: "linear",
-      apiKey: VALID_LINEAR_KEY,
-    });
-    expect(status).toBe(HTTP_OK);
-    if (!(data && "id" in data)) {
-      throw new Error(ETestMessages.CONNECTION_HAS_NO_ID);
-    }
-
-    expect((await deleteConnection(cookie, data.id)).status).toBe(HTTP_OK);
-    expect(await db.select().from(schema.connection)).toEqual([]);
-  });
-
-  test("requires email and site for jira", async () => {
-    const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-jira-details", {
-      ...GOOGLE_PROFILE,
-      sub: "google-sub-jira-det",
-    });
-    const identityId = await createIdentity(cookie, "code-jira-details");
-
-    const { status, error } = await connect(cookie, identityId, {
-      provider: "jira",
-      apiKey: VALID_JIRA_KEY,
-    });
-    expect(status).toBe(HTTP_BAD_REQUEST);
-    expect(error?.value).toEqual({ message: EIdentityMessages.JIRA_DETAILS_REQUIRED });
-    expect(await db.select().from(schema.connection)).toEqual([]);
-  });
-
-  test("rejects an api key for an oauth provider", async () => {
-    const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-oauth-key", {
-      ...GOOGLE_PROFILE,
-      sub: "google-sub-oauth-key",
-    });
-    const identityId = await createIdentity(cookie, "code-oauth-key");
-
-    const { status, error } = await connect(cookie, identityId, {
-      provider: "google-calendar",
-      apiKey: VALID_JIRA_KEY,
-    });
+    const { status, error } = await connect(cookie, identityId, { provider: "github" });
     expect(status).toBe(HTTP_BAD_REQUEST);
     expect(error?.value).toEqual({ message: EIdentityMessages.PROVIDER_UNSUPPORTED });
-    expect(await db.select().from(schema.connection)).toEqual([]);
-  });
-
-  test("maps a concurrent duplicate connect to conflict", async () => {
-    const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-race", { ...GOOGLE_PROFILE, sub: "google-sub-race" });
-    const identityId = await createIdentity(cookie, "code-race");
-
-    const results = await Promise.all([
-      connectJira(cookie, identityId, VALID_JIRA_KEY),
-      connectJira(cookie, identityId, VALID_JIRA_KEY),
-    ]);
-    const statuses = results.map((result) => result.status).sort();
-    expect(statuses).toEqual([HTTP_OK, HTTP_CONFLICT]);
-    expect((await db.select().from(schema.connection)).length).toBe(1);
   });
 });

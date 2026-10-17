@@ -39,6 +39,7 @@ export const connection = sqliteTable(
     providerAccountId: text("provider_account_id"),
     providerAccountEmail: text("provider_account_email"),
     providerSite: text("provider_site"),
+    providerResourceId: text("provider_resource_id"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },

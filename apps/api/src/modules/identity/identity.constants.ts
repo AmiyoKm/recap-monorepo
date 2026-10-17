@@ -1,4 +1,4 @@
-import { EIdentityAuthKind } from "#api/modules/identity/identity.enums";
+import { EIdentityAuthKind, EOAuthCallback } from "#api/modules/identity/identity.enums";
 import type { IProviderRegistration } from "#api/modules/identity/identity.interfaces";
 import { EProvider } from "#api/shared/providers/providers.enums";
 import { ROUTES } from "#api/shared/routes/routes.constants";
@@ -12,8 +12,6 @@ export const MAX_ID_LENGTH = 128;
 export const MAX_OAUTH_CODE_LENGTH = 4096;
 export const MAX_STATE_LENGTH = 512;
 export const MAX_OAUTH_ERROR_LENGTH = 256;
-export const MIN_API_KEY_LENGTH = 8;
-export const MAX_API_KEY_LENGTH = 4096;
 export const MAX_EMAIL_LENGTH = 320;
 export const MAX_SITE_LENGTH = 253;
 export const MAX_ACCOUNT_ID_LENGTH = 256;
@@ -23,10 +21,22 @@ export const MAX_SCOPES_LENGTH = 2048;
 export const MAX_TIMESTAMP_LENGTH = 64;
 export const SQLITE_UNIQUE_VIOLATION = "SQLITE_CONSTRAINT_UNIQUE";
 export const PROVIDER_REGISTRY: Record<EProvider, IProviderRegistration> = {
-  [EProvider.GOOGLE_CALENDAR]: { authKind: EIdentityAuthKind.OAUTH, wired: true },
-  [EProvider.JIRA]: { authKind: EIdentityAuthKind.API_KEY, wired: true },
-  [EProvider.LINEAR]: { authKind: EIdentityAuthKind.API_KEY, wired: true },
-  [EProvider.SLACK]: { authKind: EIdentityAuthKind.OAUTH, wired: false },
-  [EProvider.GOOGLE_CHAT]: { authKind: EIdentityAuthKind.OAUTH, wired: false },
-  [EProvider.GITHUB]: { authKind: EIdentityAuthKind.OAUTH, wired: false },
+  [EProvider.GOOGLE_CALENDAR]: {
+    authKind: EIdentityAuthKind.OAUTH,
+    wired: true,
+    callback: EOAuthCallback.GOOGLE,
+  },
+  [EProvider.JIRA]: {
+    authKind: EIdentityAuthKind.OAUTH,
+    wired: true,
+    callback: EOAuthCallback.JIRA,
+  },
+  [EProvider.LINEAR]: {
+    authKind: EIdentityAuthKind.OAUTH,
+    wired: true,
+    callback: EOAuthCallback.LINEAR,
+  },
+  [EProvider.SLACK]: { authKind: EIdentityAuthKind.OAUTH, wired: false, callback: null },
+  [EProvider.GOOGLE_CHAT]: { authKind: EIdentityAuthKind.OAUTH, wired: false, callback: null },
+  [EProvider.GITHUB]: { authKind: EIdentityAuthKind.OAUTH, wired: false, callback: null },
 };

@@ -9,17 +9,20 @@ import {
   EGrantPurpose,
   EIdentityCacheKeyPrefix,
   EIdentityMessages,
+  EOAuthCallback,
 } from "#api/modules/identity/identity.enums";
 import {
-  apiKeySite,
   buildPendingGrantRow,
   connectionTokenKey,
   createGrantState,
   findProviderRegistration,
+  grantCallback,
   hasCalendarScope,
   isUniqueViolation,
   parsePendingGrant,
+  requireCodeVerifier,
   toConnectionView,
+  toProvider,
 } from "#api/modules/identity/identity.helpers";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { EProvider } from "#api/shared/providers/providers.enums";
@@ -93,9 +96,41 @@ describe("parsePendingGrant", () => {
       userId: "user-1",
       purpose: EGrantPurpose.CONNECTION,
       identityId: "identity-1",
-      provider: "google-calendar",
+      provider: EProvider.GOOGLE_CALENDAR,
       codeVerifier: "verifier-1",
     });
+  });
+
+  test("reads a connection grant without a code verifier", () => {
+    const grant = parsePendingGrant(
+      JSON.stringify({
+        userId: "user-1",
+        purpose: "connection",
+        identityId: "identity-1",
+        provider: "jira",
+        codeVerifier: null,
+      }),
+    );
+    expect(grant).toEqual({
+      userId: "user-1",
+      purpose: EGrantPurpose.CONNECTION,
+      identityId: "identity-1",
+      provider: EProvider.JIRA,
+      codeVerifier: null,
+    });
+  });
+
+  test("rejects a connection grant for an unknown provider", () => {
+    const grant = parsePendingGrant(
+      JSON.stringify({
+        userId: "user-1",
+        purpose: "connection",
+        identityId: "identity-1",
+        provider: "zoom",
+        codeVerifier: null,
+      }),
+    );
+    expect(grant).toBeNull();
   });
 
   test("returns null for corrupt values instead of throwing", () => {
@@ -168,6 +203,7 @@ describe("toConnectionView", () => {
     providerAccountId: "account-1",
     providerAccountEmail: "dev@employer.example",
     providerSite: "acme.atlassian.net",
+    providerResourceId: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   };
@@ -187,15 +223,46 @@ describe("toConnectionView", () => {
   });
 });
 
-describe("apiKeySite", () => {
-  test("normalizes the jira site and leaves other providers empty", () => {
+describe("toProvider", () => {
+  test("maps known provider names and rejects others", () => {
+    expect(toProvider("linear")).toBe(EProvider.LINEAR);
+    expect(toProvider("zoom")).toBeUndefined();
+  });
+});
+
+describe("grantCallback", () => {
+  test.each([
+    { provider: EProvider.GOOGLE_CALENDAR, callback: EOAuthCallback.GOOGLE },
+    { provider: EProvider.JIRA, callback: EOAuthCallback.JIRA },
+    { provider: EProvider.LINEAR, callback: EOAuthCallback.LINEAR },
+    { provider: EProvider.SLACK, callback: null },
+  ])("routes a $provider connection grant to its callback", ({ provider, callback }) => {
     expect(
-      apiKeySite({
-        provider: EProvider.JIRA,
-        credentials: { site: "https://Acme.atlassian.net/jira", email: "a@b.c", apiToken: "t" },
+      grantCallback({
+        userId: "user-1",
+        purpose: EGrantPurpose.CONNECTION,
+        identityId: "identity-1",
+        provider,
+        codeVerifier: null,
       }),
-    ).toBe("acme.atlassian.net");
-    expect(apiKeySite({ provider: EProvider.LINEAR, apiKey: "key" })).toBeNull();
+    ).toBe(callback);
+  });
+
+  test("routes an identity-create grant to the google callback", () => {
+    expect(
+      grantCallback({
+        userId: "user-1",
+        purpose: EGrantPurpose.IDENTITY_CREATE,
+        codeVerifier: "v",
+      }),
+    ).toBe(EOAuthCallback.GOOGLE);
+  });
+});
+
+describe("requireCodeVerifier", () => {
+  test("returns a stored verifier and throws on a missing one", () => {
+    expect(requireCodeVerifier("verifier-1")).toBe("verifier-1");
+    expect(() => requireCodeVerifier(null)).toThrow(EIdentityMessages.CODE_VERIFIER_MISSING);
   });
 });
 

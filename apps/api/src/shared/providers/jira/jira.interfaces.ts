@@ -1,5 +1,4 @@
-export interface IJiraCredentials {
-  site: string;
-  email: string;
-  apiToken: string;
+export interface IJiraSite {
+  cloudId: string;
+  host: string;
 }

@@ -189,6 +189,10 @@ build_env_file() {
   printf 'CONNECTION_ENCRYPTION_KEY=%s\n' "$(openssl rand -base64 32)"
   [[ -n "$GOOGLE_CLIENT_ID" ]] && printf 'GOOGLE_CLIENT_ID=%s\n' "$GOOGLE_CLIENT_ID"
   [[ -n "$GOOGLE_CLIENT_SECRET" ]] && printf 'GOOGLE_CLIENT_SECRET=%s\n' "$GOOGLE_CLIENT_SECRET"
+  [[ -n "$JIRA_CLIENT_ID" ]] && printf 'JIRA_CLIENT_ID=%s\n' "$JIRA_CLIENT_ID"
+  [[ -n "$JIRA_CLIENT_SECRET" ]] && printf 'JIRA_CLIENT_SECRET=%s\n' "$JIRA_CLIENT_SECRET"
+  [[ -n "$LINEAR_CLIENT_ID" ]] && printf 'LINEAR_CLIENT_ID=%s\n' "$LINEAR_CLIENT_ID"
+  [[ -n "$LINEAR_CLIENT_SECRET" ]] && printf 'LINEAR_CLIENT_SECRET=%s\n' "$LINEAR_CLIENT_SECRET"
   return 0
 }
 
@@ -332,6 +336,10 @@ else
   ask_secret CI_CLOUDFLARE_API_TOKEN "Paste the CI Cloudflare API token (hidden):"
   ask_secret GOOGLE_CLIENT_ID "Google OAuth client ID (Enter to leave empty):" || GOOGLE_CLIENT_ID=""
   ask_secret GOOGLE_CLIENT_SECRET "Google OAuth client secret (Enter to leave empty):" || GOOGLE_CLIENT_SECRET=""
+  ask_secret JIRA_CLIENT_ID "Jira OAuth client ID (Enter to leave empty):" || JIRA_CLIENT_ID=""
+  ask_secret JIRA_CLIENT_SECRET "Jira OAuth client secret (Enter to leave empty):" || JIRA_CLIENT_SECRET=""
+  ask_secret LINEAR_CLIENT_ID "Linear OAuth client ID (Enter to leave empty):" || LINEAR_CLIENT_ID=""
+  ask_secret LINEAR_CLIENT_SECRET "Linear OAuth client secret (Enter to leave empty):" || LINEAR_CLIENT_SECRET=""
   set_repo_var APP_DOMAIN "$APP_DOMAIN"
   set_repo_var CLOUDFLARE_ACCOUNT_ID "$CLOUDFLARE_ACCOUNT_ID"
   for deploy_env in dev prod; do

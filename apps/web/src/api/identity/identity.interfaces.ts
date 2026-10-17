@@ -1,12 +1,9 @@
 import type { EConsentTarget, EProvider } from "@/api/identity/identity.enums";
-import type { TApiKeyProvider } from "@/api/identity/identity.types";
+import type { TConnectorProvider } from "@/api/identity/identity.types";
 
-export interface IConnectApiKeyInput {
+export interface IConnectProviderInput {
   identityId: string;
-  provider: TApiKeyProvider;
-  apiKey: string;
-  email?: string;
-  site?: string;
+  provider: TConnectorProvider;
 }
 
 export interface IAuthorizeResult {

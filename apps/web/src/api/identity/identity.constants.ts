@@ -21,11 +21,11 @@ export const IDENTITY_CONNECT_UNKNOWN_ERROR = "Something went wrong. Start again
 export const IDENTITY_CONNECT_ERROR_MESSAGES: Record<EIdentityConnectError, string> = {
   [EIdentityConnectError.EXPIRED]: "The consent link expired. Start again to get a new link.",
   [EIdentityConnectError.ALREADY_CONNECTED]:
-    "This Google account is already one of your work accounts.",
+    "This account is already connected. Disconnect it first to connect again.",
   [EIdentityConnectError.SUB_MISMATCH]:
     "This Google account does not match the work account. Give consent with the matching Google account.",
-  [EIdentityConnectError.ACCESS_DENIED]: "Google consent was cancelled. Start again to connect.",
+  [EIdentityConnectError.ACCESS_DENIED]: "Consent was cancelled. Start again to connect.",
   [EIdentityConnectError.SCOPE_DENIED]:
     "Recap needs access to your calendar. Start again and allow calendar access.",
-  [EIdentityConnectError.FAILED]: "Google consent did not complete. Try again.",
+  [EIdentityConnectError.FAILED]: "Consent did not complete. Try again.",
 };

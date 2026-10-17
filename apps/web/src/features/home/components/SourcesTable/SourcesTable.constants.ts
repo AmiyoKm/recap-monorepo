@@ -18,8 +18,16 @@ export const SOURCES_ROWS: ISourceRow[] = [
     method: "Sign in with Google",
     availability: ESourceAvailability.AVAILABLE,
   },
-  { provider: EProvider.JIRA, method: "API token", availability: ESourceAvailability.AVAILABLE },
-  { provider: EProvider.LINEAR, method: "API key", availability: ESourceAvailability.AVAILABLE },
+  {
+    provider: EProvider.JIRA,
+    method: "Sign in with Atlassian",
+    availability: ESourceAvailability.AVAILABLE,
+  },
+  {
+    provider: EProvider.LINEAR,
+    method: "Sign in with Linear",
+    availability: ESourceAvailability.AVAILABLE,
+  },
   { provider: EProvider.SLACK, method: "Not yet", availability: ESourceAvailability.PLANNED },
   { provider: EProvider.GOOGLE_CHAT, method: "Not yet", availability: ESourceAvailability.PLANNED },
   { provider: EProvider.GITHUB, method: "Not yet", availability: ESourceAvailability.PLANNED },

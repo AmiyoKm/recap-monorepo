@@ -2,7 +2,6 @@ import { t } from "elysia";
 
 import {
   MAX_ACCOUNT_ID_LENGTH,
-  MAX_API_KEY_LENGTH,
   MAX_DISPLAY_NAME_LENGTH,
   MAX_EMAIL_LENGTH,
   MAX_ID_LENGTH,
@@ -13,7 +12,6 @@ import {
   MAX_STATE_LENGTH,
   MAX_TIMESTAMP_LENGTH,
   MAX_URL_LENGTH,
-  MIN_API_KEY_LENGTH,
 } from "#api/modules/identity/identity.constants";
 import {
   EConnectionStatus,
@@ -30,7 +28,7 @@ export const connectionIdParams = t.Object({
   connectionId: t.String({ maxLength: MAX_ID_LENGTH }),
 });
 
-export const googleCallbackQuery = t.Object({
+export const oauthCallbackQuery = t.Object({
   code: t.Optional(t.String({ maxLength: MAX_OAUTH_CODE_LENGTH })),
   error: t.Optional(t.String({ maxLength: MAX_OAUTH_ERROR_LENGTH })),
   state: t.String({ maxLength: MAX_STATE_LENGTH }),
@@ -57,9 +55,6 @@ const connectionStatusSchema = t.Union([
 
 export const connectConnectionBody = t.Object({
   provider: providerSchema,
-  apiKey: t.Optional(t.String({ minLength: MIN_API_KEY_LENGTH, maxLength: MAX_API_KEY_LENGTH })),
-  email: t.Optional(t.String({ maxLength: MAX_EMAIL_LENGTH, format: "email" })),
-  site: t.Optional(t.String({ maxLength: MAX_SITE_LENGTH })),
 });
 
 export const connectionResponse = t.Object({
@@ -91,8 +86,6 @@ export const authorizeResponse = t.Object({
   authorizeUrl: t.String({ maxLength: MAX_URL_LENGTH }),
 });
 
-export const connectConnectionResponse = t.Union([authorizeResponse, connectionResponse]);
-
 export const deleteResponse = t.Object({
   deleted: t.Boolean(),
 });
@@ -106,17 +99,5 @@ export const connectionNotFoundError = t.Object({
 });
 
 export const connectBadRequestError = t.Object({
-  message: t.Union([
-    t.Literal(EIdentityMessages.PROVIDER_UNSUPPORTED),
-    t.Literal(EIdentityMessages.INVALID_API_KEY),
-    t.Literal(EIdentityMessages.JIRA_DETAILS_REQUIRED),
-  ]),
-});
-
-export const connectionExistsError = t.Object({
-  message: t.Literal(EIdentityMessages.CONNECTION_EXISTS),
-});
-
-export const apiKeyValidationError = t.Object({
-  message: t.Literal(EIdentityMessages.API_KEY_VALIDATION_FAILED),
+  message: t.Literal(EIdentityMessages.PROVIDER_UNSUPPORTED),
 });

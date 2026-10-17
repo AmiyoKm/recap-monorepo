@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
+import { ENV } from "#api/shared/env/env.constants";
+import { EJiraMessages } from "#api/shared/providers/jira/jira.enums";
 import { JiraService } from "#api/shared/providers/jira/jira.service";
 import {
-  HTTP_FORBIDDEN,
   HTTP_OK,
-  HTTP_SERVER_ERROR,
   HTTP_UNAUTHORIZED,
   PROVIDER_EMAIL,
 } from "#api-tests/unit/shared/providers/providers.constants";
@@ -12,61 +12,86 @@ import {
   recordedRequests,
   restoreFetch,
   stubFetch,
+  stubFetchSequence,
 } from "#api-tests/unit/shared/providers/providers.fixtures";
+
+const REDIRECT_URI = "http://localhost:3107/api/connect/jira/callback";
+const TOKEN_BODY = {
+  access_token: "jira-access",
+  refresh_token: "jira-refresh",
+  expires_in: 3600,
+  scope: "read:jira-user read:jira-work offline_access",
+  token_type: "bearer",
+};
+const SITE = {
+  id: "cloud-1",
+  name: "Acme",
+  url: "https://acme.atlassian.net",
+  scopes: ["read:jira-user", "read:jira-work"],
+  avatarUrl: "https://img.test/acme.png",
+};
 
 afterEach(() => {
   restoreFetch();
 });
 
-describe("JiraService.verifyApiKey", () => {
-  test("verifies the key with basic auth against the site", async () => {
-    stubFetch(HTTP_OK, { accountId: "abc-123", emailAddress: PROVIDER_EMAIL });
-    const account = await JiraService.verifyApiKey({
-      site: "https://Acme.atlassian.net/",
-      email: PROVIDER_EMAIL,
-      apiToken: "jira-key",
+describe("JiraService.createAuthorization", () => {
+  test("builds an atlassian consent url with offline access and no pkce", () => {
+    const { authorizeUrl, codeVerifier } = JiraService.createAuthorization({
+      state: "state-1",
+      redirectUri: REDIRECT_URI,
     });
-    expect(account).toEqual({ accountId: "abc-123", accountEmail: PROVIDER_EMAIL });
-    expect(recordedRequests[0]?.url).toBe("https://acme.atlassian.net/rest/api/3/myself");
-    expect(recordedRequests[0]?.headers.get("authorization")).toBe(
-      `Basic ${Buffer.from(`${PROVIDER_EMAIL}:jira-key`).toString("base64")}`,
-    );
+    const url = new URL(authorizeUrl);
+    expect(url.origin).toBe("https://auth.atlassian.com");
+    expect(url.searchParams.get("client_id")).toBe(ENV.jira?.clientId ?? null);
+    expect(url.searchParams.get("audience")).toBe("api.atlassian.com");
+    expect(url.searchParams.get("state")).toBe("state-1");
+    expect(url.searchParams.get("redirect_uri")).toBe(REDIRECT_URI);
+    expect(url.searchParams.get("scope")?.split(" ")).toContain("offline_access");
+    expect(url.searchParams.get("prompt")).toBe("consent");
+    expect(codeVerifier).toBeNull();
   });
+});
 
-  test.each([HTTP_UNAUTHORIZED, HTTP_FORBIDDEN])(
-    "returns no account when jira answers %d",
-    async (status) => {
-      stubFetch(status, { errorMessages: ["Rejected"] });
-      const account = await JiraService.verifyApiKey({
-        site: "acme.atlassian.net",
-        email: PROVIDER_EMAIL,
-        apiToken: "bad-key",
-      });
-      expect(account).toBeNull();
-    },
-  );
-
-  test("throws when jira fails for another reason", async () => {
-    stubFetch(HTTP_SERVER_ERROR, { errorMessages: ["Down"] });
-    const request = JiraService.verifyApiKey({
+describe("JiraService.exchangeCode", () => {
+  test("exchanges the code, picks the site and reads the account", async () => {
+    stubFetchSequence([
+      { status: HTTP_OK, body: TOKEN_BODY },
+      { status: HTTP_OK, body: [SITE] },
+      { status: HTTP_OK, body: { accountId: "acc-1", emailAddress: PROVIDER_EMAIL } },
+    ]);
+    const grant = await JiraService.exchangeCode({ code: "code-1", redirectUri: REDIRECT_URI });
+    expect(grant).toEqual({
+      tokens: {
+        accessToken: "jira-access",
+        refreshToken: "jira-refresh",
+        expiresInSeconds: 3600,
+        scopes: ["read:jira-user", "read:jira-work", "offline_access"],
+      },
+      account: { accountId: "acc-1", accountEmail: PROVIDER_EMAIL },
       site: "acme.atlassian.net",
-      email: PROVIDER_EMAIL,
-      apiToken: "jira-key",
+      resourceId: "cloud-1",
     });
-    await expect(request).rejects.toThrow();
+    expect(recordedRequests.map((request) => request.url)).toEqual([
+      "https://auth.atlassian.com/oauth/token",
+      "https://api.atlassian.com/oauth/token/accessible-resources",
+      "https://api.atlassian.com/ex/jira/cloud-1/rest/api/3/myself",
+    ]);
+    expect(recordedRequests[2]?.headers.get("authorization")).toBe("Bearer jira-access");
   });
 
-  test.each(["not a site", "evil.example.com", "acme.atlassian.net.evil.example", "localhost"])(
-    "sends no request for the site %p",
-    async (site) => {
-      stubFetch(HTTP_OK, {});
-      const account = await JiraService.verifyApiKey({
-        site,
-        email: PROVIDER_EMAIL,
-        apiToken: "jira-key",
-      });
-      expect(account).toBeNull();
-      expect(recordedRequests).toEqual([]);
-    },
-  );
+  test("throws when the grant reaches no jira site", async () => {
+    stubFetchSequence([
+      { status: HTTP_OK, body: TOKEN_BODY },
+      { status: HTTP_OK, body: [] },
+    ]);
+    const exchange = JiraService.exchangeCode({ code: "code-1", redirectUri: REDIRECT_URI });
+    await expect(exchange).rejects.toThrow(EJiraMessages.NO_ACCESSIBLE_SITE);
+  });
+
+  test("throws when atlassian rejects the code", async () => {
+    stubFetch(HTTP_UNAUTHORIZED, { error: "invalid_grant" });
+    const exchange = JiraService.exchangeCode({ code: "bad-code", redirectUri: REDIRECT_URI });
+    await expect(exchange).rejects.toThrow();
+  });
 });

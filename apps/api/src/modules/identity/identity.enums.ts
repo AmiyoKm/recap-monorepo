@@ -17,10 +17,7 @@ export enum EIdentityMessages {
   IDENTITY_NOT_FOUND = "Work Identity was not found",
   CONNECTION_NOT_FOUND = "Connection was not found",
   PROVIDER_UNSUPPORTED = "That provider cannot be connected yet",
-  INVALID_API_KEY = "API key is invalid",
-  JIRA_DETAILS_REQUIRED = "Jira needs an email and site along with the API key",
-  CONNECTION_EXISTS = "Connection already exists for this provider",
-  API_KEY_VALIDATION_FAILED = "Provider check failed, try again",
+  CODE_VERIFIER_MISSING = "Pending grant has no code verifier",
   UNKNOWN_CONNECTION_VALUE = "Connection row holds an unknown value",
   CONNECTION_CACHE_FAILED = "Connection token cache update failed",
 }
@@ -32,6 +29,12 @@ export enum EIdentityConnectError {
   ACCESS_DENIED = "access_denied",
   SCOPE_DENIED = "scope_denied",
   FAILED = "failed",
+}
+
+export enum EOAuthCallback {
+  GOOGLE = "google",
+  JIRA = "jira",
+  LINEAR = "linear",
 }
 
 export enum EIdentityCacheKeyPrefix {
