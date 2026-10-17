@@ -233,6 +233,7 @@ function freshChatCursor(now: string): IChatCursor {
     afterSpace: null,
     resumeSpace: null,
     pageToken: null,
+    spacesPageToken: null,
   };
 }
 
@@ -254,6 +255,7 @@ function readChatCursor(stored: string): IChatCursor | null {
       afterSpace: stringOrNull(record?.[EChatCursorKey.AFTER_SPACE]),
       resumeSpace: stringOrNull(record?.[EChatCursorKey.RESUME_SPACE]),
       pageToken: stringOrNull(record?.[EChatCursorKey.PAGE_TOKEN]),
+      spacesPageToken: stringOrNull(record?.[EChatCursorKey.SPACES_PAGE_TOKEN]),
     };
   } catch {
     return null;
@@ -324,7 +326,8 @@ export function parseChatCursor(stored: string | null, now: string): IChatCursor
   if (!cursor) {
     return freshChatCursor(now);
   }
-  const isMidSweep = cursor.afterSpace !== null || cursor.resumeSpace !== null;
+  const isMidSweep =
+    cursor.afterSpace !== null || cursor.resumeSpace !== null || cursor.spacesPageToken !== null;
   if (isMidSweep) {
     return cursor;
   }
@@ -338,6 +341,7 @@ export function completedChatCursor(cursor: IChatCursor): IChatCursor {
     afterSpace: null,
     resumeSpace: null,
     pageToken: null,
+    spacesPageToken: null,
   };
 }
 
@@ -353,6 +357,30 @@ export function chatSpacesToRead(
     return spaces.filter((space) => space.id > afterSpace);
   }
   return spaces;
+}
+
+export function chatPageToken(cursor: IChatCursor, spaceId: string): string | null {
+  if (cursor.resumeSpace !== spaceId) {
+    return null;
+  }
+  return cursor.pageToken;
+}
+
+export function nextChatSpaceCursor(cursor: IChatCursor, lastReadSpaceId: string): IChatCursor {
+  return { ...cursor, afterSpace: lastReadSpaceId, resumeSpace: null, pageToken: null };
+}
+
+export function nextChatSpacesPageCursor(
+  cursor: IChatCursor,
+  spacesPageToken: string,
+): IChatCursor {
+  return {
+    ...cursor,
+    afterSpace: null,
+    resumeSpace: null,
+    pageToken: null,
+    spacesPageToken,
+  };
 }
 
 export function chatSpaceId(spaceName: string): string {

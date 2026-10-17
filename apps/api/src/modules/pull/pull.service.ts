@@ -18,12 +18,15 @@ import {
 import { EPullMessages, EPullOutcome } from "#api/modules/pull/pull.enums";
 import {
   accessTokenTtlSeconds,
+  chatPageToken,
   chatSpaceId,
   chatSpacesToRead,
   completedChatCursor,
   gmailMessagesSince,
   isPullableProvider,
   nextCalendarCursor,
+  nextChatSpaceCursor,
+  nextChatSpacesPageCursor,
   nextGmailBackfillStep,
   nextGmailHistoryStep,
   parseCalendarCursor,
@@ -39,7 +42,6 @@ import {
 } from "#api/modules/pull/pull.helpers";
 import type {
   IAccessToken,
-  IChatCursor,
   IGmailCursor,
   IPullState,
   IPullTarget,
@@ -303,11 +305,14 @@ export abstract class PullService {
       throw new Error(EPullMessages.ACCOUNT_ID_MISSING, { cause: input.target.connection.id });
     }
     const cursor = parseChatCursor(input.cursor, input.now);
-    const spaces = await providers.google.listChatSpaces(input.accessToken);
-    if (!spaces) {
+    const spacesPage = await providers.google.listChatSpaces({
+      accessToken: input.accessToken,
+      pageToken: cursor.spacesPageToken,
+    });
+    if (!spacesPage) {
       return null;
     }
-    const pending = chatSpacesToRead(spaces, cursor);
+    const pending = chatSpacesToRead(spacesPage.spaces, cursor);
     const slice = pending.slice(0, CHAT_SPACES_PER_PAGE);
     const batch: IActivityBatch = { drafts: [], removedExternalIds: [] };
     for (const space of slice) {
@@ -315,7 +320,7 @@ export abstract class PullService {
         accessToken: input.accessToken,
         spaceId: space.id,
         since: cursor.since,
-        pageToken: PullService.chatPageToken(cursor, space.id),
+        pageToken: chatPageToken(cursor, space.id),
       });
       if (!page) {
         return null;
@@ -334,17 +339,14 @@ export abstract class PullService {
     }
     const lastRead = slice.at(-1);
     if (lastRead && pending.length > slice.length) {
-      const next = { ...cursor, afterSpace: lastRead.id, resumeSpace: null, pageToken: null };
+      const next = nextChatSpaceCursor(cursor, lastRead.id);
+      return { batch, nextCursor: JSON.stringify(next), hasMore: true };
+    }
+    if (spacesPage.nextPageToken) {
+      const next = nextChatSpacesPageCursor(cursor, spacesPage.nextPageToken);
       return { batch, nextCursor: JSON.stringify(next), hasMore: true };
     }
     return { batch, nextCursor: JSON.stringify(completedChatCursor(cursor)), hasMore: false };
-  }
-
-  private static chatPageToken(cursor: IChatCursor, spaceId: string): string | null {
-    if (cursor.resumeSpace !== spaceId) {
-      return null;
-    }
-    return cursor.pageToken;
   }
 
   private static async resolveAccessToken(

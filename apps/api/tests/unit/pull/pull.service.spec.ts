@@ -18,6 +18,7 @@ import type {
   IGoogleCalendarReadInput,
   IGoogleChatMessagesPage,
   IGoogleChatSpace,
+  IGoogleChatSpacesPage,
   IGoogleGmailPage,
 } from "#api/shared/providers/google/google.interfaces";
 import { GoogleService } from "#api/shared/providers/google/google.service";
@@ -409,9 +410,17 @@ describe("PullService.enqueueActiveConnections", () => {
 
 const CHAT_SCOPES = [CHAT_SPACES_SCOPE, CHAT_MESSAGES_SCOPE];
 const CHAT_NOW_TOLERANCE_MINUTES = 2;
+const PULL_TURN_LIMIT = 3;
 
 function chatSpace(id: string, isDirectMessage = false): IGoogleChatSpace {
   return { id: `spaces/${id}`, isDirectMessage };
+}
+
+function spacesPage(
+  spaces: IGoogleChatSpace[],
+  nextPageToken: string | null = null,
+): IGoogleChatSpacesPage {
+  return { spaces, nextPageToken };
 }
 
 function chatMessage(spaceId: string, id: string, overrides: TGoogleChatMessage = {}) {
@@ -446,10 +455,9 @@ describe("PullService.pullConnection for Chat", () => {
   test("saves sent messages, mentions and DM messages and skips other space messages", async () => {
     const connectionId = await seedChat();
     const me = await chatSender(connectionId);
-    spyOn(GoogleService, "listChatSpaces").mockResolvedValue([
-      chatSpace("DM1", true),
-      chatSpace("ROOM1"),
-    ]);
+    spyOn(GoogleService, "listChatSpaces").mockResolvedValue(
+      spacesPage([chatSpace("DM1", true), chatSpace("ROOM1")]),
+    );
     spyOn(GoogleService, "listChatMessages")
       .mockResolvedValueOnce(chatPage([chatMessage("DM1", "dm-in")]))
       .mockResolvedValueOnce(
@@ -480,7 +488,7 @@ describe("PullService.pullConnection for Chat", () => {
 
   test("reads 7 days back first, then from the start of the last sweep", async () => {
     const connectionId = await seedChat();
-    spyOn(GoogleService, "listChatSpaces").mockResolvedValue([chatSpace("ROOM1")]);
+    spyOn(GoogleService, "listChatSpaces").mockResolvedValue(spacesPage([chatSpace("ROOM1")]));
     const list = spyOn(GoogleService, "listChatMessages").mockResolvedValue(chatPage([]));
 
     await PullService.pullConnection(connectionId);
@@ -499,7 +507,7 @@ describe("PullService.pullConnection for Chat", () => {
   test("reads at most five spaces for each message and continues after the last one", async () => {
     const connectionId = await seedChat();
     const spaces = ["A", "B", "C", "D", "E", "F", "G"].map((id) => chatSpace(id));
-    spyOn(GoogleService, "listChatSpaces").mockResolvedValue(spaces);
+    spyOn(GoogleService, "listChatSpaces").mockResolvedValue(spacesPage(spaces));
     const list = spyOn(GoogleService, "listChatMessages").mockResolvedValue(chatPage([]));
 
     await PullService.pullConnection(connectionId);
@@ -522,7 +530,9 @@ describe("PullService.pullConnection for Chat", () => {
 
   test("resumes a space with more messages from its page token", async () => {
     const connectionId = await seedChat();
-    spyOn(GoogleService, "listChatSpaces").mockResolvedValue([chatSpace("A"), chatSpace("B")]);
+    spyOn(GoogleService, "listChatSpaces").mockResolvedValue(
+      spacesPage([chatSpace("A"), chatSpace("B")]),
+    );
     const list = spyOn(GoogleService, "listChatMessages")
       .mockResolvedValueOnce(chatPage([], "more"))
       .mockResolvedValue(chatPage([]));
@@ -537,13 +547,58 @@ describe("PullService.pullConnection for Chat", () => {
     ]);
   });
 
+  test("reads every spaces page before the sweep completes", async () => {
+    const connectionId = await seedChat();
+    const listSpaces = spyOn(GoogleService, "listChatSpaces")
+      .mockResolvedValueOnce(spacesPage([chatSpace("A")], "spaces-2"))
+      .mockResolvedValueOnce(spacesPage([chatSpace("B")], "spaces-3"))
+      .mockResolvedValueOnce(spacesPage([chatSpace("C")]));
+    const list = spyOn(GoogleService, "listChatMessages").mockResolvedValue(chatPage([]));
+
+    await PullService.pullConnection(connectionId);
+    await PullService.pullConnection(connectionId);
+    expect((await connectionRow(connectionId))?.lastPulledAt).toBeNull();
+    await PullService.pullConnection(connectionId);
+
+    expect(listSpaces.mock.calls.map((call) => call[0].pageToken)).toEqual([
+      null,
+      "spaces-2",
+      "spaces-3",
+    ]);
+    expect(list.mock.calls.map((call) => call[0].spaceId)).toEqual([
+      "spaces/A",
+      "spaces/B",
+      "spaces/C",
+    ]);
+    expect((await connectionRow(connectionId))?.lastPulledAt).not.toBeNull();
+  });
+
+  test("moves on from Chat when Google rejects it for the account", async () => {
+    const connectionId = (
+      await seedGoogleConnection(await createUser(uniqueEmail()), [
+        CALENDAR_READ_SCOPE,
+        CHAT_SPACES_SCOPE,
+        CHAT_MESSAGES_SCOPE,
+      ])
+    ).connectionId;
+    spyOn(GoogleService, "listChatSpaces").mockResolvedValue(spacesPage([]));
+    const calendar = spyOn(GoogleService, "listCalendarEvents").mockResolvedValue(page([]));
+
+    for (let turn = 0; turn < PULL_TURN_LIMIT; turn++) {
+      await PullService.pullConnection(connectionId);
+    }
+
+    expect(calendar).toHaveBeenCalled();
+    expect((await connectionRow(connectionId))?.lastPulledAt).not.toBeNull();
+  });
+
   test("fails loudly when the Connection has no provider account id", async () => {
     const connectionId = await seedChat();
     await db
       .update(schema.connection)
       .set({ providerAccountId: null })
       .where(eq(schema.connection.id, connectionId));
-    spyOn(GoogleService, "listChatSpaces").mockResolvedValue([]);
+    spyOn(GoogleService, "listChatSpaces").mockResolvedValue(spacesPage([]));
 
     await expect(PullService.pullConnection(connectionId)).rejects.toThrow();
   });
@@ -569,7 +624,7 @@ describe("PullService.pullConnection for Calendar and Chat", () => {
     ).connectionId;
     const calendar = spyOn(GoogleService, "listCalendarEvents").mockResolvedValue(page([]));
     const chatList = spyOn(GoogleService, "listChatMessages").mockResolvedValue(chatPage([]));
-    spyOn(GoogleService, "listChatSpaces").mockResolvedValue([chatSpace("A")]);
+    spyOn(GoogleService, "listChatSpaces").mockResolvedValue(spacesPage([chatSpace("A")]));
 
     await PullService.pullConnection(connectionId);
 

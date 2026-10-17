@@ -403,12 +403,39 @@ describe("GoogleService chat reads", () => {
       },
     });
 
-    const spaces = await GoogleService.listChatSpaces("access-1");
+    const page = await GoogleService.listChatSpaces({ accessToken: "access-1", pageToken: null });
 
-    expect(spaces).toEqual([
-      { id: "spaces/AAA", isDirectMessage: true },
-      { id: "spaces/BBB", isDirectMessage: false },
-    ]);
+    expect(page).toEqual({
+      spaces: [
+        { id: "spaces/AAA", isDirectMessage: true },
+        { id: "spaces/BBB", isDirectMessage: false },
+      ],
+      nextPageToken: null,
+    });
+  });
+
+  test("passes the spaces page token and returns the next one", async () => {
+    listSpaces.mockResolvedValue({
+      data: { spaces: [{ name: "spaces/CCC", spaceType: "SPACE" }], nextPageToken: "spaces-3" },
+    });
+
+    const page = await GoogleService.listChatSpaces({
+      accessToken: "access-1",
+      pageToken: "spaces-2",
+    });
+
+    expect(page?.nextPageToken).toBe("spaces-3");
+    expect(listSpaces.mock.calls[0]?.[0]).toMatchObject({ pageToken: "spaces-2" });
+  });
+
+  test("returns an empty page when the account has no Chat", async () => {
+    listSpaces.mockImplementation(async () => {
+      throw await revokeError(HTTP_FORBIDDEN, "forbidden");
+    });
+
+    const page = await GoogleService.listChatSpaces({ accessToken: "access-1", pageToken: null });
+
+    expect(page).toEqual({ spaces: [], nextPageToken: null });
   });
 
   test("lists the messages created after the time in one space", async () => {
@@ -439,7 +466,9 @@ describe("GoogleService chat reads", () => {
       throw await revokeError(HTTP_UNAUTHORIZED, "unauthorized");
     });
 
-    expect(await GoogleService.listChatSpaces("access-1")).toBeNull();
+    expect(
+      await GoogleService.listChatSpaces({ accessToken: "access-1", pageToken: null }),
+    ).toBeNull();
     expect(
       await GoogleService.listChatMessages({
         accessToken: "access-1",
@@ -470,6 +499,8 @@ describe("GoogleService chat reads", () => {
       throw await revokeError(HTTP_SERVER_ERROR, "server_error");
     });
 
-    await expect(GoogleService.listChatSpaces("access-1")).rejects.toThrow();
+    await expect(
+      GoogleService.listChatSpaces({ accessToken: "access-1", pageToken: null }),
+    ).rejects.toThrow();
   });
 });

@@ -66,4 +66,5 @@ export interface IChatCursor {
   afterSpace: string | null;
   resumeSpace: string | null;
   pageToken: string | null;
+  spacesPageToken: string | null;
 }

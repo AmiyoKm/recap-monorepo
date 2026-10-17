@@ -80,6 +80,16 @@ export interface IGoogleChatSpace {
   isDirectMessage: boolean;
 }
 
+export interface IGoogleChatSpacesInput {
+  accessToken: string;
+  pageToken: string | null;
+}
+
+export interface IGoogleChatSpacesPage {
+  spaces: IGoogleChatSpace[];
+  nextPageToken: string | null;
+}
+
 export interface IGoogleChatMessagesInput {
   accessToken: string;
   spaceId: string;

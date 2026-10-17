@@ -40,4 +40,5 @@ export enum EChatCursorKey {
   AFTER_SPACE = "afterSpace",
   RESUME_SPACE = "resumeSpace",
   PAGE_TOKEN = "pageToken",
+  SPACES_PAGE_TOKEN = "spacesPageToken",
 }

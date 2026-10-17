@@ -2,11 +2,13 @@ import { describe, expect, test } from "bun:test";
 
 import { ESource } from "#api/modules/activity/activity.enums";
 import {
+  chatPageToken,
   chatSpaceId,
   chatSpacesToRead,
   completedChatCursor,
   isPullableProvider,
   nextCalendarCursor,
+  nextChatSpacesPageCursor,
   nextGmailBackfillStep,
   nextGmailHistoryStep,
   orderSources,
@@ -299,6 +301,7 @@ describe("chat cursor", () => {
       afterSpace: null,
       resumeSpace: null,
       pageToken: null,
+      spacesPageToken: null,
     });
   });
 
@@ -332,6 +335,33 @@ describe("chat cursor", () => {
     const next = parseChatCursor(JSON.stringify(mid), "2026-10-17T09:00:00.000Z");
 
     expect(next.sweepStartedAt).toBe(NOW);
+  });
+
+  test("keeps the sweep start while a later spaces page is pending", () => {
+    const mid = { ...parseChatCursor(null, NOW), spacesPageToken: "spaces-2" };
+
+    const next = parseChatCursor(JSON.stringify(mid), "2026-10-17T09:00:00.000Z");
+
+    expect(next.sweepStartedAt).toBe(NOW);
+    expect(next.spacesPageToken).toBe("spaces-2");
+  });
+
+  test("moves to the next spaces page with the space position cleared", () => {
+    const mid = { ...parseChatCursor(null, NOW), afterSpace: "spaces/c", resumeSpace: "spaces/c" };
+
+    expect(nextChatSpacesPageCursor(mid, "spaces-2")).toMatchObject({
+      afterSpace: null,
+      resumeSpace: null,
+      pageToken: null,
+      spacesPageToken: "spaces-2",
+    });
+  });
+
+  test("uses the message page token only for the space being resumed", () => {
+    const cursor = { ...parseChatCursor(null, NOW), resumeSpace: "spaces/b", pageToken: "t" };
+
+    expect(chatPageToken(cursor, "spaces/b")).toBe("t");
+    expect(chatPageToken(cursor, "spaces/c")).toBeNull();
   });
 
   test("lists the spaces after the last read one, or from the one to resume", () => {

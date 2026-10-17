@@ -45,7 +45,8 @@ import type {
   IGoogleCalendarReadInput,
   IGoogleChatMessagesInput,
   IGoogleChatMessagesPage,
-  IGoogleChatSpace,
+  IGoogleChatSpacesInput,
+  IGoogleChatSpacesPage,
   IGoogleCodeExchangeInput,
   IGoogleGmailHistoryInput,
   IGoogleGmailListInput,
@@ -126,15 +127,21 @@ export abstract class GoogleService {
     }
   }
 
-  static async listChatSpaces(accessToken: string): Promise<IGoogleChatSpace[] | null> {
+  static async listChatSpaces(
+    input: IGoogleChatSpacesInput,
+  ): Promise<IGoogleChatSpacesPage | null> {
     try {
-      const { data } = await GoogleService.createChatApi(accessToken).spaces.list({
+      const { data } = await GoogleService.createChatApi(input.accessToken).spaces.list({
         pageSize: GOOGLE_CHAT_SPACES_PAGE_SIZE,
+        pageToken: input.pageToken ?? undefined,
       });
-      return toChatSpaces(data.spaces ?? []);
+      return { spaces: toChatSpaces(data.spaces ?? []), nextPageToken: data.nextPageToken ?? null };
     } catch (error) {
       if (hasStatus(error, HTTP_UNAUTHORIZED)) {
         return null;
+      }
+      if (hasStatus(error, HTTP_FORBIDDEN)) {
+        return { spaces: [], nextPageToken: null };
       }
       throw error;
     }
