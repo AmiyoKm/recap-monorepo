@@ -1,5 +1,5 @@
 import { ESource } from "#api/modules/activity/activity.enums";
-import { mapCalendarEvents } from "#api/modules/activity/activity.helpers";
+import { mapCalendarEvents, mapGmailMessages } from "#api/modules/activity/activity.helpers";
 import { ActivityRepository } from "#api/modules/activity/activity.repository";
 import { EConnectionStatus } from "#api/modules/identity/identity.enums";
 import { connectionTokenKey } from "#api/modules/identity/identity.helpers";
@@ -12,18 +12,24 @@ import {
 import { EPullMessages, EPullOutcome } from "#api/modules/pull/pull.enums";
 import {
   accessTokenTtlSeconds,
+  gmailMessagesSince,
   isPullableProvider,
   nextCalendarCursor,
-  orderSources,
+  nextGmailBackfillStep,
+  nextGmailHistoryStep,
   parseCalendarCursor,
   parseCursorMap,
+  parseGmailCursor,
   readableSources,
   readConnectionId,
   remainingSources,
+  restartGmailPage,
   serializeCursorMap,
+  startCycle,
 } from "#api/modules/pull/pull.helpers";
 import type {
   IAccessToken,
+  IGmailCursor,
   IPullState,
   IPullTarget,
   ISourcePage,
@@ -39,6 +45,7 @@ import { decryptSecret } from "#api/shared/crypto/crypto.helpers";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { ENV } from "#api/shared/env/env.constants";
 import { describeError, logError } from "#api/shared/logger/logger.helpers";
+import { EGmailLabel } from "#api/shared/providers/google/google.enums";
 import { providers } from "#api/shared/providers/providers.client";
 import { EProvider } from "#api/shared/providers/providers.enums";
 import type { IProviderTokens } from "#api/shared/providers/providers.interfaces";
@@ -110,7 +117,7 @@ export abstract class PullService {
       accessToken: token.value,
       now: dayjs().toISOString(),
       cursors,
-      queue: orderSources(sources, cursors),
+      queue: startCycle(sources, cursors),
       pagesLeft: PULL_MAX_PAGES_PER_MESSAGE,
     });
     await PullService.finish(connection.id, outcome, token);
@@ -200,12 +207,60 @@ export abstract class PullService {
       case ESource.CALENDAR:
         return PullService.readCalendarPage(input);
       case ESource.GMAIL:
+        return PullService.readGmailPage(input);
       case ESource.CHAT:
       case ESource.DRIVE:
       case ESource.JIRA:
       case ESource.LINEAR:
         throw new Error(EPullMessages.SOURCE_UNSUPPORTED, { cause: source });
     }
+  }
+
+  private static async readGmailPage(input: ISourceReadInput): Promise<ISourcePage | null> {
+    const cursor = parseGmailCursor(input.cursor, input.now);
+    if (cursor.label === null && cursor.historyId !== null) {
+      return PullService.readGmailHistoryPage(input, cursor, cursor.historyId);
+    }
+    const page = await providers.google.listGmailMessages({
+      accessToken: input.accessToken,
+      label: cursor.label ?? EGmailLabel.SENT,
+      pageToken: cursor.pageToken,
+    });
+    if (!page) {
+      return null;
+    }
+    const step = nextGmailBackfillStep(cursor, page);
+    return {
+      batch: mapGmailMessages(gmailMessagesSince(page.messages, cursor.cutoff), {
+        identityEmail: input.target.identityEmail,
+      }),
+      nextCursor: JSON.stringify(step.cursor),
+      hasMore: step.hasMore,
+    };
+  }
+
+  private static async readGmailHistoryPage(
+    input: ISourceReadInput,
+    cursor: IGmailCursor,
+    startHistoryId: string,
+  ): Promise<ISourcePage | null> {
+    const page = await providers.google.listGmailHistory({
+      accessToken: input.accessToken,
+      startHistoryId,
+      pageToken: cursor.pageToken,
+    });
+    if (!page) {
+      return null;
+    }
+    if (page.isHistoryExpired) {
+      return restartGmailPage(input.now);
+    }
+    const step = nextGmailHistoryStep(cursor, page);
+    return {
+      batch: mapGmailMessages(page.messages, { identityEmail: input.target.identityEmail }),
+      nextCursor: JSON.stringify(step.cursor),
+      hasMore: step.hasMore,
+    };
   }
 
   private static async readCalendarPage(input: ISourceReadInput): Promise<ISourcePage | null> {

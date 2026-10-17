@@ -4,11 +4,15 @@ import { EActivityKind, ESource } from "#api/modules/activity/activity.enums";
 import {
   escapeLike,
   mapCalendarEvents,
+  mapGmailMessages,
   nonEmpty,
   toIsoBound,
   withAuthUser,
 } from "#api/modules/activity/activity.helpers";
-import type { TGoogleCalendarEvent } from "#api/shared/providers/google/google.types";
+import type {
+  TGoogleCalendarEvent,
+  TGoogleGmailMessage,
+} from "#api/shared/providers/google/google.types";
 import { CALENDAR_EMAIL } from "#api-tests/fixtures/fixtures.constants";
 
 const CONTEXT = { identityEmail: CALENDAR_EMAIL, timeZone: null };
@@ -148,5 +152,76 @@ describe("toIsoBound", () => {
 
   test("returns undefined when no bound is given", () => {
     expect(toIsoBound(undefined)).toBeUndefined();
+  });
+});
+
+function mail(overrides: TGoogleGmailMessage): TGoogleGmailMessage {
+  return {
+    id: "m1",
+    threadId: "t1",
+    labelIds: ["INBOX", "UNREAD"],
+    internalDate: "1792000000000",
+    payload: {
+      headers: [
+        { name: "Subject", value: "Quarterly plan" },
+        { name: "From", value: "Boss <boss@employer.example>" },
+        { name: "To", value: "work@employer.example" },
+        { name: "Cc", value: "peer@employer.example" },
+      ],
+    },
+    ...overrides,
+  };
+}
+
+describe("mapGmailMessages", () => {
+  test("maps an Inbox message to email_received with a thread link in the right account", () => {
+    const { drafts } = mapGmailMessages([mail({})], CONTEXT);
+
+    expect(drafts).toEqual([
+      {
+        source: ESource.GMAIL,
+        kind: EActivityKind.EMAIL_RECEIVED,
+        externalId: "m1",
+        occurredAt: "2026-10-14T17:46:40.000Z",
+        endsAt: null,
+        title: "Quarterly plan",
+        url: `https://mail.google.com/mail/?authuser=${encodeURIComponent(CALENDAR_EMAIL)}#all/t1`,
+        actor: "Boss <boss@employer.example>",
+        detail: "work@employer.example, peer@employer.example",
+      },
+    ]);
+  });
+
+  test("maps a sent message to email_sent even when it is also in the Inbox", () => {
+    const { drafts } = mapGmailMessages([mail({ labelIds: ["SENT", "INBOX"] })], CONTEXT);
+
+    expect(drafts[0]?.kind).toBe(EActivityKind.EMAIL_SENT);
+  });
+
+  test.each(["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "SPAM", "TRASH"])(
+    "skips a message labelled %s",
+    (label) => {
+      const { drafts } = mapGmailMessages([mail({ labelIds: ["INBOX", label] })], CONTEXT);
+
+      expect(drafts).toEqual([]);
+    },
+  );
+
+  test("skips a message that is neither sent nor in the Inbox", () => {
+    expect(mapGmailMessages([mail({ labelIds: ["DRAFT"] })], CONTEXT).drafts).toEqual([]);
+  });
+
+  test("drops a message with no thread id", () => {
+    expect(mapGmailMessages([mail({ threadId: undefined })], CONTEXT).drafts).toEqual([]);
+  });
+
+  test("uses a placeholder for a missing subject and never reads the snippet", () => {
+    const { drafts } = mapGmailMessages(
+      [mail({ snippet: "secret body", payload: { headers: [] } })],
+      CONTEXT,
+    );
+
+    expect(drafts[0]?.title).toBe("(No subject)");
+    expect(JSON.stringify(drafts)).not.toContain("secret body");
   });
 });

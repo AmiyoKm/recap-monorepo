@@ -4,11 +4,12 @@ import { gaxios, OAuth2Client } from "google-auth-library";
 
 import { dayjs } from "#api/shared/date/date.helpers";
 import { ENV } from "#api/shared/env/env.constants";
-import { EGoogleMessages } from "#api/shared/providers/google/google.enums";
+import { EGmailLabel, EGoogleMessages } from "#api/shared/providers/google/google.enums";
 import { GoogleService } from "#api/shared/providers/google/google.service";
 import {
   HTTP_BAD_REQUEST,
   HTTP_GONE,
+  HTTP_NOT_FOUND,
   HTTP_OK,
   HTTP_SERVER_ERROR,
   HTTP_UNAUTHORIZED,
@@ -213,5 +214,161 @@ describe("GoogleService.listCalendarEvents", () => {
     });
 
     await expect(GoogleService.listCalendarEvents(input)).rejects.toThrow();
+  });
+});
+
+const originalGmail = { ...(await import("@googleapis/gmail")) };
+
+describe("GoogleService Gmail reads", () => {
+  const messagesList = mock<(params: Record<string, unknown>) => Promise<{ data: object }>>();
+  const messagesGet = mock<(params: Record<string, unknown>) => Promise<{ data: object }>>();
+  const historyList = mock<(params: Record<string, unknown>) => Promise<{ data: object }>>();
+  const getProfile = mock<(params: Record<string, unknown>) => Promise<{ data: object }>>();
+
+  afterAll(() => {
+    mock.module("@googleapis/gmail", () => originalGmail);
+  });
+
+  beforeEach(() => {
+    for (const fn of [messagesList, messagesGet, historyList, getProfile]) {
+      fn.mockReset();
+    }
+    mock.module("@googleapis/gmail", () => ({
+      gmail: () => ({
+        users: {
+          getProfile,
+          messages: { list: messagesList, get: messagesGet },
+          history: { list: historyList },
+        },
+      }),
+    }));
+  });
+
+  test("lists one label, reads metadata only and returns the baseline history id", async () => {
+    getProfile.mockResolvedValue({ data: { historyId: "h-1" } });
+    messagesList.mockResolvedValue({
+      data: { messages: [{ id: "m1" }], nextPageToken: "next" },
+    });
+    messagesGet.mockResolvedValue({ data: { id: "m1" } });
+
+    const page = await GoogleService.listGmailMessages({
+      accessToken: "access-1",
+      label: EGmailLabel.SENT,
+      pageToken: null,
+    });
+
+    expect(page).toEqual({
+      messages: [{ id: "m1" }],
+      nextPageToken: "next",
+      historyId: "h-1",
+      isHistoryExpired: false,
+    });
+    const listParams = messagesList.mock.calls[0]?.[0];
+    expect(listParams?.["labelIds"]).toEqual(["SENT"]);
+    expect(listParams).not.toHaveProperty("q");
+    expect(messagesGet.mock.calls[0]?.[0]["format"]).toBe("metadata");
+  });
+
+  test("skips the profile call on a later page", async () => {
+    messagesList.mockResolvedValue({ data: {} });
+
+    const page = await GoogleService.listGmailMessages({
+      accessToken: "access-1",
+      label: EGmailLabel.INBOX,
+      pageToken: "p2",
+    });
+
+    expect(getProfile).not.toHaveBeenCalled();
+    expect(page?.historyId).toBeNull();
+  });
+
+  test("reads each added message once from the history list", async () => {
+    historyList.mockResolvedValue({
+      data: {
+        historyId: "h-9",
+        history: [
+          { messagesAdded: [{ message: { id: "m1" } }] },
+          { messagesAdded: [{ message: { id: "m1" } }, { message: { id: "m2" } }] },
+        ],
+      },
+    });
+    messagesGet.mockImplementation(async (params) => ({ data: { id: params["id"] } }));
+
+    const page = await GoogleService.listGmailHistory({
+      accessToken: "access-1",
+      startHistoryId: "h-1",
+      pageToken: null,
+    });
+
+    expect(page?.messages).toEqual([{ id: "m1" }, { id: "m2" }]);
+    expect(page?.historyId).toBe("h-9");
+    expect(historyList.mock.calls[0]?.[0]["historyTypes"]).toEqual(["messageAdded"]);
+  });
+
+  test("marks the history id as expired on a 404", async () => {
+    historyList.mockImplementation(async () => {
+      throw await revokeError(HTTP_NOT_FOUND, "notFound");
+    });
+
+    const page = await GoogleService.listGmailHistory({
+      accessToken: "access-1",
+      startHistoryId: "h-1",
+      pageToken: null,
+    });
+
+    expect(page?.isHistoryExpired).toBe(true);
+  });
+
+  test("skips a message that was deleted before it was read", async () => {
+    getProfile.mockResolvedValue({ data: {} });
+    messagesList.mockResolvedValue({ data: { messages: [{ id: "gone" }] } });
+    messagesGet.mockImplementation(async () => {
+      throw await revokeError(HTTP_NOT_FOUND, "notFound");
+    });
+
+    const page = await GoogleService.listGmailMessages({
+      accessToken: "access-1",
+      label: EGmailLabel.SENT,
+      pageToken: null,
+    });
+
+    expect(page?.messages).toEqual([]);
+  });
+
+  test("returns null when google rejects the access token", async () => {
+    getProfile.mockImplementation(async () => {
+      throw await revokeError(HTTP_UNAUTHORIZED, "unauthorized");
+    });
+
+    historyList.mockImplementation(async () => {
+      throw await revokeError(HTTP_UNAUTHORIZED, "unauthorized");
+    });
+    const list = await GoogleService.listGmailMessages({
+      accessToken: "access-1",
+      label: EGmailLabel.SENT,
+      pageToken: null,
+    });
+    const history = await GoogleService.listGmailHistory({
+      accessToken: "access-1",
+      startHistoryId: "h-1",
+      pageToken: null,
+    });
+
+    expect(list).toBeNull();
+    expect(history).toBeNull();
+  });
+
+  test("throws on other failures", async () => {
+    getProfile.mockImplementation(async () => {
+      throw await revokeError(HTTP_SERVER_ERROR, "server_error");
+    });
+
+    await expect(
+      GoogleService.listGmailMessages({
+        accessToken: "access-1",
+        label: EGmailLabel.SENT,
+        pageToken: null,
+      }),
+    ).rejects.toThrow();
   });
 });

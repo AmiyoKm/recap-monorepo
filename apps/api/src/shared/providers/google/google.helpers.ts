@@ -8,7 +8,10 @@ import type {
   IGoogleProfile,
   ISourceGrantResult,
 } from "#api/shared/providers/google/google.interfaces";
-import type { TGoogleCalendarRange } from "#api/shared/providers/google/google.types";
+import type {
+  TGoogleCalendarRange,
+  TGoogleGmailHistory,
+} from "#api/shared/providers/google/google.types";
 import { OAUTH_SCOPE_SEPARATOR } from "#api/shared/providers/providers.constants";
 import type { IProviderTokens } from "#api/shared/providers/providers.interfaces";
 
@@ -78,4 +81,11 @@ export function calendarRange(input: IGoogleCalendarReadInput): TGoogleCalendarR
 
 export function hasStatus(error: unknown, status: number): boolean {
   return error instanceof gaxios.GaxiosError && error.status === status;
+}
+
+export function historyMessageIds(history: TGoogleGmailHistory[]): string[] {
+  const ids = history.flatMap((record) =>
+    (record.messagesAdded ?? []).map((added) => added.message?.id),
+  );
+  return [...new Set(ids.filter((id) => typeof id === "string"))];
 }

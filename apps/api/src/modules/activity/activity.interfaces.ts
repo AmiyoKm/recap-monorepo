@@ -38,3 +38,7 @@ export interface ICalendarMapContext {
   identityEmail: string;
   timeZone: string | null;
 }
+
+export interface IGmailMapContext {
+  identityEmail: string;
+}
