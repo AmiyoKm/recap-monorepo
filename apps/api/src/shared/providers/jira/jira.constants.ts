@@ -6,7 +6,6 @@ export const JIRA_SEARCH_PAGE_SIZE = 5;
 export const JIRA_MAX_ACTIVITIES_PER_PAGE = 200;
 export const JIRA_SEARCH_FIELDS = ["summary", "created", "reporter", "comment"];
 export const JIRA_PAGE_SIZE = 50;
-export const JIRA_COMMENTS_ORDER = "created";
 export const JIRA_SEARCH_EXPAND = "changelog";
 export const JIRA_JQL_DATE_FORMAT = "YYYY-MM-DD HH:mm";
 export const JIRA_JQL_MARGIN_DAYS = 1;

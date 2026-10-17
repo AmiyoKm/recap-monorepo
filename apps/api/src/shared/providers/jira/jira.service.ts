@@ -12,7 +12,6 @@ import {
 
 import { ENV } from "#api/shared/env/env.constants";
 import {
-  JIRA_COMMENTS_ORDER,
   JIRA_PAGE_SIZE,
   JIRA_REQUEST_TIMEOUT_MS,
   JIRA_SCOPES,
@@ -20,6 +19,7 @@ import {
   JIRA_SEARCH_FIELDS,
   JIRA_SEARCH_PAGE_SIZE,
 } from "#api/shared/providers/jira/jira.constants";
+import { EJiraCommentsOrder } from "#api/shared/providers/jira/jira.enums";
 import {
   buildJiraJql,
   nextJiraStartAt,
@@ -158,7 +158,7 @@ export abstract class JiraService {
         issueIdOrKey: input.issueKey,
         startAt: input.commentsStartAt,
         maxResults: JIRA_PAGE_SIZE,
-        orderBy: JIRA_COMMENTS_ORDER,
+        orderBy: EJiraCommentsOrder.CREATED,
       },
       { signal: AbortSignal.timeout(JIRA_REQUEST_TIMEOUT_MS) },
     );

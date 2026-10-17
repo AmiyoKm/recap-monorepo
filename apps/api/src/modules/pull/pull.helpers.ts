@@ -1,5 +1,6 @@
 import { CHAT_RESOURCE_SEPARATOR } from "#api/modules/activity/activity.constants";
 import { ESource } from "#api/modules/activity/activity.enums";
+import type { IActivityBatch } from "#api/modules/activity/activity.interfaces";
 import {
   ACCESS_TOKEN_EXPIRY_MARGIN_SECONDS,
   CALENDAR_CURSOR_MAX_AGE_DAYS,
@@ -376,9 +377,6 @@ function readJiraPending(value: unknown): IJiraPendingCursor | null {
 }
 
 function readJiraPendingList(value: unknown): IJiraPendingCursor[] | null {
-  if (value === undefined) {
-    return [];
-  }
   if (!Array.isArray(value)) {
     return null;
   }
@@ -709,4 +707,12 @@ export function nextLinearCursor(cursor: ILinearCursor, step: ILinearStep): stri
     startedAt: cursor.startedAt,
     pending: [],
   });
+}
+
+export function jiraSourcePage(batch: IActivityBatch, cursor: IJiraCursor): ISourcePage {
+  return {
+    batch,
+    nextCursor: JSON.stringify(cursor),
+    hasMore: jiraCursorHasMore(cursor),
+  };
 }

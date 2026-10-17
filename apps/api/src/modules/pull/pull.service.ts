@@ -28,8 +28,8 @@ import {
   completedChatCursor,
   gmailMessagesSince,
   isPullableProvider,
-  jiraCursorHasMore,
   jiraGoneCursor,
+  jiraSourcePage,
   linearGoneStep,
   linearListStep,
   linearNestedStep,
@@ -420,7 +420,7 @@ export abstract class PullService {
       since: cursor.since,
       offset: cursor.offset,
     });
-    return PullService.jiraSourcePage(batch, nextJiraCursor(cursor, page, overflow));
+    return jiraSourcePage(batch, nextJiraCursor(cursor, page, overflow));
   }
 
   private static async readJiraPendingPage(
@@ -441,12 +441,9 @@ export abstract class PullService {
       return null;
     }
     if (!read.pages) {
-      return PullService.jiraSourcePage(
-        { drafts: [], removedExternalIds: [] },
-        jiraGoneCursor(cursor),
-      );
+      return jiraSourcePage({ drafts: [], removedExternalIds: [] }, jiraGoneCursor(cursor));
     }
-    return PullService.jiraSourcePage(
+    return jiraSourcePage(
       mapJiraIssuePages(read.pages, pending, {
         site: providerSite,
         since: cursor.since,
@@ -454,14 +451,6 @@ export abstract class PullService {
       }),
       nextJiraPendingCursor(cursor, pending, read.pages),
     );
-  }
-
-  private static jiraSourcePage(batch: IActivityBatch, cursor: IJiraCursor): ISourcePage {
-    return {
-      batch,
-      nextCursor: JSON.stringify(cursor),
-      hasMore: jiraCursorHasMore(cursor),
-    };
   }
 
   private static async readLinearPage(input: ISourceReadInput): Promise<ISourcePage | null> {

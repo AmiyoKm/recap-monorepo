@@ -227,11 +227,18 @@ describe("Jira cursor", () => {
     expect(parseJiraCursor(null, NOW)).toEqual(expected);
     expect(parseJiraCursor("not json", NOW)).toEqual(expected);
     expect(parseJiraCursor('{"since":1}', NOW)).toEqual(expected);
+    expect(parseJiraCursor('{"since":"s","startedAt":"t"}', NOW)).toEqual(expected);
     expect(parseJiraCursor('{"since":"s","startedAt":"t","pending":"x"}', NOW)).toEqual(expected);
   });
 
   test("keeps the run since, page token and offset while pages remain", () => {
-    const stored = JSON.stringify({ since: "s", startedAt: "t", pageToken: "p", offset: 200 });
+    const stored = JSON.stringify({
+      since: "s",
+      startedAt: "t",
+      pageToken: "p",
+      offset: 200,
+      pending: [],
+    });
 
     expect(parseJiraCursor(stored, NOW)).toEqual({
       since: "s",
@@ -243,7 +250,13 @@ describe("Jira cursor", () => {
   });
 
   test("keeps the run on the first page while an offset remains", () => {
-    const stored = JSON.stringify({ since: "s", startedAt: "t", pageToken: null, offset: 200 });
+    const stored = JSON.stringify({
+      since: "s",
+      startedAt: "t",
+      pageToken: null,
+      offset: 200,
+      pending: [],
+    });
 
     expect(parseJiraCursor(stored, NOW)).toEqual({
       since: "s",
