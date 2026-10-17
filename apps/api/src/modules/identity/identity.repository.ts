@@ -1,9 +1,13 @@
-import { and, eq, gt, inArray, lte } from "drizzle-orm";
+import { and, eq, gt, inArray, lte, ne } from "drizzle-orm";
 
 import { schema } from "@recap/db";
 
+import { EConnectionStatus } from "#api/modules/identity/identity.enums";
 import { isUniqueViolation } from "#api/modules/identity/identity.helpers";
-import type { ITakePendingGrantInput } from "#api/modules/identity/identity.interfaces";
+import type {
+  ISharedAccountInput,
+  ITakePendingGrantInput,
+} from "#api/modules/identity/identity.interfaces";
 import type {
   TConnectionInsert,
   TConnectionRow,
@@ -11,6 +15,7 @@ import type {
   TIdentityRow,
   TPendingGrantInsert,
 } from "#api/modules/identity/identity.types";
+import { dayjs } from "#api/shared/date/date.helpers";
 import { db } from "#api/shared/db/db.client";
 
 export abstract class IdentityRepository {
@@ -112,6 +117,25 @@ export abstract class IdentityRepository {
       .innerJoin(schema.identity, eq(schema.connection.identityId, schema.identity.id))
       .where(and(eq(schema.connection.id, connectionId), eq(schema.identity.userId, userId)));
     return rows[0]?.connection;
+  }
+
+  static async markSharedAccountNeedsReconnect({
+    provider,
+    providerAccountId,
+    revokedConnectionId,
+  }: ISharedAccountInput): Promise<string[]> {
+    const rows = await db
+      .update(schema.connection)
+      .set({ status: EConnectionStatus.NEEDS_RECONNECT, updatedAt: dayjs().toISOString() })
+      .where(
+        and(
+          eq(schema.connection.provider, provider),
+          eq(schema.connection.providerAccountId, providerAccountId),
+          ne(schema.connection.id, revokedConnectionId),
+        ),
+      )
+      .returning({ id: schema.connection.id });
+    return rows.map((row) => row.id);
   }
 
   static async deleteIdentityRow(identityId: string): Promise<void> {

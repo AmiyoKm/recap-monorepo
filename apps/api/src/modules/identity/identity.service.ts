@@ -448,7 +448,21 @@ export abstract class IdentityService {
       );
     } catch (error) {
       logError(EIdentityMessages.GOOGLE_REVOKE_FAILED, error);
+      return;
     }
+    await IdentityService.markSharedGoogleGrantRevoked(google);
+  }
+
+  private static async markSharedGoogleGrantRevoked(revoked: TConnectionRow): Promise<void> {
+    if (!revoked.providerAccountId) {
+      return;
+    }
+    const connectionIds = await IdentityRepository.markSharedAccountNeedsReconnect({
+      provider: EProvider.GOOGLE,
+      providerAccountId: revoked.providerAccountId,
+      revokedConnectionId: revoked.id,
+    });
+    await IdentityService.runCacheTask(IdentityService.deleteConnectionTokens(connectionIds));
   }
 
   private static async deleteConnectionTokens(connectionIds: string[]): Promise<void> {

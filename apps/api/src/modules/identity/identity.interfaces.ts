@@ -61,3 +61,9 @@ export interface ITakePendingGrantInput {
   state: string;
   now: string;
 }
+
+export interface ISharedAccountInput {
+  provider: EProvider;
+  providerAccountId: string;
+  revokedConnectionId: string;
+}

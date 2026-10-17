@@ -970,6 +970,43 @@ describe("google connections", () => {
     expect(await db.select().from(schema.identity)).toEqual([]);
   });
 
+  test.each([
+    { name: "disconnect", isRevokeDown: false, status: EConnectionStatus.NEEDS_RECONNECT },
+    { name: "a failed revoke", isRevokeDown: true, status: EConnectionStatus.ACTIVE },
+  ])(
+    "marks another user's connection to the same google account after $name",
+    async ({ isRevokeDown, status }) => {
+      const first = await signUp(uniqueEmail());
+      const { connectionId } = await connectGoogle(first.cookie, {
+        identityCode: "code-g-shared-a",
+        identitySub: "google-sub-g-shared",
+        googleCode: "code-g-shared-a-cal",
+      });
+      const second = await signUp(uniqueEmail());
+      provider.google.profiles.set("code-g-shared-b", {
+        ...GOOGLE_PROFILE,
+        sub: "google-sub-g-shared",
+      });
+      const secondIdentityId = await createIdentity(second.cookie, "code-g-shared-b");
+      const state = await startGoogleState(second.cookie, secondIdentityId);
+      setCalendarProfile("code-g-shared-b-cal", "google-sub-g-shared");
+      await completeCallback("code-g-shared-b-cal", state);
+      const otherRow = (await db.select().from(schema.connection)).find(
+        (row) => row.id !== connectionId,
+      );
+      if (!otherRow) {
+        throw new Error(ETestMessages.CONNECTION_ROW_IS_MISSING);
+      }
+      provider.google.isRevokeDown = isRevokeDown;
+
+      expect((await deleteConnection(first.cookie, connectionId)).status).toBe(HTTP_OK);
+      const { data } = await listIdentities(second.cookie);
+      expect(data?.[0]?.connections[0]?.status).toBe(status);
+      const cachedToken = await cache.get(connectionTokenKey(otherRow.id));
+      expect(cachedToken === null).toBe(status === EConnectionStatus.NEEDS_RECONNECT);
+    },
+  );
+
   test("work identity delete finishes when the google revoke fails", async () => {
     const { cookie } = await signUp(uniqueEmail());
     const { identityId } = await connectGoogle(cookie, {
