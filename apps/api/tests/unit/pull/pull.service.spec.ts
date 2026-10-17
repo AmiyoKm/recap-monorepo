@@ -560,7 +560,13 @@ describe("PullService.pullConnection for Chat", () => {
 
 describe("PullService.pullConnection for Calendar and Chat", () => {
   test("reads each Source in turn across messages", async () => {
-    const connectionId = (await seedGoogleConnection(await createUser(uniqueEmail()))).connectionId;
+    const connectionId = (
+      await seedGoogleConnection(await createUser(uniqueEmail()), [
+        CALENDAR_READ_SCOPE,
+        CHAT_SPACES_SCOPE,
+        CHAT_MESSAGES_SCOPE,
+      ])
+    ).connectionId;
     const calendar = spyOn(GoogleService, "listCalendarEvents").mockResolvedValue(page([]));
     const chatList = spyOn(GoogleService, "listChatMessages").mockResolvedValue(chatPage([]));
     spyOn(GoogleService, "listChatSpaces").mockResolvedValue([chatSpace("A")]);

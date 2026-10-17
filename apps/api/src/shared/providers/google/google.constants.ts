@@ -24,4 +24,3 @@ export const GOOGLE_SOURCE_SCOPES: Record<EGoogleSource, string[]> = {
 export const GOOGLE_GMAIL_API_VERSION = "v1";
 export const GOOGLE_GMAIL_USER_ID = "me";
 export const GOOGLE_GMAIL_PAGE_SIZE = 25;
-export const HTTP_NOT_FOUND = 404;
