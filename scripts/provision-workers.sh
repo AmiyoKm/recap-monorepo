@@ -281,6 +281,10 @@ vectorize_exists() {
   wr vectorize get "$1" >/dev/null 2>&1
 }
 
+vectorize_has_digest_config() {
+  wr vectorize get "$1" --json 2>/dev/null | jq -e '.config.dimensions == 768 and .config.metric == "cosine"' >/dev/null
+}
+
 vectorize_has_user_index() {
   wr vectorize list-metadata-index "$1" 2>/dev/null | grep -q "userId"
 }
@@ -295,6 +299,11 @@ ensure_vectorize() {
   if ! vectorize_exists "$name"; then
     SKIPPED+=("Vectorize index $name: run wrangler vectorize create $name --dimensions=768 --metric=cosine")
     warn "Vectorize index $name is missing, so Digest sections cannot be embedded"
+    return 0
+  fi
+  if ! vectorize_has_digest_config "$name"; then
+    SKIPPED+=("Vectorize index $name: it must have 768 dimensions and the cosine metric; these cannot change, so make a new index")
+    warn "Vectorize index $name has the wrong dimensions or metric, so Digest embeddings will fail"
     return 0
   fi
   if vectorize_has_user_index "$name"; then
