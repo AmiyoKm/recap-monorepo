@@ -4,6 +4,8 @@ import { dayjs } from "#api/shared/date/date.helpers";
 import { GOOGLE_SOURCE_SCOPES } from "#api/shared/providers/google/google.constants";
 import {
   EGoogleChatSpaceType,
+  EGoogleDriveActionCase,
+  EGoogleDriveFilterKey,
   EGoogleMessages,
   EGoogleSource,
 } from "#api/shared/providers/google/google.enums";
@@ -124,4 +126,9 @@ export function toChatSpaces(spaces: TGoogleChatSpace[]): IGoogleChatSpace[] {
       ];
     })
     .sort(compareChatSpaces);
+}
+
+export function driveActivityFilter(timeMin: string): string {
+  const cases = Object.values(EGoogleDriveActionCase).join(" ");
+  return `${EGoogleDriveFilterKey.TIME} >= "${timeMin}" AND ${EGoogleDriveFilterKey.ACTION_CASE}:(${cases})`;
 }

@@ -24,6 +24,7 @@
         "@elysiajs/openapi": "^1.4.16",
         "@googleapis/calendar": "^20.1.0",
         "@googleapis/chat": "^51.2.0",
+        "@googleapis/driveactivity": "^11.0.1",
         "@googleapis/gmail": "^22.0.2",
         "@linear/sdk": "^97.1.0",
         "@recap/db": "workspace:*",
@@ -365,6 +366,8 @@
     "@googleapis/calendar": ["@googleapis/calendar@20.1.0", "", { "dependencies": { "googleapis-common": "^9.0.0" } }, "sha512-bPO9wts48OAEhJn5UfgPC4FuyW/D6ufUzdXx0JHfeJIqg+O5bHvX/TenaAdbJuGhluhn5FLlyl6HzuhE4rFJqw=="],
 
     "@googleapis/chat": ["@googleapis/chat@51.2.0", "", { "dependencies": { "googleapis-common": "^9.0.0" } }, "sha512-GoETYSvN703x6XycvdDqC9pv7Ciquwkc0RvfczQpHmDBDhyrer8ZtApJFUNmz3Qs2sv52ojRbry75cOdp6GjcQ=="],
+
+    "@googleapis/driveactivity": ["@googleapis/driveactivity@11.0.1", "", { "dependencies": { "googleapis-common": "^9.0.0" } }, "sha512-5b7jZfxcYHcrELWqzeHiepxePaHdNn2DVLaxiQF7A7jB6o/C14X5L0UsqrPAPTS1Sfzm6axNBfe9iI0KnbHXyg=="],
 
     "@googleapis/gmail": ["@googleapis/gmail@22.0.2", "", { "dependencies": { "googleapis-common": "^9.0.0" } }, "sha512-/Yg6UwLZaI74jY4Q8RhAFlEw4q+71c47oKlqr3ArGTG4HERa0S5NgzmTjECcV720tATnz9bpIvAnJ91VVnNHVA=="],
 

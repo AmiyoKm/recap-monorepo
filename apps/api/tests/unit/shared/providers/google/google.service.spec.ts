@@ -507,3 +507,65 @@ describe("GoogleService chat reads", () => {
     ).rejects.toThrow();
   });
 });
+
+const originalDriveActivity = { ...(await import("@googleapis/driveactivity")) };
+
+describe("GoogleService.listDriveActivity", () => {
+  const input = {
+    accessToken: "access-1",
+    timeMin: "2026-10-10T00:00:00.000Z",
+    pageToken: null,
+  };
+
+  const query =
+    mock<(params: { requestBody: Record<string, unknown> }) => Promise<{ data: object }>>();
+
+  afterAll(() => {
+    mock.module("@googleapis/driveactivity", () => originalDriveActivity);
+  });
+
+  beforeEach(() => {
+    query.mockReset();
+    mock.module("@googleapis/driveactivity", () => ({
+      driveactivity: () => ({ activity: { query } }),
+    }));
+  });
+
+  test("returns the activities and the next page token", async () => {
+    query.mockResolvedValue({ data: { activities: [{ timestamp: "t1" }], nextPageToken: "next" } });
+
+    const page = await GoogleService.listDriveActivity(input);
+
+    expect(page).toEqual({ activities: [{ timestamp: "t1" }], nextPageToken: "next" });
+  });
+
+  test("asks for unconsolidated create, edit and comment actions since the time", async () => {
+    query.mockResolvedValue({ data: {} });
+
+    const page = await GoogleService.listDriveActivity({ ...input, pageToken: "page-2" });
+
+    expect(page).toEqual({ activities: [], nextPageToken: null });
+    const body = query.mock.calls[0]?.[0].requestBody;
+    expect(body?.["filter"]).toBe(
+      `time >= "${input.timeMin}" AND detail.action_detail_case:(CREATE EDIT COMMENT)`,
+    );
+    expect(body?.["consolidationStrategy"]).toEqual({ none: {} });
+    expect(body?.["pageToken"]).toBe("page-2");
+  });
+
+  test("returns null when google rejects the access token", async () => {
+    query.mockImplementation(async () => {
+      throw await revokeError(HTTP_UNAUTHORIZED, "unauthorized");
+    });
+
+    expect(await GoogleService.listDriveActivity(input)).toBeNull();
+  });
+
+  test("throws on other failures", async () => {
+    query.mockImplementation(async () => {
+      throw await revokeError(HTTP_SERVER_ERROR, "server_error");
+    });
+
+    await expect(GoogleService.listDriveActivity(input)).rejects.toThrow();
+  });
+});

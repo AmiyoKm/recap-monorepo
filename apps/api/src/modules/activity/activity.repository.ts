@@ -6,6 +6,7 @@ import {
   eq,
   gte,
   inArray,
+  isNotNull,
   lte,
   or,
   type SQL,
@@ -19,7 +20,12 @@ import {
   ACTIVITY_INSERT_ROWS,
   LIKE_ESCAPE_CHARACTER,
 } from "#api/modules/activity/activity.constants";
-import { escapeLike, toInsert } from "#api/modules/activity/activity.helpers";
+import { EActivityKind } from "#api/modules/activity/activity.enums";
+import {
+  driveFileIdFromExternalId,
+  escapeLike,
+  toInsert,
+} from "#api/modules/activity/activity.helpers";
 import type {
   IActivityListFilters,
   IActivityWriteInput,
@@ -100,6 +106,21 @@ export abstract class ActivityRepository {
       return;
     }
     await db.batch([first, ...rest]);
+  }
+
+  static async listCommentedDriveFileIds(connectionId: string): Promise<string[]> {
+    const rows = await db
+      .select({ externalId: schema.activity.externalId })
+      .from(schema.activity)
+      .where(
+        and(
+          eq(schema.activity.connectionId, connectionId),
+          eq(schema.activity.kind, EActivityKind.DRIVE_COMMENT),
+          isNotNull(schema.activity.actor),
+        ),
+      );
+    const fileIds = rows.flatMap((row) => driveFileIdFromExternalId(row.externalId) ?? []);
+    return [...new Set(fileIds)];
   }
 
   static async list(filters: IActivityListFilters): Promise<TActivityListRow[]> {

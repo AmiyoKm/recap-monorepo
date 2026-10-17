@@ -23,6 +23,8 @@ export const ROUTES = {
     GMAIL_THREAD: (email: string, threadId: string): string =>
       `https://mail.google.com/mail/?${new URLSearchParams({ [EGoogleUrlParam.AUTHUSER]: email }).toString()}#all/${threadId}`,
     CHAT_WEB: (segments: string[]): string => `https://chat.google.com/${segments.join("/")}`,
+    DRIVE_OPEN: (fileId: string): string =>
+      `https://drive.google.com/open?${new URLSearchParams({ id: fileId }).toString()}`,
   },
   LINEAR: {
     AUTHORIZE: "https://linear.app/oauth/authorize",

@@ -52,3 +52,19 @@ export enum EGoogleUrlParam {
 export enum EGoogleChatSpaceType {
   DIRECT_MESSAGE = "DIRECT_MESSAGE",
 }
+
+export enum EGoogleDriveActionCase {
+  CREATE = "CREATE",
+  EDIT = "EDIT",
+  COMMENT = "COMMENT",
+}
+
+export enum EGoogleDriveCommentSubtype {
+  ADDED = "ADDED",
+  REPLY_ADDED = "REPLY_ADDED",
+}
+
+export enum EGoogleDriveFilterKey {
+  TIME = "time",
+  ACTION_CASE = "detail.action_detail_case",
+}

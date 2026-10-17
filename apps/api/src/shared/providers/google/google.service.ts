@@ -1,5 +1,6 @@
 import { calendar } from "@googleapis/calendar";
 import { chat } from "@googleapis/chat";
+import { driveactivity } from "@googleapis/driveactivity";
 import { gmail } from "@googleapis/gmail";
 import { CodeChallengeMethod, gaxios, OAuth2Client } from "google-auth-library";
 
@@ -12,6 +13,8 @@ import {
   GOOGLE_CHAT_API_VERSION,
   GOOGLE_CHAT_MESSAGES_PAGE_SIZE,
   GOOGLE_CHAT_SPACES_PAGE_SIZE,
+  GOOGLE_DRIVE_ACTIVITY_API_VERSION,
+  GOOGLE_DRIVE_PAGE_SIZE,
   GOOGLE_GMAIL_API_VERSION,
   GOOGLE_GMAIL_PAGE_SIZE,
   GOOGLE_GMAIL_USER_ID,
@@ -32,6 +35,7 @@ import {
 import {
   calendarRange,
   chatMessageFilter,
+  driveActivityFilter,
   hasStatus,
   historyMessageIds,
   toChatSpaces,
@@ -48,6 +52,8 @@ import type {
   IGoogleChatSpacesInput,
   IGoogleChatSpacesPage,
   IGoogleCodeExchangeInput,
+  IGoogleDrivePage,
+  IGoogleDriveReadInput,
   IGoogleGmailHistoryInput,
   IGoogleGmailListInput,
   IGoogleGmailPage,
@@ -323,6 +329,34 @@ export abstract class GoogleService {
       }
       throw error;
     }
+  }
+
+  static async listDriveActivity(input: IGoogleDriveReadInput): Promise<IGoogleDrivePage | null> {
+    try {
+      return await GoogleService.requestDrivePage(input);
+    } catch (error) {
+      if (hasStatus(error, HTTP_UNAUTHORIZED)) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  private static async requestDrivePage(input: IGoogleDriveReadInput): Promise<IGoogleDrivePage> {
+    const client = GoogleService.createClient();
+    client.setCredentials({ access_token: input.accessToken });
+    const { data } = await driveactivity({
+      version: GOOGLE_DRIVE_ACTIVITY_API_VERSION,
+      auth: client,
+    }).activity.query({
+      requestBody: {
+        filter: driveActivityFilter(input.timeMin),
+        consolidationStrategy: { none: {} },
+        pageSize: GOOGLE_DRIVE_PAGE_SIZE,
+        pageToken: input.pageToken ?? undefined,
+      },
+    });
+    return { activities: data.activities ?? [], nextPageToken: data.nextPageToken ?? null };
   }
 
   private static createClient(): OAuth2Client {

@@ -2,6 +2,7 @@ import { ESource } from "#api/modules/activity/activity.enums";
 import {
   mapCalendarEvents,
   mapChatMessages,
+  mapDriveActivities,
   mapGmailMessages,
 } from "#api/modules/activity/activity.helpers";
 import type { IActivityBatch } from "#api/modules/activity/activity.interfaces";
@@ -27,11 +28,13 @@ import {
   nextCalendarCursor,
   nextChatSpaceCursor,
   nextChatSpacesPageCursor,
+  nextDriveCursor,
   nextGmailBackfillStep,
   nextGmailHistoryStep,
   parseCalendarCursor,
   parseChatCursor,
   parseCursorMap,
+  parseDriveCursor,
   parseGmailCursor,
   readableSources,
   readConnectionId,
@@ -219,11 +222,12 @@ export abstract class PullService {
     switch (source) {
       case ESource.CALENDAR:
         return PullService.readCalendarPage(input);
+      case ESource.DRIVE:
+        return PullService.readDrivePage(input);
       case ESource.GMAIL:
         return PullService.readGmailPage(input);
       case ESource.CHAT:
         return PullService.readChatPage(input);
-      case ESource.DRIVE:
       case ESource.JIRA:
       case ESource.LINEAR:
         throw new Error(EPullMessages.SOURCE_UNSUPPORTED, { cause: source });
@@ -347,6 +351,29 @@ export abstract class PullService {
       return { batch, nextCursor: JSON.stringify(next), hasMore: true };
     }
     return { batch, nextCursor: JSON.stringify(completedChatCursor(cursor)), hasMore: false };
+  }
+
+  private static async readDrivePage(input: ISourceReadInput): Promise<ISourcePage | null> {
+    const cursor = parseDriveCursor(input.cursor, input.now);
+    const page = await providers.google.listDriveActivity({
+      accessToken: input.accessToken,
+      timeMin: cursor.timeMin,
+      pageToken: cursor.pageToken,
+    });
+    if (!page) {
+      return null;
+    }
+    const commentedFileIds = await ActivityRepository.listCommentedDriveFileIds(
+      input.target.connection.id,
+    );
+    return {
+      batch: mapDriveActivities(page.activities, {
+        identityEmail: input.target.identityEmail,
+        commentedFileIds: new Set(commentedFileIds),
+      }),
+      nextCursor: nextDriveCursor(cursor, page),
+      hasMore: page.nextPageToken !== null,
+    };
   }
 
   private static async resolveAccessToken(

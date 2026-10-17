@@ -48,3 +48,15 @@ export enum EChatWebPath {
   ROOM = "room",
   DM = "dm",
 }
+
+export enum EDriveCommentDetail {
+  COMMENT = "Comment",
+  REPLY = "Reply",
+  MENTION = "Mention",
+}
+
+export enum EDriveExternalIdPrefix {
+  CREATE = "create",
+  EDIT = "edit",
+  COMMENT = "comment",
+}

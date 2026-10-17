@@ -4,6 +4,7 @@ import {
   ACCESS_TOKEN_EXPIRY_MARGIN_SECONDS,
   CALENDAR_CURSOR_MAX_AGE_DAYS,
   CALENDAR_LOOKAHEAD_DAYS,
+  DRIVE_CURSOR_OVERLAP_MINUTES,
   GMAIL_BACKFILL_LABELS,
   GOOGLE_SOURCE_TO_SOURCE,
   PULL_FIRST_LOOKBACK_DAYS,
@@ -13,12 +14,14 @@ import {
 import {
   ECalendarCursorKey,
   EChatCursorKey,
+  EDriveCursorKey,
   EGmailCursorKey,
   EPullMessageKey,
 } from "#api/modules/pull/pull.enums";
 import type {
   ICalendarCursor,
   IChatCursor,
+  IDriveCursor,
   IGmailCursor,
   IGmailStep,
   ISourceCursor,
@@ -32,6 +35,7 @@ import { grantedSources } from "#api/shared/providers/google/google.helpers";
 import type {
   IGoogleCalendarPage,
   IGoogleChatSpace,
+  IGoogleDrivePage,
   IGoogleGmailPage,
 } from "#api/shared/providers/google/google.interfaces";
 import type { TGoogleGmailMessage } from "#api/shared/providers/google/google.types";
@@ -189,6 +193,50 @@ export function nextCalendarCursor(cursor: ICalendarCursor, page: IGoogleCalenda
     return JSON.stringify({ ...cursor, syncToken, pageToken: page.nextPageToken });
   }
   return JSON.stringify({ ...cursor, syncToken: page.nextSyncToken, pageToken: null });
+}
+
+function readDriveCursor(stored: string): IDriveCursor | null {
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    const record = toStringRecord(parsed);
+    const timeMin = record?.[EDriveCursorKey.TIME_MIN];
+    const startedAt = record?.[EDriveCursorKey.STARTED_AT];
+    if (typeof timeMin !== "string" || typeof startedAt !== "string") {
+      return null;
+    }
+    return { timeMin, startedAt, pageToken: stringOrNull(record?.[EDriveCursorKey.PAGE_TOKEN]) };
+  } catch {
+    return null;
+  }
+}
+
+function freshDriveCursor(timeMin: string, now: string): IDriveCursor {
+  return { timeMin, pageToken: null, startedAt: now };
+}
+
+export function parseDriveCursor(stored: string | null, now: string): IDriveCursor {
+  const firstTimeMin = dayjs(now).subtract(PULL_FIRST_LOOKBACK_DAYS, "day").toISOString();
+  if (!stored) {
+    return freshDriveCursor(firstTimeMin, now);
+  }
+  const cursor = readDriveCursor(stored);
+  if (!cursor) {
+    return freshDriveCursor(firstTimeMin, now);
+  }
+  if (cursor.pageToken) {
+    return cursor;
+  }
+  return freshDriveCursor(cursor.timeMin, now);
+}
+
+export function nextDriveCursor(cursor: IDriveCursor, page: IGoogleDrivePage): string {
+  if (page.nextPageToken) {
+    return JSON.stringify({ ...cursor, pageToken: page.nextPageToken });
+  }
+  const timeMin = dayjs(cursor.startedAt)
+    .subtract(DRIVE_CURSOR_OVERLAP_MINUTES, "minute")
+    .toISOString();
+  return JSON.stringify({ timeMin, pageToken: null, startedAt: cursor.startedAt });
 }
 
 export function remainingSources(queue: ESource[], hasMore: boolean): ESource[] {
