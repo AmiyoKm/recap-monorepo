@@ -8,6 +8,7 @@ import type {
   IGoogleProfile,
   ISourceGrantResult,
 } from "#api/shared/providers/google/google.interfaces";
+import type { TGoogleCalendarRange } from "#api/shared/providers/google/google.types";
 import { OAUTH_SCOPE_SEPARATOR } from "#api/shared/providers/providers.constants";
 import type { IProviderTokens } from "#api/shared/providers/providers.interfaces";
 
@@ -68,7 +69,7 @@ export function deniedSources({ requested, granted }: ISourceGrantResult): EGoog
   return requested.filter((source) => !granted.includes(source));
 }
 
-export function calendarRange(input: IGoogleCalendarReadInput) {
+export function calendarRange(input: IGoogleCalendarReadInput): TGoogleCalendarRange {
   if (input.syncToken) {
     return { syncToken: input.syncToken };
   }
