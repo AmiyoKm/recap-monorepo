@@ -428,15 +428,18 @@ describe("GoogleService chat reads", () => {
     expect(listSpaces.mock.calls[0]?.[0]).toMatchObject({ pageToken: "spaces-2" });
   });
 
-  test("returns an empty page when the account has no Chat", async () => {
-    listSpaces.mockImplementation(async () => {
-      throw await revokeError(HTTP_FORBIDDEN, "forbidden");
-    });
+  test.each([HTTP_FORBIDDEN, HTTP_NOT_FOUND])(
+    "returns an empty page when the account has no Chat (%d)",
+    async (status) => {
+      listSpaces.mockImplementation(async () => {
+        throw await revokeError(status, "no chat");
+      });
 
-    const page = await GoogleService.listChatSpaces({ accessToken: "access-1", pageToken: null });
+      const page = await GoogleService.listChatSpaces({ accessToken: "access-1", pageToken: null });
 
-    expect(page).toEqual({ spaces: [], nextPageToken: null });
-  });
+      expect(page).toEqual({ spaces: [], nextPageToken: null });
+    },
+  );
 
   test("lists the messages created after the time in one space", async () => {
     listMessages.mockResolvedValue({

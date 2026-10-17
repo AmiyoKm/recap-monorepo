@@ -140,7 +140,7 @@ export abstract class GoogleService {
       if (hasStatus(error, HTTP_UNAUTHORIZED)) {
         return null;
       }
-      if (hasStatus(error, HTTP_FORBIDDEN)) {
+      if (hasStatus(error, HTTP_FORBIDDEN) || hasStatus(error, HTTP_NOT_FOUND)) {
         return { spaces: [], nextPageToken: null };
       }
       throw error;

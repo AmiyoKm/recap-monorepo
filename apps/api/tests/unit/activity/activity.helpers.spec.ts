@@ -327,4 +327,13 @@ describe("mapChatMessages", () => {
 
     expect(drafts[0]?.title).toBe("(No title)");
   });
+
+  test("leaves the actor empty when Google sends no display name", () => {
+    const { drafts } = mapChatMessages(
+      [chatMessage({ sender: { name: `users/${CHAT_USER_ID}` } })],
+      CHAT_CONTEXT,
+    );
+
+    expect(drafts[0]?.actor).toBeNull();
+  });
 });

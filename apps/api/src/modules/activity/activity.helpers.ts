@@ -280,7 +280,7 @@ function toChatDraft(message: TGoogleChatMessage, context: IChatMapContext): IAc
     endsAt: null,
     title: (message.text || ACTIVITY_NO_TITLE).slice(0, ACTIVITY_TITLE_MAX_LENGTH),
     url,
-    actor: message.sender?.displayName ?? message.sender?.name ?? null,
+    actor: message.sender?.displayName ?? null,
     detail: null,
   };
 }
