@@ -52,6 +52,8 @@ import type {
   TDigestMissingSource,
   TDigestNotFoundError,
   TDigestResponse,
+  TDigestRow,
+  TDigestSection,
   TDigestSettingsBody,
   TDigestSettingsResponse,
   TDigestTimeZoneError,
@@ -274,25 +276,40 @@ export abstract class DigestService {
   static async embedDigest(digestId: string): Promise<void> {
     const digest = requireDigest(await DigestRepository.findById(digestId), digestId);
     const sections = (parseDigestContent(digest.content)?.sections ?? []).filter(hasSectionItems);
+    const upsertedIds = await DigestService.upsertSectionVectors(digest, sections);
+    const identities = await DigestRepository.listIdentities(digest.userId);
+    const staleIds = identities
+      .map((identity) => digestVectorId(digest.userId, digest.digestDate, identity.id))
+      .filter((id) => !upsertedIds.includes(id));
+    if (staleIds.length > 0) {
+      await bindings.DIGEST_VECTORS.deleteByIds(staleIds);
+    }
+    await DigestRepository.markReady(digestId);
+  }
+
+  private static async upsertSectionVectors(
+    digest: TDigestRow,
+    sections: TDigestSection[],
+  ): Promise<string[]> {
     if (sections.length === 0) {
-      return;
+      return [];
     }
     const embeddings = await AiService.embedMany({
       model: DIGEST_EMBEDDING_MODEL,
       values: sections.map((section) => buildSectionEmbeddingText(section, digest.digestDate)),
       dimensions: DIGEST_EMBEDDING_DIMENSIONS,
     });
-    await bindings.DIGEST_VECTORS.upsert(
-      sections.map((section, index) => ({
-        id: digestVectorId(digest.userId, digest.digestDate, section.identityId),
-        values: requireEmbedding(embeddings[index], digestId),
-        metadata: {
-          userId: digest.userId,
-          identityId: section.identityId,
-          digestDate: digest.digestDate,
-        },
-      })),
-    );
+    const vectors = sections.map((section, index) => ({
+      id: digestVectorId(digest.userId, digest.digestDate, section.identityId),
+      values: requireEmbedding(embeddings[index], digest.id),
+      metadata: {
+        userId: digest.userId,
+        identityId: section.identityId,
+        digestDate: digest.digestDate,
+      },
+    }));
+    await bindings.DIGEST_VECTORS.upsert(vectors);
+    return vectors.map((vector) => vector.id);
   }
 
   static async failDigest(digestId: string, error: unknown): Promise<void> {
@@ -307,7 +324,7 @@ export abstract class DigestService {
     content: TDigestContent,
     model: string | null,
   ): Promise<void> {
-    await DigestRepository.saveReady({ digestId, content: JSON.stringify(content), model });
+    await DigestRepository.saveContent({ digestId, content: JSON.stringify(content), model });
   }
 
   private static async launchWorkflows(params: IDigestWorkflowParams[]): Promise<void> {

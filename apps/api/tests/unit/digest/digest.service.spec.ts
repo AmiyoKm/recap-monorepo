@@ -16,6 +16,7 @@ import {
 } from "#api/modules/digest/digest.constants";
 import { EDigestStatus } from "#api/modules/digest/digest.enums";
 import {
+  digestVectorId,
   parseDigestContent,
   parseMissingSources,
   pullStepName,
@@ -56,6 +57,7 @@ let first: Awaited<ReturnType<typeof seedGoogleConnection>>;
 let created: IDigestWorkflowParams[];
 let restoreWorkflow: () => void;
 let upserts: VectorizeVector[][];
+let deletes: string[][];
 let restoreVectors: () => void;
 
 async function digestRow(id: string) {
@@ -80,7 +82,7 @@ beforeEach(async () => {
   userId = await createUser(uniqueEmail());
   first = await seedGoogleConnection(userId);
   ({ created, restore: restoreWorkflow } = installFakeDigestWorkflow());
-  ({ upserts, restore: restoreVectors } = installFakeDigestVectors());
+  ({ upserts, deletes, restore: restoreVectors } = installFakeDigestVectors());
 });
 
 afterEach(() => {
@@ -258,7 +260,7 @@ describe("DigestService.writeDigest", () => {
 
     expect(ai).not.toHaveBeenCalled();
     const row = await digestRow(id);
-    expect(row.status).toBe(EDigestStatus.READY);
+    expect(row.status).toBe(EDigestStatus.PENDING);
     const content = parseDigestContent(row.content);
     expect(content?.nothingNew).toBe(true);
     expect(content?.sections).toHaveLength(1);
@@ -293,7 +295,7 @@ describe("DigestService.writeDigest", () => {
     expect(input?.prompt).toContain(mailId);
     expect(input?.prompt).toContain(meetingId);
     const row = await digestRow(id);
-    expect(row).toMatchObject({ status: EDigestStatus.READY, model: DIGEST_MODEL });
+    expect(row).toMatchObject({ status: EDigestStatus.PENDING, model: DIGEST_MODEL });
     expect(parseDigestContent(row.content)?.sections[0]).toMatchObject({
       highlights: [{ text: "Budget thread opened", activityIds: [mailId] }],
       meetingsAhead: [{ text: "Standup at 11:30", activityIds: [meetingId] }],
@@ -352,9 +354,10 @@ function fakeVector(seed: number): number[] {
   return Array.from({ length: DIGEST_EMBEDDING_DIMENSIONS }, () => seed);
 }
 
-async function readyDigestWith(sections: TDigestSection[]): Promise<string> {
+async function runningDigestWith(sections: TDigestSection[]): Promise<string> {
   const id = await startedDigest();
-  await DigestRepository.saveReady({
+  await DigestRepository.markRunning(id);
+  await DigestRepository.saveContent({
     digestId: id,
     content: JSON.stringify({ nothingNew: false, truncated: false, sections }),
     model: DIGEST_MODEL,
@@ -376,7 +379,7 @@ describe("DigestService.embedDigest", () => {
   test("upserts one vector per section with user, identity and date metadata", async () => {
     const otherIdentityId = randomUUID();
     const embed = spyOn(AiService, "embedMany").mockResolvedValue([fakeVector(1), fakeVector(2)]);
-    const id = await readyDigestWith([
+    const id = await runningDigestWith([
       sectionOf(first.identityId, "Budget thread opened"),
       sectionOf(otherIdentityId, "Launch moved"),
     ]);
@@ -405,7 +408,7 @@ describe("DigestService.embedDigest", () => {
 
   test("builds the same ids again on regenerate with a new Digest id", async () => {
     spyOn(AiService, "embedMany").mockResolvedValue([fakeVector(1)]);
-    const oldId = await readyDigestWith([sectionOf(first.identityId, "Budget thread opened")]);
+    const oldId = await runningDigestWith([sectionOf(first.identityId, "Budget thread opened")]);
     await DigestService.embedDigest(oldId);
     const id = randomUUID();
     await db.update(schema.digest).set({ id }).where(eq(schema.digest.id, oldId));
@@ -417,7 +420,7 @@ describe("DigestService.embedDigest", () => {
 
   test("calls neither the embedder nor Vectorize for a Digest with no sections", async () => {
     const embed = spyOn(AiService, "embedMany");
-    const id = await readyDigestWith([]);
+    const id = await runningDigestWith([]);
 
     await DigestService.embedDigest(id);
 
@@ -427,7 +430,7 @@ describe("DigestService.embedDigest", () => {
 
   test("skips a section with no items", async () => {
     const embed = spyOn(AiService, "embedMany").mockResolvedValue([fakeVector(1)]);
-    const id = await readyDigestWith([
+    const id = await runningDigestWith([
       sectionOf(first.identityId, "Budget thread opened"),
       { ...sectionOf(randomUUID(), "x"), highlights: [] },
     ]);
@@ -441,11 +444,83 @@ describe("DigestService.embedDigest", () => {
 
   test("throws when embedding fails and writes nothing", async () => {
     spyOn(AiService, "embedMany").mockRejectedValue(new Error("quota"));
-    const id = await readyDigestWith([sectionOf(first.identityId, "Budget thread opened")]);
+    const id = await runningDigestWith([sectionOf(first.identityId, "Budget thread opened")]);
 
     await expect(DigestService.embedDigest(id)).rejects.toThrow("quota");
 
     expect(upserts).toEqual([]);
+    expect((await digestRow(id)).status).toBe(EDigestStatus.RUNNING);
+  });
+
+  test("marks the Digest ready after the upsert", async () => {
+    spyOn(AiService, "embedMany").mockResolvedValue([fakeVector(1)]);
+    const id = await runningDigestWith([sectionOf(first.identityId, "Budget thread opened")]);
+
+    await DigestService.embedDigest(id);
+
+    expect((await digestRow(id)).status).toBe(EDigestStatus.READY);
+  });
+
+  test("marks a Digest with no sections ready", async () => {
+    const id = await runningDigestWith([]);
+
+    await DigestService.embedDigest(id);
+
+    expect((await digestRow(id)).status).toBe(EDigestStatus.READY);
+  });
+
+  test("a replaced Digest row is not marked ready by the older run and nothing is written", async () => {
+    const embed = spyOn(AiService, "embedMany").mockResolvedValue([fakeVector(1)]);
+    const oldId = await runningDigestWith([sectionOf(first.identityId, "Budget thread opened")]);
+    const newId = randomUUID();
+    await db.update(schema.digest).set({ id: newId }).where(eq(schema.digest.id, oldId));
+
+    await expect(DigestService.embedDigest(oldId)).rejects.toThrow();
+    await DigestRepository.markReady(oldId);
+
+    expect((await digestRow(newId)).status).toBe(EDigestStatus.RUNNING);
+    expect(embed).not.toHaveBeenCalled();
+    expect(upserts).toEqual([]);
+  });
+
+  test("deletes the vector of a section that became empty on regenerate", async () => {
+    spyOn(AiService, "embedMany").mockResolvedValue([fakeVector(1)]);
+    const otherIdentityId = randomUUID();
+    await db.insert(schema.identity).values({
+      id: otherIdentityId,
+      userId,
+      googleSub: randomUUID(),
+      email: "other@example.test",
+      createdAt: dayjs().toISOString(),
+      updatedAt: dayjs().toISOString(),
+    });
+    const id = await runningDigestWith([
+      sectionOf(first.identityId, "Budget thread opened"),
+      { ...sectionOf(otherIdentityId, "x"), highlights: [] },
+    ]);
+
+    await DigestService.embedDigest(id);
+
+    expect(deletes).toEqual([[digestVectorId(userId, "2026-10-14", otherIdentityId)]]);
+  });
+
+  test("deletes every vector of the user for the date when all sections are empty", async () => {
+    const embed = spyOn(AiService, "embedMany");
+    const id = await runningDigestWith([]);
+
+    await DigestService.embedDigest(id);
+
+    expect(embed).not.toHaveBeenCalled();
+    expect(deletes).toEqual([[digestVectorId(userId, "2026-10-14", first.identityId)]]);
+  });
+
+  test("deletes nothing when every identity has a section", async () => {
+    spyOn(AiService, "embedMany").mockResolvedValue([fakeVector(1)]);
+    const id = await runningDigestWith([sectionOf(first.identityId, "Budget thread opened")]);
+
+    await DigestService.embedDigest(id);
+
+    expect(deletes).toEqual([]);
   });
 });
 
