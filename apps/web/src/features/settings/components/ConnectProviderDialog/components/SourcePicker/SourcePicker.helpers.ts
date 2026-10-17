@@ -1,6 +1,7 @@
 import type { EGoogleSource } from "@/api/identity/identity.enums";
 import type { TIdentityConnection } from "@/api/identity/identity.types";
 import { SOURCE_PICKER_ORDER } from "@/features/settings/components/ConnectProviderDialog/components/SourcePicker/SourcePicker.constants";
+import type { ISourceToggle } from "@/features/settings/components/ConnectProviderDialog/components/SourcePicker/SourcePicker.interfaces";
 
 export function defaultSources(connection: TIdentityConnection | undefined): EGoogleSource[] {
   const current = connection?.sources ?? [];
@@ -10,11 +11,7 @@ export function defaultSources(connection: TIdentityConnection | undefined): EGo
   return SOURCE_PICKER_ORDER.filter((source) => current.includes(source));
 }
 
-export function toggleSource(
-  sources: EGoogleSource[],
-  source: EGoogleSource,
-  isChecked: boolean,
-): EGoogleSource[] {
+export function toggleSource({ sources, source, isChecked }: ISourceToggle): EGoogleSource[] {
   const remaining = sources.filter((entry) => entry !== source);
   if (!isChecked) {
     return remaining;

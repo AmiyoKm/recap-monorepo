@@ -15,6 +15,7 @@ import {
 } from "#api/modules/identity/identity.enums";
 import type { IOAuthConnectionInput } from "#api/modules/identity/identity.interfaces";
 import type {
+  TConnectionGrantTarget,
   TConnectionResponse,
   TConnectionRow,
   TIdentityResponse,
@@ -104,6 +105,14 @@ function readPendingGrant(stored: string): TPendingGrant | null {
   if (purpose !== EGrantPurpose.CONNECTION) {
     return null;
   }
+  const target = readConnectionTarget(record);
+  if (!target) {
+    return null;
+  }
+  return { userId, purpose, ...target, codeVerifier };
+}
+
+function readConnectionTarget(record: Record<string, unknown>): TConnectionGrantTarget | null {
   const { identityId, provider: providerName, sources: storedSources } = record;
   if (typeof identityId !== "string" || typeof providerName !== "string") {
     return null;
@@ -116,7 +125,7 @@ function readPendingGrant(stored: string): TPendingGrant | null {
   if (!sources) {
     return null;
   }
-  return { userId, purpose, identityId, provider, sources, codeVerifier };
+  return { identityId, provider, sources };
 }
 
 export function readRequestedSources(

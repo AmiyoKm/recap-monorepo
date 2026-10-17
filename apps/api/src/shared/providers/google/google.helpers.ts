@@ -3,7 +3,10 @@ import type { Credentials, TokenPayload } from "google-auth-library";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { GOOGLE_SOURCE_SCOPES } from "#api/shared/providers/google/google.constants";
 import { EGoogleMessages, EGoogleSource } from "#api/shared/providers/google/google.enums";
-import type { IGoogleProfile } from "#api/shared/providers/google/google.interfaces";
+import type {
+  IGoogleProfile,
+  ISourceGrantResult,
+} from "#api/shared/providers/google/google.interfaces";
 import { OAUTH_SCOPE_SEPARATOR } from "#api/shared/providers/providers.constants";
 import type { IProviderTokens } from "#api/shared/providers/providers.interfaces";
 
@@ -60,9 +63,6 @@ export function parseSources(values: readonly unknown[]): EGoogleSource[] | null
   return sources;
 }
 
-export function deniedSources(
-  requested: EGoogleSource[],
-  granted: EGoogleSource[],
-): EGoogleSource[] {
+export function deniedSources({ requested, granted }: ISourceGrantResult): EGoogleSource[] {
   return requested.filter((source) => !granted.includes(source));
 }

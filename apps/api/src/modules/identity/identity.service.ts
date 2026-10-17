@@ -333,7 +333,7 @@ export abstract class IdentityService {
     if (granted.length === 0) {
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.SCOPE_DENIED });
     }
-    const denied = deniedSources(requestedSources, granted);
+    const denied = deniedSources({ requested: requestedSources, granted });
     return await IdentityService.saveConnection(
       {
         ...target,

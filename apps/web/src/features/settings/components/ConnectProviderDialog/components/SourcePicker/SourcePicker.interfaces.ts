@@ -6,3 +6,9 @@ export interface ISourcePickerProps {
   onSourcesChange: (sources: EGoogleSource[]) => void;
   onContinue: () => void;
 }
+
+export interface ISourceToggle {
+  sources: EGoogleSource[];
+  source: EGoogleSource;
+  isChecked: boolean;
+}

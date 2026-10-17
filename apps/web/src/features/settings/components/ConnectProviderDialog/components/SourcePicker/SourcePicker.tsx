@@ -40,7 +40,9 @@ export function SourcePicker({
                     id={checkboxId}
                     checked={sources.includes(source)}
                     onCheckedChange={(checked) =>
-                      onSourcesChange(toggleSource(sources, source, checked === true))
+                      onSourcesChange(
+                        toggleSource({ sources, source, isChecked: checked === true }),
+                      )
                     }
                   />
                   <FieldContent className="min-w-0">

@@ -69,15 +69,22 @@ describe("defaultSources", () => {
 
 describe("toggleSource", () => {
   test("adds a ticked source in the source order", () => {
-    expect(toggleSource([EGoogleSource.CHAT], EGoogleSource.CALENDAR, true)).toEqual([
-      EGoogleSource.CALENDAR,
-      EGoogleSource.CHAT,
-    ]);
+    expect(
+      toggleSource({
+        sources: [EGoogleSource.CHAT],
+        source: EGoogleSource.CALENDAR,
+        isChecked: true,
+      }),
+    ).toEqual([EGoogleSource.CALENDAR, EGoogleSource.CHAT]);
   });
 
   test("removes an unticked source", () => {
     expect(
-      toggleSource([EGoogleSource.CALENDAR, EGoogleSource.CHAT], EGoogleSource.CALENDAR, false),
+      toggleSource({
+        sources: [EGoogleSource.CALENDAR, EGoogleSource.CHAT],
+        source: EGoogleSource.CALENDAR,
+        isChecked: false,
+      }),
     ).toEqual([EGoogleSource.CHAT]);
   });
 });

@@ -128,6 +128,8 @@ describe("deniedSources", () => {
       denied: [EGoogleSource.CALENDAR, EGoogleSource.CHAT],
     },
   ])("lists $denied when $granted of $requested were granted", ({ requested, granted, denied }) => {
-    expect(deniedSources([...requested], [...granted])).toEqual([...denied]);
+    expect(deniedSources({ requested: [...requested], granted: [...granted] })).toEqual([
+      ...denied,
+    ]);
   });
 });

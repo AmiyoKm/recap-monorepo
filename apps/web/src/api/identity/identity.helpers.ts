@@ -13,7 +13,11 @@ import {
 } from "@/api/identity/identity.constants";
 import { EConnectionStatus, EConsentTarget, EProvider } from "@/api/identity/identity.enums";
 import type { IConnectResultMessage } from "@/api/identity/identity.interfaces";
-import type { TConsentTarget, TIdentitiesData } from "@/api/identity/identity.types";
+import type {
+  TConsentTarget,
+  TIdentitiesData,
+  TIdentityConnection,
+} from "@/api/identity/identity.types";
 
 export function readAuthorizeUrl(data: unknown): string {
   if (
@@ -74,6 +78,10 @@ function connectionPrefix(identityId: string, provider: string, status: string):
   return `${identityId}:${provider}:${status}:`;
 }
 
+function connectionEntry(identityId: string, connection: TIdentityConnection): string {
+  return `${connectionPrefix(identityId, connection.provider, connection.status)}${connection.id}`;
+}
+
 export function identitiesFingerprint(identities: TIdentitiesData | undefined): string | null {
   if (!identities) {
     return null;
@@ -81,10 +89,7 @@ export function identitiesFingerprint(identities: TIdentitiesData | undefined): 
   return identities
     .flatMap((identity) => [
       identity.id,
-      ...identity.connections.map(
-        (connection) =>
-          `${connectionPrefix(identity.id, connection.provider, connection.status)}${connection.id}`,
-      ),
+      ...identity.connections.map((connection) => connectionEntry(identity.id, connection)),
     ])
     .join("|");
 }
