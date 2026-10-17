@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { toKnownValue } from "#api/modules/activity/activity.helpers";
 import type { TActivityListRow } from "#api/modules/activity/activity.types";
@@ -308,4 +308,29 @@ export function pullStepName(connectionId: string, stepIndex: number): string {
 
 export function missingSourceStepName(connectionId: string): string {
   return `${EDigestStep.MISSING_SOURCE}:${connectionId}`;
+}
+
+export function digestVectorId(userId: string, digestDate: string, identityId: string): string {
+  return createHash("sha256").update(`${userId}:${digestDate}:${identityId}`).digest("hex");
+}
+
+export function hasSectionItems(section: TDigestSection): boolean {
+  return section.highlights.length + section.meetingsAhead.length + section.needsYou.length > 0;
+}
+
+function embeddingLines(title: string, items: TDigestItem[]): string[] {
+  if (items.length === 0) {
+    return [];
+  }
+  return [`${title}:`, ...items.map((item) => `- ${item.text}`)];
+}
+
+export function buildSectionEmbeddingText(section: TDigestSection, digestDate: string): string {
+  return [
+    `Work Identity: ${section.identityEmail}`,
+    `Date: ${digestDate}`,
+    ...embeddingLines("Highlights", section.highlights),
+    ...embeddingLines("Meetings ahead", section.meetingsAhead),
+    ...embeddingLines("Needs you", section.needsYou),
+  ].join("\n");
 }

@@ -66,3 +66,4 @@ export const JIRA_CLOUD_ID = "cloud-1";
 export const JIRA_REFRESH_TOKEN = "jira-refresh-1";
 
 export const LINEAR_LAST_PAGE = { hasNextPage: false, endCursor: null };
+export const VECTORIZE_ID_MAX_LENGTH = 64;

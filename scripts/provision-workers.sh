@@ -277,6 +277,46 @@ ensure_queue() {
   warn "Queue $name is missing, so the hourly pull cannot send messages"
 }
 
+vectorize_exists() {
+  wr vectorize get "$1" >/dev/null 2>&1
+}
+
+vectorize_has_digest_config() {
+  wr vectorize get "$1" --json 2>/dev/null | jq -e '.config.dimensions == 768 and .config.metric == "cosine"' >/dev/null
+}
+
+vectorize_has_user_index() {
+  wr vectorize list-metadata-index "$1" 2>/dev/null | grep -q "userId"
+}
+
+ensure_vectorize() {
+  local name="$1"
+  if vectorize_exists "$name"; then
+    note "Vectorize index $name already exists."
+  elif confirm "Create Vectorize index $name (768 dimensions, cosine)?"; then
+    wr vectorize create "$name" --dimensions=768 --metric=cosine </dev/null
+  fi
+  if ! vectorize_exists "$name"; then
+    SKIPPED+=("Vectorize index $name: run wrangler vectorize create $name --dimensions=768 --metric=cosine")
+    warn "Vectorize index $name is missing, so Digest sections cannot be embedded"
+    return 0
+  fi
+  if ! vectorize_has_digest_config "$name"; then
+    SKIPPED+=("Vectorize index $name: it must have 768 dimensions and the cosine metric; these cannot change, so make a new index")
+    warn "Vectorize index $name has the wrong dimensions or metric, so Digest embeddings will fail"
+    return 0
+  fi
+  if vectorize_has_user_index "$name"; then
+    note "Vectorize index $name already has the userId metadata index."
+    return 0
+  fi
+  if confirm "Add the userId metadata index to $name?"; then
+    wr vectorize create-metadata-index "$name" --propertyName=userId --type=string </dev/null && return 0
+  fi
+  SKIPPED+=("Vectorize index $name: run wrangler vectorize create-metadata-index $name --propertyName=userId --type=string")
+  warn "Vectorize index $name has no userId metadata index. Add it before the first Digest is embedded."
+}
+
 banner "Recap API: provision Cloudflare Workers (dev and prod)"
 
 stage "Sign in to Cloudflare"
@@ -299,7 +339,7 @@ ensure_d1 "recap-dev" '.env.dev.d1_databases[0].database_id'
 ensure_d1 "recap-prod" '.env.prod.d1_databases[0].database_id'
 pause
 
-stage "Create the Queues and KV namespaces"
+stage "Create the Queues, KV namespaces and Vectorize indexes"
 say "Each environment gets a Queue for the hourly pull messages."
 ensure_queue "recap-pull-dev"
 ensure_queue "recap-pull-prod"
@@ -311,6 +351,9 @@ if grep -q "TODO-run-scripts-provision-workers" "$CONFIG"; then
 else
   note "All 4 IDs are in apps/api/wrangler.jsonc. Commit this file."
 fi
+say "Each environment gets a Vectorize index for the Digest section vectors."
+ensure_vectorize "recap-digest-dev"
+ensure_vectorize "recap-digest-prod"
 pause
 
 stage "Apply the D1 migrations"
@@ -338,6 +381,7 @@ note "    Account · Workers Scripts · Edit"
 note "    Account · D1 · Edit"
 note "    Account · Workers KV Storage · Edit"
 note "    Account · Queues · Edit"
+note "    Account · Vectorize · Edit"
 note "    Zone · Workers Routes · Edit (the zone of APP_DOMAIN)"
 note "    Zone · DNS · Edit (the zone of APP_DOMAIN)"
 step "Save. The token value stays the same when you only change permissions."

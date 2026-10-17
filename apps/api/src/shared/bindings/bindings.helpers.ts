@@ -22,5 +22,8 @@ export function readBindings(env: Cloudflare.Env): IBindings {
     get DIGEST_WORKFLOW() {
       return requireBinding(EBinding.DIGEST_WORKFLOW, env.DIGEST_WORKFLOW);
     },
+    get DIGEST_VECTORS() {
+      return requireBinding(EBinding.DIGEST_VECTORS, env.DIGEST_VECTORS);
+    },
   };
 }

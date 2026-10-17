@@ -20,7 +20,7 @@ export interface IDigestStartInput {
   windowEnd: string;
 }
 
-export interface IDigestSaveReadyInput {
+export interface IDigestSaveContentInput {
   digestId: string;
   content: string;
   model: string | null;

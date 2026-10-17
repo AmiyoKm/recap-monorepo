@@ -3,6 +3,7 @@ export enum EDigestMessages {
   DIGEST_NOT_FOUND = "No Digest exists for that date",
   DIGEST_IN_PROGRESS = "A Digest is already being made",
   DIGEST_MISSING = "Digest row is missing",
+  EMBEDDING_MISSING = "Embedding is missing for a Digest section",
   FINAL_PULL_FAILED = "Digest final pull failed for a Connection",
 }
 
@@ -19,5 +20,6 @@ export enum EDigestStep {
   MISSING_SOURCE = "missing-source",
   SAVE_MISSING_SOURCES = "save-missing-sources",
   WRITE_DIGEST = "write-digest",
+  EMBED_DIGEST = "embed-digest",
   FAIL_DIGEST = "fail-digest",
 }

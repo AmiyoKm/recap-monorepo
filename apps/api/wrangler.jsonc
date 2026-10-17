@@ -37,6 +37,9 @@
       },
       "workflows": [
         { "name": "recap-digest-dev", "binding": "DIGEST_WORKFLOW", "class_name": "DigestWorkflow" }
+      ],
+      "vectorize": [
+        { "binding": "DIGEST_VECTORS", "index_name": "recap-digest-dev", "remote": true }
       ]
     },
     "prod": {
@@ -72,7 +75,8 @@
           "binding": "DIGEST_WORKFLOW",
           "class_name": "DigestWorkflow"
         }
-      ]
+      ],
+      "vectorize": [{ "binding": "DIGEST_VECTORS", "index_name": "recap-digest-prod" }]
     }
   }
 }

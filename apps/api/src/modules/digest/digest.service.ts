@@ -5,6 +5,8 @@ import { ActivityRepository } from "#api/modules/activity/activity.repository";
 import {
   DEFAULT_DIGEST_TIME_ZONE,
   DIGEST_ACTIVITY_LIMIT,
+  DIGEST_EMBEDDING_DIMENSIONS,
+  DIGEST_EMBEDDING_MODEL,
   DIGEST_ERROR_MAX_LENGTH,
   DIGEST_FINAL_PULL_MAX_STEPS,
   DIGEST_FINAL_PULL_PAGES_PER_STEP,
@@ -18,13 +20,17 @@ import { EDigestMessages } from "#api/modules/digest/digest.enums";
 import {
   buildDigestPrompt,
   buildNothingNewContent,
+  buildSectionEmbeddingText,
   capWindowRows,
   defaultWindowStart,
+  digestVectorId,
+  hasSectionItems,
   isDigestDue,
   isSupportedTimeZone,
   localDigestDate,
   missingSourceStepName,
   nextDigestRunAt,
+  parseDigestContent,
   pullStepName,
   requireDigest,
   startOfNextLocalDay,
@@ -46,6 +52,8 @@ import type {
   TDigestMissingSource,
   TDigestNotFoundError,
   TDigestResponse,
+  TDigestRow,
+  TDigestSection,
   TDigestSettingsBody,
   TDigestSettingsResponse,
   TDigestTimeZoneError,
@@ -84,6 +92,13 @@ async function pullOnePage(target: IPullTarget): Promise<EPullOutcome> {
 async function timeZoneOf(userId: string): Promise<string> {
   const setting = await DigestRepository.findSetting(userId);
   return setting?.timeZone ?? DEFAULT_DIGEST_TIME_ZONE;
+}
+
+function requireEmbedding(embedding: number[] | undefined, digestId: string): number[] {
+  if (!embedding) {
+    throw new Error(EDigestMessages.EMBEDDING_MISSING, { cause: digestId });
+  }
+  return embedding;
 }
 
 export abstract class DigestService {
@@ -258,6 +273,45 @@ export abstract class DigestService {
     await DigestService.saveContent(digestId, toDigestContent(output, contentInput), DIGEST_MODEL);
   }
 
+  static async embedDigest(digestId: string): Promise<void> {
+    const digest = requireDigest(await DigestRepository.findById(digestId), digestId);
+    const sections = (parseDigestContent(digest.content)?.sections ?? []).filter(hasSectionItems);
+    const upsertedIds = await DigestService.upsertSectionVectors(digest, sections);
+    const identities = await DigestRepository.listIdentities(digest.userId);
+    const staleIds = identities
+      .map((identity) => digestVectorId(digest.userId, digest.digestDate, identity.id))
+      .filter((id) => !upsertedIds.includes(id));
+    if (staleIds.length > 0) {
+      await bindings.DIGEST_VECTORS.deleteByIds(staleIds);
+    }
+    await DigestRepository.markReady(digestId);
+  }
+
+  private static async upsertSectionVectors(
+    digest: TDigestRow,
+    sections: TDigestSection[],
+  ): Promise<string[]> {
+    if (sections.length === 0) {
+      return [];
+    }
+    const embeddings = await AiService.embedMany({
+      model: DIGEST_EMBEDDING_MODEL,
+      values: sections.map((section) => buildSectionEmbeddingText(section, digest.digestDate)),
+      dimensions: DIGEST_EMBEDDING_DIMENSIONS,
+    });
+    const vectors = sections.map((section, index) => ({
+      id: digestVectorId(digest.userId, digest.digestDate, section.identityId),
+      values: requireEmbedding(embeddings[index], digest.id),
+      metadata: {
+        userId: digest.userId,
+        identityId: section.identityId,
+        digestDate: digest.digestDate,
+      },
+    }));
+    await bindings.DIGEST_VECTORS.upsert(vectors);
+    return vectors.map((vector) => vector.id);
+  }
+
   static async failDigest(digestId: string, error: unknown): Promise<void> {
     await DigestRepository.saveFailed(
       digestId,
@@ -270,7 +324,7 @@ export abstract class DigestService {
     content: TDigestContent,
     model: string | null,
   ): Promise<void> {
-    await DigestRepository.saveReady({ digestId, content: JSON.stringify(content), model });
+    await DigestRepository.saveContent({ digestId, content: JSON.stringify(content), model });
   }
 
   private static async launchWorkflows(params: IDigestWorkflowParams[]): Promise<void> {

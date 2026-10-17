@@ -16,7 +16,7 @@ import type {
   IDigestCandidate,
   IDigestIdentity,
   IDigestPastRow,
-  IDigestSaveReadyInput,
+  IDigestSaveContentInput,
   IDigestStarted,
   IDigestStartInput,
 } from "#api/modules/digest/digest.interfaces";
@@ -150,17 +150,23 @@ export abstract class DigestRepository {
       .where(eq(schema.digest.id, digestId));
   }
 
-  static async saveReady(input: IDigestSaveReadyInput): Promise<void> {
+  static async saveContent(input: IDigestSaveContentInput): Promise<void> {
     await db
       .update(schema.digest)
       .set({
-        status: EDigestStatus.READY,
         content: input.content,
         model: input.model,
         error: null,
         updatedAt: dayjs().toISOString(),
       })
       .where(eq(schema.digest.id, input.digestId));
+  }
+
+  static async markReady(digestId: string): Promise<void> {
+    await db
+      .update(schema.digest)
+      .set({ status: EDigestStatus.READY, updatedAt: dayjs().toISOString() })
+      .where(eq(schema.digest.id, digestId));
   }
 
   static async saveFailed(digestId: string, error: string): Promise<void> {

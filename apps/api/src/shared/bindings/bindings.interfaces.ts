@@ -12,4 +12,5 @@ export interface IBindings {
   CACHE: KVNamespace;
   PULL_QUEUE: Queue<IPullMessage>;
   DIGEST_WORKFLOW: Workflow<IDigestWorkflowParams>;
+  DIGEST_VECTORS: VectorizeIndex;
 }
