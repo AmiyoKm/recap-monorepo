@@ -1042,27 +1042,6 @@ describe("jira and linear connections", () => {
     expect(await cache.get(connectionTokenKey(row.id))).toBeNull();
   });
 
-  test.each(["jira", "linear"] as const)(
-    "rejects %s when its oauth client is not configured",
-    async (providerName) => {
-      const { cookie } = await signUp(uniqueEmail());
-      provider.google.profiles.set(`code-${providerName}-noenv`, {
-        ...GOOGLE_PROFILE,
-        sub: `sub-${providerName}-noenv`,
-      });
-      const identityId = await createIdentity(cookie, `code-${providerName}-noenv`);
-      const configured = ENV[providerName];
-      ENV[providerName] = undefined;
-      try {
-        const { status, error } = await connect(cookie, identityId, { provider: providerName });
-        expect(status).toBe(HTTP_BAD_REQUEST);
-        expect(error?.value).toEqual({ message: EIdentityMessages.PROVIDER_UNSUPPORTED });
-      } finally {
-        ENV[providerName] = configured;
-      }
-    },
-  );
-
   test("rejects an unwired provider", async () => {
     const { cookie } = await signUp(uniqueEmail());
     provider.google.profiles.set("code-gh", { ...GOOGLE_PROFILE, sub: "sub-gh" });

@@ -43,7 +43,7 @@ describe("JiraService.createAuthorization", () => {
     });
     const url = new URL(authorizeUrl);
     expect(url.origin).toBe("https://auth.atlassian.com");
-    expect(url.searchParams.get("client_id")).toBe(ENV.jira?.clientId ?? null);
+    expect(url.searchParams.get("client_id")).toBe(ENV.jira.clientId);
     expect(url.searchParams.get("audience")).toBe("api.atlassian.com");
     expect(url.searchParams.get("state")).toBe("state-1");
     expect(url.searchParams.get("redirect_uri")).toBe(REDIRECT_URI);
@@ -79,8 +79,8 @@ describe("JiraService.exchangeCode", () => {
     ]);
     expect(JSON.parse(recordedRequests[0]?.body ?? "")).toEqual({
       grant_type: "authorization_code",
-      client_id: ENV.jira?.clientId,
-      client_secret: ENV.jira?.clientSecret,
+      client_id: ENV.jira.clientId,
+      client_secret: ENV.jira.clientSecret,
       code: "code-1",
       redirect_uri: REDIRECT_URI,
     });

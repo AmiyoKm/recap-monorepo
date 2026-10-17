@@ -6,11 +6,7 @@ import {
   LINEAR_REQUEST_TIMEOUT_MS,
   LINEAR_SCOPES,
 } from "#api/shared/providers/linear/linear.constants";
-import {
-  ELinearMessages,
-  ELinearOAuthParam,
-  ELinearOAuthValue,
-} from "#api/shared/providers/linear/linear.enums";
+import { ELinearOAuthParam, ELinearOAuthValue } from "#api/shared/providers/linear/linear.enums";
 import { toLinearTokens } from "#api/shared/providers/linear/linear.helpers";
 import type { ILinearCodeExchangeInput } from "#api/shared/providers/linear/linear.interfaces";
 import type {
@@ -66,9 +62,6 @@ export abstract class LinearService {
   }
 
   private static client(redirectUri: string): OAuth2Client {
-    if (!ENV.linear) {
-      throw new Error(ELinearMessages.NOT_CONFIGURED);
-    }
     return new OAuth2Client(ENV.linear.clientId, ENV.linear.clientSecret, redirectUri);
   }
 }

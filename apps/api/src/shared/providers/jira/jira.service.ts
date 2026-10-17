@@ -6,9 +6,7 @@ import {
 } from "jira.js";
 
 import { ENV } from "#api/shared/env/env.constants";
-import type { IOAuthClientEnv } from "#api/shared/env/env.interfaces";
 import { JIRA_REQUEST_TIMEOUT_MS, JIRA_SCOPES } from "#api/shared/providers/jira/jira.constants";
-import { EJiraMessages } from "#api/shared/providers/jira/jira.enums";
 import { toJiraAccount, toJiraSite, toJiraTokens } from "#api/shared/providers/jira/jira.helpers";
 import type {
   IProviderAuthorization,
@@ -20,7 +18,7 @@ import type {
 export abstract class JiraService {
   static createAuthorization(input: IProviderAuthorizeInput): IProviderAuthorization {
     const authorizeUrl = generateAuthorizationUrl({
-      clientId: JiraService.client().clientId,
+      clientId: ENV.jira.clientId,
       scopes: JIRA_SCOPES,
       redirectUri: input.redirectUri,
       state: input.state,
@@ -29,7 +27,7 @@ export abstract class JiraService {
   }
 
   static async exchangeCode(input: IProviderCodeExchangeInput): Promise<IProviderGrant> {
-    const { clientId, clientSecret } = JiraService.client();
+    const { clientId, clientSecret } = ENV.jira;
     const tokens = await exchangeAuthorizationCode({
       clientId,
       clientSecret,
@@ -53,13 +51,6 @@ export abstract class JiraService {
       site: site.host,
       resourceId: site.cloudId,
     };
-  }
-
-  private static client(): IOAuthClientEnv {
-    if (!ENV.jira) {
-      throw new Error(EJiraMessages.NOT_CONFIGURED);
-    }
-    return ENV.jira;
   }
 
   private static fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {

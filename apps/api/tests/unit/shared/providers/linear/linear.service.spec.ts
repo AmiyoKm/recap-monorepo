@@ -28,7 +28,7 @@ describe("LinearService.createAuthorization", () => {
     });
     const url = new URL(authorizeUrl);
     expect(`${url.origin}${url.pathname}`).toBe("https://linear.app/oauth/authorize");
-    expect(url.searchParams.get("client_id")).toBe(ENV.linear?.clientId ?? null);
+    expect(url.searchParams.get("client_id")).toBe(ENV.linear.clientId);
     expect(url.searchParams.get("state")).toBe("state-1");
     expect(url.searchParams.get("redirect_uri")).toBe(REDIRECT_URI);
     expect(url.searchParams.get("scope")).toBe("read");
@@ -79,7 +79,7 @@ describe("LinearService.exchangeCode", () => {
       code_verifier: "verifier-1",
       redirect_uri: REDIRECT_URI,
     });
-    const credentials = Buffer.from(`${ENV.linear?.clientId}:${ENV.linear?.clientSecret}`).toString(
+    const credentials = Buffer.from(`${ENV.linear.clientId}:${ENV.linear.clientSecret}`).toString(
       "base64",
     );
     expect(tokenRequest?.headers.get("authorization")).toBe(`Basic ${credentials}`);
