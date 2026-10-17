@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { EEnvMessages } from "#api/shared/env/env.enums";
-import { optionalEnv, requireEnv } from "#api/shared/env/env.helpers";
+import { optionalEnv, optionalOAuthClient, requireEnv } from "#api/shared/env/env.helpers";
 
 describe("requireEnv", () => {
   test("returns a set value", () => {
@@ -20,5 +20,22 @@ describe("optionalEnv", () => {
 
   test.each([undefined, ""])("returns undefined for %p", (value) => {
     expect(optionalEnv(value)).toBeUndefined();
+  });
+});
+
+describe("optionalOAuthClient", () => {
+  test("returns the client when both values are set", () => {
+    expect(optionalOAuthClient("client-id", "client-secret")).toEqual({
+      clientId: "client-id",
+      clientSecret: "client-secret",
+    });
+  });
+
+  test.each([
+    [undefined, "client-secret"],
+    ["client-id", undefined],
+    ["", "client-secret"],
+  ])("returns undefined for %p and %p", (clientId, clientSecret) => {
+    expect(optionalOAuthClient(clientId, clientSecret)).toBeUndefined();
   });
 });

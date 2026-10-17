@@ -1,13 +1,14 @@
 import { describe, expect, test } from "bun:test";
 
-import { AuthError, ForbiddenError, ServerError } from "jira.js";
+import type { AccessibleResource } from "jira.js";
 
+import { EJiraMessages } from "#api/shared/providers/jira/jira.enums";
 import {
-  isRejectedJiraCredential,
   normalizeJiraSite,
   toJiraAccount,
+  toJiraSite,
+  toJiraTokens,
 } from "#api/shared/providers/jira/jira.helpers";
-import { HTTP_SERVER_ERROR } from "#api-tests/unit/shared/providers/providers.constants";
 
 describe("normalizeJiraSite", () => {
   test.each([
@@ -26,20 +27,6 @@ describe("normalizeJiraSite", () => {
   );
 });
 
-describe("isRejectedJiraCredential", () => {
-  test("accepts auth and forbidden errors", () => {
-    expect(isRejectedJiraCredential(new AuthError("rejected", "Unauthorized", null))).toBe(true);
-    expect(isRejectedJiraCredential(new ForbiddenError("forbidden", "Forbidden", null))).toBe(true);
-  });
-
-  test("rejects other failures", () => {
-    expect(
-      isRejectedJiraCredential(new ServerError("down", HTTP_SERVER_ERROR, "Server Error", null)),
-    ).toBe(false);
-    expect(isRejectedJiraCredential(new Error("boom"))).toBe(false);
-  });
-});
-
 describe("toJiraAccount", () => {
   test("maps a complete Jira user", () => {
     expect(toJiraAccount("acc-1", "dev@employer.example")).toEqual({
@@ -52,6 +39,53 @@ describe("toJiraAccount", () => {
     [undefined, "dev@employer.example"],
     ["acc-1", null],
   ])("throws when Jira leaves out a field", (accountId, accountEmail) => {
-    expect(() => toJiraAccount(accountId, accountEmail)).toThrow();
+    expect(() => toJiraAccount(accountId, accountEmail)).toThrow(EJiraMessages.ACCOUNT_INCOMPLETE);
+  });
+});
+
+describe("toJiraSite", () => {
+  const resource = {
+    id: "cloud-1",
+    name: "Acme",
+    url: "https://acme.atlassian.net",
+    scopes: ["read:jira-work", "read:jira-user"],
+    avatarUrl: "https://img.test/acme.png",
+  };
+
+  test("picks the first site with work access", () => {
+    const other = { ...resource, id: "cloud-0", scopes: ["read:confluence-content.all"] };
+    expect(toJiraSite([other, resource])).toEqual({
+      cloudId: "cloud-1",
+      host: "acme.atlassian.net",
+    });
+  });
+
+  test.each<{ case: string; resources: AccessibleResource[] }>([
+    { case: "no sites", resources: [] },
+    {
+      case: "a site outside atlassian.net",
+      resources: [{ ...resource, url: "https://evil.example" }],
+    },
+  ])("throws for $case", ({ resources }) => {
+    expect(() => toJiraSite(resources)).toThrow(EJiraMessages.NO_ACCESSIBLE_SITE);
+  });
+});
+
+describe("toJiraTokens", () => {
+  test("splits the granted scopes", () => {
+    expect(
+      toJiraTokens({
+        accessToken: "access",
+        refreshToken: "refresh",
+        expiresIn: 3600,
+        scope: "read:jira-work offline_access",
+        tokenType: "bearer",
+      }),
+    ).toEqual({
+      accessToken: "access",
+      refreshToken: "refresh",
+      expiresInSeconds: 3600,
+      scopes: ["read:jira-work", "offline_access"],
+    });
   });
 });

@@ -1,4 +1,4 @@
-export interface IGoogleAuthEnv {
+export interface IOAuthClientEnv {
   clientId: string;
   clientSecret: string;
 }
@@ -7,11 +7,13 @@ export interface IAuthEnv {
   secret: string;
   baseUrl: string;
   cookieDomain: string | undefined;
-  google: IGoogleAuthEnv;
+  google: IOAuthClientEnv;
 }
 
 export interface IEnv {
   webOrigin: string;
   connectionEncryptionKey: string;
   auth: IAuthEnv;
+  jira: IOAuthClientEnv | undefined;
+  linear: IOAuthClientEnv | undefined;
 }

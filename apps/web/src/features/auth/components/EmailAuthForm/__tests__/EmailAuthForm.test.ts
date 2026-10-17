@@ -7,14 +7,14 @@ const HTTP_BAD_GATEWAY = 502;
 
 describe("apiErrorMessage", () => {
   test("returns the message field of a typed server error", () => {
-    expect(apiErrorMessage(new ApiError(HTTP_BAD_REQUEST, { message: "API key is invalid" }))).toBe(
-      "API key is invalid",
-    );
+    expect(
+      apiErrorMessage(new ApiError(HTTP_BAD_REQUEST, { message: "Email or password is invalid" })),
+    ).toBe("Email or password is invalid");
   });
 
   test("returns the server message when the value is a string", () => {
-    expect(apiErrorMessage(new ApiError(HTTP_BAD_REQUEST, "API key is invalid"))).toBe(
-      "API key is invalid",
+    expect(apiErrorMessage(new ApiError(HTTP_BAD_REQUEST, "Email or password is invalid"))).toBe(
+      "Email or password is invalid",
     );
   });
 

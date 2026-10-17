@@ -2,20 +2,18 @@ import { Elysia, t } from "elysia";
 
 import { unauthorizedError } from "#api/modules/auth/auth.model";
 import { authModule } from "#api/modules/auth/auth.module";
+import { EOAuthCallback } from "#api/modules/identity/identity.enums";
 import {
-  apiKeyValidationError,
   authorizeResponse,
   connectBadRequestError,
   connectConnectionBody,
-  connectConnectionResponse,
-  connectionExistsError,
   connectionIdParams,
   connectionNotFoundError,
   deleteResponse,
-  googleCallbackQuery,
   identityIdParams,
   identityListResponse,
   identityNotFoundError,
+  oauthCallbackQuery,
 } from "#api/modules/identity/identity.model";
 import { IdentityService } from "#api/modules/identity/identity.service";
 import { ROUTES } from "#api/shared/routes/routes.constants";
@@ -32,25 +30,37 @@ export const identityModule = new Elysia({ name: "identity" })
   })
   .post(
     "/identities/:identityId/connections",
-    ({ user, params, body }) => IdentityService.connect(user.id, params.identityId, body),
+    ({ user, params, body }) =>
+      IdentityService.startConnection(user.id, params.identityId, body.provider),
     {
       auth: true,
       params: identityIdParams,
       body: connectConnectionBody,
       response: {
-        200: connectConnectionResponse,
+        200: authorizeResponse,
         400: connectBadRequestError,
         401: unauthorizedError,
         404: identityNotFoundError,
-        409: connectionExistsError,
-        502: apiKeyValidationError,
       },
     },
   )
   .get(
     ROUTES.API.GOOGLE_CALLBACK,
-    async ({ query, redirect }) => redirect(await IdentityService.completeGoogleCallback(query)),
-    { query: googleCallbackQuery, response: { 302: t.Void() } },
+    async ({ query, redirect }) =>
+      redirect(await IdentityService.completeCallback(EOAuthCallback.GOOGLE, query)),
+    { query: oauthCallbackQuery, response: { 302: t.Void() } },
+  )
+  .get(
+    ROUTES.API.JIRA_CALLBACK,
+    async ({ query, redirect }) =>
+      redirect(await IdentityService.completeCallback(EOAuthCallback.JIRA, query)),
+    { query: oauthCallbackQuery, response: { 302: t.Void() } },
+  )
+  .get(
+    ROUTES.API.LINEAR_CALLBACK,
+    async ({ query, redirect }) =>
+      redirect(await IdentityService.completeCallback(EOAuthCallback.LINEAR, query)),
+    { query: oauthCallbackQuery, response: { 302: t.Void() } },
   )
   .delete(
     "/identities/:identityId",

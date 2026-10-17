@@ -9,7 +9,6 @@ export type TIdentity = TIdentitiesData[number];
 export type TIdentityConnection = TIdentity["connections"][number];
 
 type TConnectionsRoute = ReturnType<typeof api.identities>;
-export type TApiKeyProvider = EProvider.JIRA | EProvider.LINEAR;
 
 type TEdenResponse<TRequest extends (...args: never[]) => Promise<object>> = Awaited<
   ReturnType<TRequest>
@@ -29,7 +28,6 @@ export type TIdentitiesData = TEdenData<typeof api.identities.get>;
 export type TIdentitiesError = TEdenError<typeof api.identities.get>;
 export type TConnectIdentityData = TEdenData<typeof api.identities.connect.post>;
 export type TConnectIdentityError = TEdenError<typeof api.identities.connect.post>;
-export type TConnectConnectionData = TEdenData<TConnectionsRoute["connections"]["post"]>;
 export type TConnectConnectionError = TEdenError<TConnectionsRoute["connections"]["post"]>;
 export type TDeleteIdentityData = TEdenData<TConnectionsRoute["delete"]>;
 export type TDeleteIdentityError = TEdenError<TConnectionsRoute["delete"]>;

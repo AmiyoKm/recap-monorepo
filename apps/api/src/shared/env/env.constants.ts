@@ -1,4 +1,4 @@
-import { optionalEnv, requireEnv } from "#api/shared/env/env.helpers";
+import { optionalEnv, optionalOAuthClient, requireEnv } from "#api/shared/env/env.helpers";
 import type { IEnv } from "#api/shared/env/env.interfaces";
 
 export const ENV: IEnv = {
@@ -16,4 +16,6 @@ export const ENV: IEnv = {
       clientSecret: requireEnv("GOOGLE_CLIENT_SECRET", process.env["GOOGLE_CLIENT_SECRET"]),
     },
   },
+  jira: optionalOAuthClient(process.env["JIRA_CLIENT_ID"], process.env["JIRA_CLIENT_SECRET"]),
+  linear: optionalOAuthClient(process.env["LINEAR_CLIENT_ID"], process.env["LINEAR_CLIENT_SECRET"]),
 };

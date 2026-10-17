@@ -33,7 +33,6 @@ describe("connectorState", () => {
   const connection: TIdentityConnection = {
     id: "connection-1",
     provider: EProvider.JIRA,
-    authKind: "api_key",
     status: EConnectionStatus.ACTIVE,
     scopes: null,
     providerAccountId: "account-1",

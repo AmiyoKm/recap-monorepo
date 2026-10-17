@@ -16,7 +16,10 @@ describe("ROUTES", () => {
     );
   });
 
-  test("builds an https jira site url", () => {
-    expect(ROUTES.JIRA.SITE("acme.atlassian.net")).toBe("https://acme.atlassian.net");
+  test.each([
+    { url: ROUTES.API.JIRA_CALLBACK_URL(), path: ROUTES.API.JIRA_CALLBACK },
+    { url: ROUTES.API.LINEAR_CALLBACK_URL(), path: ROUTES.API.LINEAR_CALLBACK },
+  ])("builds the $path callback url from the auth base url", ({ url, path }) => {
+    expect(url).toBe(`${ENV.auth.baseUrl}${path}`);
   });
 });

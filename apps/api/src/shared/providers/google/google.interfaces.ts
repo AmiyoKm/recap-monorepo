@@ -1,15 +1,10 @@
+import type { IProviderTokens } from "#api/shared/providers/providers.interfaces";
+
 export interface IGoogleProfile {
   sub: string;
   email: string;
   name: string | undefined;
   picture: string | undefined;
-}
-
-export interface IGoogleTokens {
-  accessToken: string;
-  refreshToken: string | undefined;
-  expiresInSeconds: number | undefined;
-  scopes: string[];
 }
 
 export interface IGoogleAuthorizeInput {
@@ -30,6 +25,6 @@ export interface IGoogleCodeExchangeInput {
 }
 
 export interface IGoogleGrant {
-  tokens: IGoogleTokens;
+  tokens: IProviderTokens;
   profile: IGoogleProfile;
 }

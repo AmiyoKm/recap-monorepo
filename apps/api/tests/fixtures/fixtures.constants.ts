@@ -1,5 +1,5 @@
 import type { IGoogleProfile } from "#api/shared/providers/google/google.interfaces";
-import type { IProviderAccount } from "#api/shared/providers/providers.interfaces";
+import type { IProviderGrant } from "#api/shared/providers/providers.interfaces";
 
 export const TEST_USER_NAME = "Test User";
 export const TEST_PASSWORD = "test-password-123";
@@ -10,17 +10,11 @@ export const GOOGLE_ACCESS_DENIED = "access_denied";
 export const CALENDAR_EMAIL = "work@employer.example";
 export const TEST_AVATAR_URL = "https://img.test/avatar.png";
 export const EXISTING_GOOGLE_SUB = "google-sub-existing";
-export const JIRA_EMAIL = "dev@employer.example";
-export const JIRA_SITE = "acme.atlassian.net";
-export const VALID_JIRA_KEY = "valid-jira-api-key-12345678";
-export const VALID_LINEAR_KEY = "valid-linear-api-key-12345678";
-export const INVALID_API_KEY = "wrong-key-12345678";
 export const HTTP_OK = 200;
 export const HTTP_FOUND = 302;
 export const HTTP_BAD_REQUEST = 400;
 export const HTTP_UNAUTHORIZED = 401;
 export const HTTP_NOT_FOUND = 404;
-export const HTTP_CONFLICT = 409;
 
 export const GOOGLE_PROFILE: IGoogleProfile = {
   sub: "google-sub-1",
@@ -29,12 +23,26 @@ export const GOOGLE_PROFILE: IGoogleProfile = {
   picture: TEST_AVATAR_URL,
 };
 
-export const JIRA_ACCOUNT: IProviderAccount = {
-  accountId: "jira-account-1",
-  accountEmail: "dev@employer.example",
+export const JIRA_GRANT: IProviderGrant = {
+  tokens: {
+    accessToken: "jira-access-token",
+    refreshToken: "jira-refresh-token",
+    expiresInSeconds: DEFAULT_TOKEN_EXPIRY_SECONDS,
+    scopes: ["read:jira-user", "read:jira-work", "offline_access"],
+  },
+  account: { accountId: "jira-account-1", accountEmail: "dev@employer.example" },
+  site: "acme.atlassian.net",
+  resourceId: "jira-cloud-1",
 };
 
-export const LINEAR_ACCOUNT: IProviderAccount = {
-  accountId: "linear-user-1",
-  accountEmail: "dev@employer.example",
+export const LINEAR_GRANT: IProviderGrant = {
+  tokens: {
+    accessToken: "linear-access-token",
+    refreshToken: "linear-refresh-token",
+    expiresInSeconds: DEFAULT_TOKEN_EXPIRY_SECONDS,
+    scopes: ["read"],
+  },
+  account: { accountId: "linear-user-1", accountEmail: "dev@employer.example" },
+  site: null,
+  resourceId: null,
 };
