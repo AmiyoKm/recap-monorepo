@@ -10,7 +10,6 @@ import {
 import {
   EConnectionStatus,
   EGrantPurpose,
-  EIdentityAuthKind,
   EIdentityConnectError,
   EIdentityMessages,
   type EOAuthCallback,
@@ -96,7 +95,7 @@ export abstract class IdentityService {
   ): Promise<TAuthorizeResponse> {
     await IdentityService.requireOwnedIdentity(userId, identityId);
     const provider = toProvider(providerName);
-    if (!(provider && isWiredProvider(provider, EIdentityAuthKind.OAUTH))) {
+    if (!(provider && isWiredProvider(provider))) {
       throw IdentityService.unsupportedProvider();
     }
     const state = createGrantState();

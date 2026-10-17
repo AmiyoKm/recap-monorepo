@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f48ada2f-2c41-426c-b705-5a1f46a2d784",
+  "id": "0b0be9bd-3c85-4fec-a3d9-c9da754dc895",
   "prevId": "d1d2881c-3ecd-4d77-95ca-1a88691e9a1d",
   "tables": {
     "account": {
@@ -426,13 +426,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "auth_kind": {
-          "name": "auth_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "status": {
           "name": "status",
           "type": "text",
@@ -451,14 +444,7 @@
           "name": "refresh_token_enc",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "api_key_enc": {
-          "name": "api_key_enc",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "access_token_expires_at": {

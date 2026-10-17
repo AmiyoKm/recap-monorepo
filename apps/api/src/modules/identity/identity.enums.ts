@@ -1,8 +1,3 @@
-export enum EIdentityAuthKind {
-  OAUTH = "oauth",
-  API_KEY = "api_key",
-}
-
 export enum EConnectionStatus {
   ACTIVE = "active",
   NEEDS_RECONNECT = "needs_reconnect",

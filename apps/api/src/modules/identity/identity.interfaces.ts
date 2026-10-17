@@ -1,8 +1,4 @@
-import type {
-  EGrantPurpose,
-  EIdentityAuthKind,
-  EOAuthCallback,
-} from "#api/modules/identity/identity.enums";
+import type { EGrantPurpose } from "#api/modules/identity/identity.enums";
 import type { TIdentityRow } from "#api/modules/identity/identity.types";
 import type { IGoogleGrant } from "#api/shared/providers/google/google.interfaces";
 import type { EProvider } from "#api/shared/providers/providers.enums";
@@ -11,12 +7,6 @@ import type {
   IProviderGrant,
   IProviderTokens,
 } from "#api/shared/providers/providers.interfaces";
-
-export interface IProviderRegistration {
-  authKind: EIdentityAuthKind;
-  wired: boolean;
-  callback: EOAuthCallback | null;
-}
 
 export interface IIdentityCreateGrant {
   userId: string;

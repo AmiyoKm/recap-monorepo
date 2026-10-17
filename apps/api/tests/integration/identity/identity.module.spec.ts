@@ -11,7 +11,6 @@ import { PENDING_GRANT_TTL_SECONDS } from "#api/modules/identity/identity.consta
 import {
   EConnectionStatus,
   EGrantPurpose,
-  EIdentityAuthKind,
   EIdentityMessages,
 } from "#api/modules/identity/identity.enums";
 import { connectionTokenKey } from "#api/modules/identity/identity.helpers";
@@ -384,21 +383,6 @@ async function startProviderState(
   return readState(readAuthorizeUrl(data));
 }
 
-async function insertApiKeyConnection(identityId: string, providerName: string): Promise<string> {
-  const id = `api-key-${providerName}`;
-  const now = dayjs().toISOString();
-  await db.insert(schema.connection).values({
-    id,
-    identityId,
-    provider: providerName,
-    authKind: EIdentityAuthKind.API_KEY,
-    status: EConnectionStatus.NEEDS_RECONNECT,
-    createdAt: now,
-    updatedAt: now,
-  });
-  return id;
-}
-
 function expectedCodeVerifier(
   providerName: string,
   state: string,
@@ -693,7 +677,6 @@ describe("calendar connections", () => {
     const row = await readOnlyConnectionRow();
     expect(row.identityId).toBe(identityId);
     expect(row.provider).toBe("google-calendar");
-    expect(row.authKind).toBe("oauth");
     expect(row.status).toBe("active");
     expect(row.scopes ?? "").toContain(CALENDAR_READ_SCOPE);
     expect(row.providerAccountId).toBe("google-sub-cal-ok");
@@ -716,13 +699,11 @@ describe("calendar connections", () => {
     expect(status).toBe(HTTP_OK);
     const serialized = JSON.stringify(data);
     expect(serialized).not.toContain("refreshTokenEnc");
-    expect(serialized).not.toContain("apiKeyEnc");
     expect(serialized).not.toContain("refresh-code-cal-ok");
     expect(data?.[0]?.connections).toEqual([
       {
         id: row.id,
         provider: "google-calendar",
-        authKind: "oauth",
         status: "active",
         scopes: row.scopes,
         providerAccountId: "google-sub-cal-ok",
@@ -944,9 +925,7 @@ describe("jira and linear connections", () => {
       expect(row).toMatchObject({
         identityId,
         provider: providerName,
-        authKind: "oauth",
         status: "active",
-        apiKeyEnc: null,
         providerAccountId: grant.account.accountId,
         providerAccountEmail: grant.account.accountEmail,
         providerSite: grant.site,
@@ -966,7 +945,6 @@ describe("jira and linear connections", () => {
       expect(serialized).not.toContain(grant.tokens.accessToken);
       expect(data?.[0]?.connections[0]).toMatchObject({
         provider: providerName,
-        authKind: "oauth",
         providerSite: grant.site,
       });
     },
@@ -1038,36 +1016,6 @@ describe("jira and linear connections", () => {
     const completed = await completeJiraCallback("code-jira-dup-ok", secondState);
     expect(readLocation(completed)).toBe(errorUrl("already_connected"));
     expect((await db.select().from(schema.connection)).length).toBe(1);
-  });
-
-  test("replaces a retired api key connection with an oauth connection", async () => {
-    const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-lin-retire", { ...GOOGLE_PROFILE, sub: "sub-lin-retire" });
-    const identityId = await createIdentity(cookie, "code-lin-retire");
-    const staleId = await insertApiKeyConnection(identityId, "linear");
-    const state = await startProviderState(cookie, identityId, "linear");
-    provider.linear.grants.set("code-lin-retire-ok", LINEAR_GRANT);
-
-    const completed = await completeLinearCallback("code-lin-retire-ok", state);
-    expect(readLocation(completed)).toBe(connectedUrl("linear", LINEAR_GRANT.account.accountEmail));
-    const row = await readOnlyConnectionRow();
-    expect(row.id).not.toBe(staleId);
-    expect(row.authKind).toBe("oauth");
-    expect(row.status).toBe(EConnectionStatus.ACTIVE);
-  });
-
-  test("keeps a retired api key connection when the code exchange fails", async () => {
-    const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-jira-keep", { ...GOOGLE_PROFILE, sub: "sub-jira-keep" });
-    const identityId = await createIdentity(cookie, "code-jira-keep");
-    const staleId = await insertApiKeyConnection(identityId, "jira");
-    const state = await startProviderState(cookie, identityId, "jira");
-
-    const completed = await completeJiraCallback("unknown-jira-code", state);
-    expect(readLocation(completed)).toBe(errorUrl("failed"));
-    const row = await readOnlyConnectionRow();
-    expect(row.id).toBe(staleId);
-    expect(row.status).toBe(EConnectionStatus.NEEDS_RECONNECT);
   });
 
   test("refuses to start a connection on another user's identity", async () => {

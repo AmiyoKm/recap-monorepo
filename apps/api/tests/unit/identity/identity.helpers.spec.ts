@@ -3,7 +3,6 @@ import { describe, expect, test } from "bun:test";
 import {
   GRANT_STATE_BYTES,
   PENDING_GRANT_TTL_SECONDS,
-  PROVIDER_REGISTRY,
 } from "#api/modules/identity/identity.constants";
 import {
   EGrantPurpose,
@@ -15,10 +14,10 @@ import {
   buildPendingGrantRow,
   connectionTokenKey,
   createGrantState,
-  findProviderRegistration,
   grantCallback,
   hasCalendarScope,
   isUniqueViolation,
+  isWiredProvider,
   parsePendingGrant,
   requireCodeVerifier,
   toConnectionView,
@@ -178,14 +177,14 @@ describe("isUniqueViolation", () => {
   });
 });
 
-describe("findProviderRegistration", () => {
-  test("finds wired and unwired providers", () => {
-    expect(findProviderRegistration(PROVIDER_REGISTRY, "google-calendar")?.wired).toBe(true);
-    expect(findProviderRegistration(PROVIDER_REGISTRY, "slack")?.wired).toBe(false);
-  });
-
-  test("returns undefined for unknown providers", () => {
-    expect(findProviderRegistration(PROVIDER_REGISTRY, "zoom")).toBeUndefined();
+describe("isWiredProvider", () => {
+  test.each([
+    { provider: EProvider.GOOGLE_CALENDAR, isWired: true },
+    { provider: EProvider.JIRA, isWired: true },
+    { provider: EProvider.LINEAR, isWired: true },
+    { provider: EProvider.SLACK, isWired: false },
+  ])("reports $provider as wired: $isWired", ({ provider, isWired }) => {
+    expect(isWiredProvider(provider)).toBe(isWired);
   });
 });
 
@@ -194,11 +193,9 @@ describe("toConnectionView", () => {
     id: "conn-1",
     identityId: "identity-1",
     provider: "jira",
-    authKind: "api_key",
     status: "active",
     scopes: null,
-    refreshTokenEnc: null,
-    apiKeyEnc: "encrypted",
+    refreshTokenEnc: "encrypted",
     accessTokenExpiresAt: null,
     providerAccountId: "account-1",
     providerAccountEmail: "dev@employer.example",
@@ -211,9 +208,8 @@ describe("toConnectionView", () => {
   test("keeps known values and drops secrets", () => {
     const view = toConnectionView(row);
     expect(view.provider).toBe("jira");
-    expect(view.authKind).toBe("api_key");
     expect(view.status).toBe("active");
-    expect(Object.keys(view)).not.toContain("apiKeyEnc");
+    expect(Object.keys(view)).not.toContain("refreshTokenEnc");
   });
 
   test("throws on a value outside the known set", () => {

@@ -13,11 +13,7 @@ import {
   MAX_TIMESTAMP_LENGTH,
   MAX_URL_LENGTH,
 } from "#api/modules/identity/identity.constants";
-import {
-  EConnectionStatus,
-  EIdentityAuthKind,
-  EIdentityMessages,
-} from "#api/modules/identity/identity.enums";
+import { EConnectionStatus, EIdentityMessages } from "#api/modules/identity/identity.enums";
 import { EProvider } from "#api/shared/providers/providers.enums";
 
 export const identityIdParams = t.Object({
@@ -43,11 +39,6 @@ const providerSchema = t.Union([
   t.Literal(`${EProvider.GITHUB}`),
 ]);
 
-const authKindSchema = t.Union([
-  t.Literal(`${EIdentityAuthKind.OAUTH}`),
-  t.Literal(`${EIdentityAuthKind.API_KEY}`),
-]);
-
 const connectionStatusSchema = t.Union([
   t.Literal(`${EConnectionStatus.ACTIVE}`),
   t.Literal(`${EConnectionStatus.NEEDS_RECONNECT}`),
@@ -60,7 +51,6 @@ export const connectConnectionBody = t.Object({
 export const connectionResponse = t.Object({
   id: t.String({ maxLength: MAX_ID_LENGTH }),
   provider: providerSchema,
-  authKind: authKindSchema,
   status: connectionStatusSchema,
   scopes: t.Nullable(t.String({ maxLength: MAX_SCOPES_LENGTH })),
   providerAccountId: t.Nullable(t.String({ maxLength: MAX_ACCOUNT_ID_LENGTH })),

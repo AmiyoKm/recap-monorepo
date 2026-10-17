@@ -3,21 +3,17 @@ import { randomBytes } from "node:crypto";
 import {
   GRANT_STATE_BYTES,
   PENDING_GRANT_TTL_SECONDS,
-  PROVIDER_REGISTRY,
+  PROVIDER_CALLBACKS,
   SQLITE_UNIQUE_VIOLATION,
 } from "#api/modules/identity/identity.constants";
 import {
   EConnectionStatus,
   EGrantPurpose,
-  EIdentityAuthKind,
   EIdentityCacheKeyPrefix,
   EIdentityMessages,
   EOAuthCallback,
 } from "#api/modules/identity/identity.enums";
-import type {
-  IOAuthConnectionInput,
-  IProviderRegistration,
-} from "#api/modules/identity/identity.interfaces";
+import type { IOAuthConnectionInput } from "#api/modules/identity/identity.interfaces";
 import type {
   TConnectionResponse,
   TConnectionRow,
@@ -51,19 +47,8 @@ export function buildPendingGrantRow(state: string, grant: TPendingGrant): TPend
   };
 }
 
-export function findProviderRegistration(
-  registry: Record<string, IProviderRegistration>,
-  provider: string,
-): IProviderRegistration | undefined {
-  if (!Object.hasOwn(registry, provider)) {
-    return undefined;
-  }
-  return registry[provider];
-}
-
-export function isWiredProvider(provider: string, authKind: EIdentityAuthKind): boolean {
-  const registration = findProviderRegistration(PROVIDER_REGISTRY, provider);
-  return registration?.wired === true && registration.authKind === authKind;
+export function isWiredProvider(provider: EProvider): boolean {
+  return PROVIDER_CALLBACKS[provider] !== null;
 }
 
 export function toProvider(value: string): EProvider | undefined {
@@ -75,7 +60,7 @@ export function grantCallback(grant: TPendingGrant): EOAuthCallback | null {
     case EGrantPurpose.IDENTITY_CREATE:
       return EOAuthCallback.GOOGLE;
     case EGrantPurpose.CONNECTION:
-      return PROVIDER_REGISTRY[grant.provider].callback;
+      return PROVIDER_CALLBACKS[grant.provider];
   }
 }
 
@@ -152,7 +137,6 @@ export function toConnectionView(row: TConnectionRow): TConnectionResponse {
   return {
     id: row.id,
     provider: toKnownValue(Object.values(EProvider), row.provider),
-    authKind: toKnownValue(Object.values(EIdentityAuthKind), row.authKind),
     status: toKnownValue(Object.values(EConnectionStatus), row.status),
     scopes: row.scopes,
     providerAccountId: row.providerAccountId,
@@ -214,11 +198,9 @@ export function buildOAuthConnectionRow(input: IOAuthConnectionInput): TConnecti
     id: input.id,
     identityId: input.identityId,
     provider: input.provider,
-    authKind: EIdentityAuthKind.OAUTH,
     status: EConnectionStatus.ACTIVE,
     scopes: input.tokens.scopes.join(OAUTH_SCOPE_SEPARATOR),
     refreshTokenEnc: encryptSecret(ENV.connectionEncryptionKey, input.refreshToken),
-    apiKeyEnc: null,
     accessTokenExpiresAt: accessTokenExpiresAt(now, input.tokens.expiresInSeconds),
     providerAccountId: input.account.accountId,
     providerAccountEmail: input.account.accountEmail,

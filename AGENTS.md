@@ -4,6 +4,15 @@ Bun monorepo. `apps/api` (Elysia on Cloudflare Workers, with D1 and KV), `apps/w
 
 Run `bun run check` before you push. It runs Biome, ls-lint, the comment linter, fallow, typecheck and build. Do not turn off a rule, add an ignore comment, widen an exclusion or raise a threshold without explicit approval.
 
+## No backward compatibility
+
+Recap has no users yet, and all data in dev and prod is scrap data. Do not write code for old data, old clients or old API shapes.
+
+- Change a schema, an API response or a stored format in place. Do not keep old fields, old enum members, fallback parsers, shims or deprecation paths.
+- A migration can drop columns and delete rows. Do not write data migrations that keep or convert old rows.
+- Delete code, columns and enum members that no current flow uses. Do not keep them "for existing rows".
+- When you find compatibility code, remove it.
+
 ## Folder layout
 
 ### API (`apps/api/src`)

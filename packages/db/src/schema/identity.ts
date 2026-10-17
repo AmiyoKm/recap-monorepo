@@ -30,11 +30,9 @@ export const connection = sqliteTable(
       .notNull()
       .references(() => identity.id, { onDelete: "cascade" }),
     provider: text("provider").notNull(),
-    authKind: text("auth_kind").notNull(),
     status: text("status").notNull(),
     scopes: text("scopes"),
-    refreshTokenEnc: text("refresh_token_enc"),
-    apiKeyEnc: text("api_key_enc"),
+    refreshTokenEnc: text("refresh_token_enc").notNull(),
     accessTokenExpiresAt: text("access_token_expires_at"),
     providerAccountId: text("provider_account_id"),
     providerAccountEmail: text("provider_account_email"),

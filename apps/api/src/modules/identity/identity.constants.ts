@@ -1,5 +1,4 @@
-import { EIdentityAuthKind, EOAuthCallback } from "#api/modules/identity/identity.enums";
-import type { IProviderRegistration } from "#api/modules/identity/identity.interfaces";
+import { EOAuthCallback } from "#api/modules/identity/identity.enums";
 import { EProvider } from "#api/shared/providers/providers.enums";
 import { ROUTES } from "#api/shared/routes/routes.constants";
 
@@ -20,23 +19,11 @@ export const MAX_URL_LENGTH = 8192;
 export const MAX_SCOPES_LENGTH = 2048;
 export const MAX_TIMESTAMP_LENGTH = 64;
 export const SQLITE_UNIQUE_VIOLATION = "SQLITE_CONSTRAINT_UNIQUE";
-export const PROVIDER_REGISTRY: Record<EProvider, IProviderRegistration> = {
-  [EProvider.GOOGLE_CALENDAR]: {
-    authKind: EIdentityAuthKind.OAUTH,
-    wired: true,
-    callback: EOAuthCallback.GOOGLE,
-  },
-  [EProvider.JIRA]: {
-    authKind: EIdentityAuthKind.OAUTH,
-    wired: true,
-    callback: EOAuthCallback.JIRA,
-  },
-  [EProvider.LINEAR]: {
-    authKind: EIdentityAuthKind.OAUTH,
-    wired: true,
-    callback: EOAuthCallback.LINEAR,
-  },
-  [EProvider.SLACK]: { authKind: EIdentityAuthKind.OAUTH, wired: false, callback: null },
-  [EProvider.GOOGLE_CHAT]: { authKind: EIdentityAuthKind.OAUTH, wired: false, callback: null },
-  [EProvider.GITHUB]: { authKind: EIdentityAuthKind.OAUTH, wired: false, callback: null },
+export const PROVIDER_CALLBACKS: Record<EProvider, EOAuthCallback | null> = {
+  [EProvider.GOOGLE_CALENDAR]: EOAuthCallback.GOOGLE,
+  [EProvider.JIRA]: EOAuthCallback.JIRA,
+  [EProvider.LINEAR]: EOAuthCallback.LINEAR,
+  [EProvider.SLACK]: null,
+  [EProvider.GOOGLE_CHAT]: null,
+  [EProvider.GITHUB]: null,
 };
