@@ -6,6 +6,7 @@ export enum EPullMessages {
   PROVIDER_UNSUPPORTED = "No pull reader exists for this provider",
   SOURCE_UNSUPPORTED = "No pull reader exists for this Source",
   CREDENTIALS_REJECTED = "Provider rejected the credentials",
+  ACCOUNT_ID_MISSING = "Connection has no provider account id",
 }
 
 export enum EPullMessageKey {
@@ -31,4 +32,13 @@ export enum EGmailCursorKey {
   LABEL = "label",
   PAGE_TOKEN = "pageToken",
   CUTOFF = "cutoff",
+}
+
+export enum EChatCursorKey {
+  SINCE = "since",
+  SWEEP_STARTED_AT = "sweepStartedAt",
+  AFTER_SPACE = "afterSpace",
+  RESUME_SPACE = "resumeSpace",
+  PAGE_TOKEN = "pageToken",
+  SPACES_PAGE_TOKEN = "spacesPageToken",
 }

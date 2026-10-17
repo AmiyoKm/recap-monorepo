@@ -2,12 +2,18 @@ import { describe, expect, test } from "bun:test";
 
 import { ESource } from "#api/modules/activity/activity.enums";
 import {
+  chatPageToken,
+  chatSpaceId,
+  chatSpacesToRead,
+  completedChatCursor,
   isPullableProvider,
   nextCalendarCursor,
+  nextChatSpacesPageCursor,
   nextGmailBackfillStep,
   nextGmailHistoryStep,
   orderSources,
   parseCalendarCursor,
+  parseChatCursor,
   parseCursorMap,
   parseGmailCursor,
   readableSources,
@@ -131,7 +137,11 @@ describe("cursor map", () => {
 
 describe("source selection", () => {
   test("reads only the granted Sources that have a reader", () => {
-    expect(readableSources(connection({}))).toEqual([ESource.CALENDAR, ESource.GMAIL]);
+    expect(readableSources(connection({}))).toEqual([
+      ESource.CALENDAR,
+      ESource.GMAIL,
+      ESource.CHAT,
+    ]);
     expect(readableSources(connection({ scopes: "openid email" }))).toEqual([]);
     expect(readableSources(connection({ provider: "jira", scopes: null }))).toEqual([]);
   });
@@ -163,11 +173,21 @@ describe("startCycle", () => {
   test("marks every Source pending when none is pending", () => {
     const cursors = new Map([[ESource.CALENDAR, { value: "sync", isPending: false }]]);
 
-    const queue = startCycle([ESource.CALENDAR, ESource.GMAIL], cursors);
+    const queue = startCycle([ESource.CALENDAR, ESource.GMAIL, ESource.CHAT], cursors);
 
-    expect(queue).toEqual([ESource.CALENDAR, ESource.GMAIL]);
+    expect(queue).toEqual([ESource.CALENDAR, ESource.GMAIL, ESource.CHAT]);
     expect(cursors.get(ESource.CALENDAR)).toEqual({ value: "sync", isPending: true });
     expect(cursors.get(ESource.GMAIL)).toEqual({ value: "", isPending: true });
+    expect(cursors.get(ESource.CHAT)).toEqual({ value: "", isPending: true });
+  });
+
+  test("keeps only the pending Sources inside a cycle", () => {
+    const cursors = new Map([
+      [ESource.CALENDAR, { value: "sync", isPending: false }],
+      [ESource.CHAT, { value: "v", isPending: true }],
+    ]);
+
+    expect(startCycle([ESource.CALENDAR, ESource.CHAT], cursors)).toEqual([ESource.CHAT]);
   });
 
   test("reads Gmail after Calendar, then starts a new cycle", () => {
@@ -268,5 +288,95 @@ describe("restartGmailPage", () => {
     expect(page.batch).toEqual({ drafts: [], removedExternalIds: [] });
     expect(page.hasMore).toBe(true);
     expect(cursor).toMatchObject({ historyId: null, label: EGmailLabel.SENT, pageToken: null });
+  });
+});
+
+describe("chat cursor", () => {
+  const spaces = ["a", "b", "c"].map((id) => ({ id: `spaces/${id}`, isDirectMessage: false }));
+
+  test("starts 7 days back", () => {
+    expect(parseChatCursor(null, NOW)).toEqual({
+      since: "2026-10-10T08:00:00.000Z",
+      sweepStartedAt: NOW,
+      afterSpace: null,
+      resumeSpace: null,
+      pageToken: null,
+      spacesPageToken: null,
+    });
+  });
+
+  test("restarts from scratch when the stored time is not a date", () => {
+    const damaged = JSON.stringify({ since: 'x" OR true', sweepStartedAt: NOW });
+
+    expect(parseChatCursor(damaged, NOW).since).toBe("2026-10-10T08:00:00.000Z");
+  });
+
+  test("takes the id from a space name", () => {
+    expect(chatSpaceId("spaces/AAA")).toBe("AAA");
+    expect(chatSpaceId("AAA")).toBe("AAA");
+  });
+
+  test("restarts from scratch when the stored cursor is damaged", () => {
+    expect(parseChatCursor("{nope", NOW).since).toBe("2026-10-10T08:00:00.000Z");
+  });
+
+  test("moves since to the sweep start when a sweep completes", () => {
+    const done = completedChatCursor(parseChatCursor(null, NOW));
+
+    const next = parseChatCursor(JSON.stringify(done), "2026-10-17T09:00:00.000Z");
+
+    expect(next.since).toBe(NOW);
+    expect(next.sweepStartedAt).toBe("2026-10-17T09:00:00.000Z");
+  });
+
+  test("keeps the sweep start in the middle of a sweep", () => {
+    const mid = { ...parseChatCursor(null, NOW), afterSpace: "spaces/a" };
+
+    const next = parseChatCursor(JSON.stringify(mid), "2026-10-17T09:00:00.000Z");
+
+    expect(next.sweepStartedAt).toBe(NOW);
+  });
+
+  test("keeps the sweep start while a later spaces page is pending", () => {
+    const mid = { ...parseChatCursor(null, NOW), spacesPageToken: "spaces-2" };
+
+    const next = parseChatCursor(JSON.stringify(mid), "2026-10-17T09:00:00.000Z");
+
+    expect(next.sweepStartedAt).toBe(NOW);
+    expect(next.spacesPageToken).toBe("spaces-2");
+  });
+
+  test("moves to the next spaces page with the space position cleared", () => {
+    const mid = { ...parseChatCursor(null, NOW), afterSpace: "spaces/c", resumeSpace: "spaces/c" };
+
+    expect(nextChatSpacesPageCursor(mid, "spaces-2")).toMatchObject({
+      afterSpace: null,
+      resumeSpace: null,
+      pageToken: null,
+      spacesPageToken: "spaces-2",
+    });
+  });
+
+  test("uses the message page token only for the space being resumed", () => {
+    const cursor = { ...parseChatCursor(null, NOW), resumeSpace: "spaces/b", pageToken: "t" };
+
+    expect(chatPageToken(cursor, "spaces/b")).toBe("t");
+    expect(chatPageToken(cursor, "spaces/c")).toBeNull();
+  });
+
+  test("lists the spaces after the last read one, or from the one to resume", () => {
+    const fresh = parseChatCursor(null, NOW);
+
+    expect(chatSpacesToRead(spaces, fresh).map((space) => space.id)).toEqual([
+      "spaces/a",
+      "spaces/b",
+      "spaces/c",
+    ]);
+    expect(
+      chatSpacesToRead(spaces, { ...fresh, afterSpace: "spaces/a" }).map((space) => space.id),
+    ).toEqual(["spaces/b", "spaces/c"]);
+    expect(
+      chatSpacesToRead(spaces, { ...fresh, resumeSpace: "spaces/b", pageToken: "t" })[0]?.id,
+    ).toBe("spaces/b");
   });
 });

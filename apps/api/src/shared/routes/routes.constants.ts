@@ -22,6 +22,7 @@ export const ROUTES = {
     CHAT_MESSAGES_READONLY_SCOPE: "https://www.googleapis.com/auth/chat.messages.readonly",
     GMAIL_THREAD: (email: string, threadId: string): string =>
       `https://mail.google.com/mail/?${new URLSearchParams({ [EGoogleUrlParam.AUTHUSER]: email }).toString()}#all/${threadId}`,
+    CHAT_WEB: (segments: string[]): string => `https://chat.google.com/${segments.join("/")}`,
   },
   LINEAR: {
     AUTHORIZE: "https://linear.app/oauth/authorize",

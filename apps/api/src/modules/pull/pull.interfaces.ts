@@ -59,3 +59,12 @@ export interface IGmailStep {
   cursor: IGmailCursor;
   hasMore: boolean;
 }
+
+export interface IChatCursor {
+  since: string;
+  sweepStartedAt: string;
+  afterSpace: string | null;
+  resumeSpace: string | null;
+  pageToken: string | null;
+  spacesPageToken: string | null;
+}

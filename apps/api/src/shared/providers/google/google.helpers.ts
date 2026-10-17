@@ -2,14 +2,20 @@ import { type Credentials, gaxios, type TokenPayload } from "google-auth-library
 
 import { dayjs } from "#api/shared/date/date.helpers";
 import { GOOGLE_SOURCE_SCOPES } from "#api/shared/providers/google/google.constants";
-import { EGoogleMessages, EGoogleSource } from "#api/shared/providers/google/google.enums";
+import {
+  EGoogleChatSpaceType,
+  EGoogleMessages,
+  EGoogleSource,
+} from "#api/shared/providers/google/google.enums";
 import type {
   IGoogleCalendarReadInput,
+  IGoogleChatSpace,
   IGoogleProfile,
   ISourceGrantResult,
 } from "#api/shared/providers/google/google.interfaces";
 import type {
   TGoogleCalendarRange,
+  TGoogleChatSpace,
   TGoogleGmailHistory,
 } from "#api/shared/providers/google/google.types";
 import { OAUTH_SCOPE_SEPARATOR } from "#api/shared/providers/providers.constants";
@@ -88,4 +94,34 @@ export function historyMessageIds(history: TGoogleGmailHistory[]): string[] {
     (record.messagesAdded ?? []).map((added) => added.message?.id),
   );
   return [...new Set(ids.filter((id) => typeof id === "string"))];
+}
+
+export function chatMessageFilter(since: string): string {
+  return `createTime > "${since}"`;
+}
+
+function compareChatSpaces(left: IGoogleChatSpace, right: IGoogleChatSpace): number {
+  if (left.id === right.id) {
+    return 0;
+  }
+  if (left.id < right.id) {
+    return -1;
+  }
+  return 1;
+}
+
+export function toChatSpaces(spaces: TGoogleChatSpace[]): IGoogleChatSpace[] {
+  return spaces
+    .flatMap((space) => {
+      if (!space.name) {
+        return [];
+      }
+      return [
+        {
+          id: space.name,
+          isDirectMessage: space.spaceType === EGoogleChatSpaceType.DIRECT_MESSAGE,
+        },
+      ];
+    })
+    .sort(compareChatSpaces);
 }

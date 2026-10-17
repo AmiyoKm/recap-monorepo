@@ -48,3 +48,7 @@ export enum EGmailHistoryType {
 export enum EGoogleUrlParam {
   AUTHUSER = "authuser",
 }
+
+export enum EGoogleChatSpaceType {
+  DIRECT_MESSAGE = "DIRECT_MESSAGE",
+}

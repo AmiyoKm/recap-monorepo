@@ -27,3 +27,5 @@ export const GMAIL_EXCLUDED_LABELS: EGmailLabel[] = [
   EGmailLabel.CATEGORY_PROMOTIONS,
   EGmailLabel.CATEGORY_SOCIAL,
 ];
+export const CHAT_USER_PREFIX = "users/";
+export const CHAT_RESOURCE_SEPARATOR = "/";

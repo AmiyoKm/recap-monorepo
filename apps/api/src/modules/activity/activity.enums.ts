@@ -35,3 +35,16 @@ export enum ECalendarEventStatus {
 export enum ECalendarResponseStatus {
   DECLINED = "declined",
 }
+
+export enum EChatAnnotationType {
+  USER_MENTION = "USER_MENTION",
+}
+
+export enum EChatMentionType {
+  MENTION = "MENTION",
+}
+
+export enum EChatWebPath {
+  ROOM = "room",
+  DM = "dm",
+}

@@ -57,6 +57,7 @@ export async function wipeCache(): Promise<void> {
 
 export async function seedGoogleConnection(
   userId: string,
+  scopes: string[] = ALL_SOURCES_GRANTED_SCOPES,
 ): Promise<{ identityId: string; connectionId: string }> {
   const identityId = randomUUID();
   const connectionId = randomUUID();
@@ -81,7 +82,7 @@ export async function seedGoogleConnection(
         accessToken: "access-token-1",
         refreshToken: "refresh-token-1",
         expiresInSeconds: DEFAULT_TOKEN_EXPIRY_SECONDS,
-        scopes: ALL_SOURCES_GRANTED_SCOPES,
+        scopes,
       },
       account: { accountId: `sub-${identityId}`, accountEmail: CALENDAR_EMAIL },
       site: null,

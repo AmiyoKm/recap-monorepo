@@ -4,11 +4,13 @@ import { dayjs } from "#api/shared/date/date.helpers";
 import { EGoogleMessages, EGoogleSource } from "#api/shared/providers/google/google.enums";
 import {
   calendarRange,
+  chatMessageFilter,
   deniedSources,
   grantedSources,
   hasStatus,
   historyMessageIds,
   sourceScopes,
+  toChatSpaces,
   toGoogleProfile,
   toGoogleTokens,
 } from "#api/shared/providers/google/google.helpers";
@@ -174,5 +176,28 @@ describe("historyMessageIds", () => {
 
     expect(historyMessageIds(history)).toEqual(["m1", "m2"]);
     expect(historyMessageIds([])).toEqual([]);
+  });
+});
+
+describe("toChatSpaces", () => {
+  test("drops nameless spaces, flags DMs and sorts by id", () => {
+    expect(
+      toChatSpaces([
+        { name: "spaces/B", spaceType: "SPACE" },
+        { spaceType: "SPACE" },
+        { name: "spaces/A", spaceType: "DIRECT_MESSAGE" },
+      ]),
+    ).toEqual([
+      { id: "spaces/A", isDirectMessage: true },
+      { id: "spaces/B", isDirectMessage: false },
+    ]);
+  });
+});
+
+describe("chatMessageFilter", () => {
+  test("filters messages created after the time", () => {
+    expect(chatMessageFilter("2026-10-10T00:00:00.000Z")).toBe(
+      'createTime > "2026-10-10T00:00:00.000Z"',
+    );
   });
 });
