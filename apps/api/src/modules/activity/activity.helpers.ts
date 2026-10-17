@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import {
   ACTIVITY_ACTOR_MAX_LENGTH,
   ACTIVITY_DETAIL_MAX_LENGTH,
+  ACTIVITY_NO_PREVIOUS_STATE,
   ACTIVITY_NO_SUBJECT,
   ACTIVITY_NO_TITLE,
   ACTIVITY_TITLE_MAX_LENGTH,
@@ -43,6 +44,7 @@ import type {
   IJiraBatch,
   IJiraIssueBase,
   IJiraMapContext,
+  ILinearMapContext,
 } from "#api/modules/activity/activity.interfaces";
 import type {
   TActivityInsert,
@@ -76,6 +78,12 @@ import {
 import { EJiraChangeField } from "#api/shared/providers/jira/jira.enums";
 import { adfToText } from "#api/shared/providers/jira/jira.helpers";
 import type { TJiraHistory, TJiraIssue } from "#api/shared/providers/jira/jira.types";
+import type {
+  ILinearComment,
+  ILinearHistoryEntry,
+  ILinearIssue,
+  ILinearUser,
+} from "#api/shared/providers/linear/linear.interfaces";
 import { ROUTES } from "#api/shared/routes/routes.constants";
 
 export function withAuthUser(link: string | null | undefined, email: string): string | null {
@@ -510,6 +518,128 @@ export function mapDriveActivities(
     }
   }
   return { drafts: [...drafts.values()], removedExternalIds: [] };
+}
+
+function linearActor(user: ILinearUser | null | undefined): string | null {
+  if (!user) {
+    return null;
+  }
+  return user.email ?? user.name;
+}
+
+function linearTitle(issue: ILinearIssue): string {
+  return `${issue.identifier} ${issue.title}`.slice(0, ACTIVITY_TITLE_MAX_LENGTH);
+}
+
+function linearDraft(
+  issue: ILinearIssue,
+  fields: Pick<IActivityDraft, "kind" | "externalId" | "occurredAt" | "actor" | "detail"> &
+    Partial<Pick<IActivityDraft, "url">>,
+): IActivityDraft {
+  return {
+    source: ESource.LINEAR,
+    endsAt: null,
+    title: linearTitle(issue),
+    url: issue.url,
+    ...fields,
+  };
+}
+
+function assignedExternalId(entry: ILinearHistoryEntry): string {
+  if (!entry.toState) {
+    return entry.id;
+  }
+  return `${entry.id}:assigned`;
+}
+
+function linearHistoryDrafts(issue: ILinearIssue, entry: ILinearHistoryEntry): IActivityDraft[] {
+  const drafts: IActivityDraft[] = [];
+  const occurredAt = dayjs(entry.createdAt).toISOString();
+  const actor = linearActor(entry.actor);
+  if (entry.toState) {
+    const from = entry.fromState?.name ?? ACTIVITY_NO_PREVIOUS_STATE;
+    drafts.push(
+      linearDraft(issue, {
+        kind: EActivityKind.ISSUE_STATUS_CHANGED,
+        externalId: entry.id,
+        occurredAt,
+        actor,
+        detail: `${from} to ${entry.toState.name}`,
+      }),
+    );
+  }
+  if (!entry.toAssignee) {
+    return drafts;
+  }
+  drafts.push(
+    linearDraft(issue, {
+      kind: EActivityKind.ISSUE_ASSIGNED,
+      externalId: assignedExternalId(entry),
+      occurredAt,
+      actor,
+      detail: entry.toAssignee.name,
+    }),
+  );
+  return drafts;
+}
+
+function linearCommentDraft(issue: ILinearIssue, comment: ILinearComment): IActivityDraft | null {
+  if (!comment.url) {
+    logError(EActivityMessages.ITEM_WITHOUT_URL_DROPPED, new Error(comment.id));
+    return null;
+  }
+  return linearDraft(issue, {
+    kind: EActivityKind.ISSUE_COMMENTED,
+    externalId: comment.id,
+    occurredAt: dayjs(comment.createdAt).toISOString(),
+    actor: linearActor(comment.user),
+    detail: comment.body.slice(0, ACTIVITY_DETAIL_MAX_LENGTH),
+    url: comment.url,
+  });
+}
+
+function linearIssueDrafts(issue: ILinearIssue, since: string): IActivityDraft[] {
+  const drafts: IActivityDraft[] = [];
+  if (!dayjs(issue.createdAt).isBefore(since)) {
+    drafts.push(
+      linearDraft(issue, {
+        kind: EActivityKind.ISSUE_CREATED,
+        externalId: `${issue.id}:created`,
+        occurredAt: dayjs(issue.createdAt).toISOString(),
+        actor: linearActor(issue.creator),
+        detail: null,
+      }),
+    );
+  }
+  for (const entry of issue.history.nodes) {
+    if (dayjs(entry.createdAt).isBefore(since)) {
+      continue;
+    }
+    drafts.push(...linearHistoryDrafts(issue, entry));
+  }
+  for (const comment of issue.comments.nodes) {
+    const draft = linearCommentDraft(issue, comment);
+    if (!draft) {
+      continue;
+    }
+    drafts.push(draft);
+  }
+  return drafts;
+}
+
+export function mapLinearIssues(
+  issues: ILinearIssue[],
+  context: ILinearMapContext,
+): IActivityBatch {
+  const batch: IActivityBatch = { drafts: [], removedExternalIds: [] };
+  for (const issue of issues) {
+    if (!issue.url) {
+      logError(EActivityMessages.ITEM_WITHOUT_URL_DROPPED, new Error(issue.id));
+      continue;
+    }
+    batch.drafts.push(...linearIssueDrafts(issue, context.since));
+  }
+  return batch;
 }
 
 function toKnownValue<TValue extends string>(values: TValue[], value: string): TValue {

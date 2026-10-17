@@ -4,7 +4,6 @@ export enum EPullMessages {
   PULL_FAILED = "Connection pull failed",
   CACHED_TOKEN_REJECTED = "Provider rejected the cached access token",
   PROVIDER_UNSUPPORTED = "No pull reader exists for this provider",
-  SOURCE_UNSUPPORTED = "No pull reader exists for this Source",
   CREDENTIALS_REJECTED = "Provider rejected the credentials",
   ACCOUNT_ID_MISSING = "Connection has no provider account id",
   JIRA_SITE_MISSING = "Jira connection has no site or cloud id",
@@ -33,6 +32,19 @@ export enum EJiraCursorKey {
   STARTED_AT = "startedAt",
   PAGE_TOKEN = "pageToken",
   OFFSET = "offset",
+}
+
+export enum ELinearPendingKey {
+  ISSUE_ID = "issueId",
+  HISTORY_AFTER = "historyAfter",
+  COMMENTS_AFTER = "commentsAfter",
+}
+
+export enum ELinearCursorKey {
+  SINCE = "since",
+  AFTER = "after",
+  STARTED_AT = "startedAt",
+  PENDING = "pending",
 }
 
 export enum EPullOutcome {

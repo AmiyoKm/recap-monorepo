@@ -7,6 +7,7 @@ import {
   mapChatMessages,
   mapGmailMessages,
   mapJiraIssues,
+  mapLinearIssues,
   nonEmpty,
   toIsoBound,
   withAuthUser,
@@ -19,7 +20,8 @@ import type {
 } from "#api/shared/providers/google/google.types";
 import { JIRA_MAX_ACTIVITIES_PER_PAGE } from "#api/shared/providers/jira/jira.constants";
 import type { TJiraIssue } from "#api/shared/providers/jira/jira.types";
-import { CALENDAR_EMAIL } from "#api-tests/fixtures/fixtures.constants";
+import type { ILinearIssue } from "#api/shared/providers/linear/linear.interfaces";
+import { CALENDAR_EMAIL, LINEAR_LAST_PAGE } from "#api-tests/fixtures/fixtures.constants";
 
 const CONTEXT = { identityEmail: CALENDAR_EMAIL, timeZone: null };
 const EVENT_LINK = "https://www.google.com/calendar/event?eid=abc123";
@@ -243,6 +245,23 @@ function jiraIssue(overrides: Partial<TJiraIssue>): TJiraIssue {
         },
       ],
     },
+    ...overrides,
+  };
+}
+
+const LINEAR_SINCE = "2026-10-10T00:00:00.000Z";
+const LINEAR_USER = { name: "Dev One", email: "dev@employer.example" };
+
+function linearIssue(overrides: Partial<ILinearIssue>): ILinearIssue {
+  return {
+    id: "issue-1",
+    identifier: "ENG-1",
+    title: "Fix login",
+    url: "https://linear.app/acme/issue/ENG-1/fix-login",
+    createdAt: "2026-10-01T00:00:00.000Z",
+    creator: LINEAR_USER,
+    history: { nodes: [], pageInfo: LINEAR_LAST_PAGE },
+    comments: { nodes: [], pageInfo: LINEAR_LAST_PAGE },
     ...overrides,
   };
 }
@@ -490,5 +509,107 @@ describe("mapJiraIssues", () => {
     const byId = Object.fromEntries(drafts.map((draft) => [draft.externalId, draft]));
     expect(byId["h1:assignee"]?.detail).toBe("Unassigned");
     expect(byId["h1:status"]?.detail).toBe("");
+  });
+});
+
+describe("mapLinearIssues", () => {
+  test("maps a created issue, a status change, an assignment and a comment to their own rows", () => {
+    const issue = linearIssue({
+      createdAt: "2026-10-12T00:00:00.000Z",
+      history: {
+        nodes: [
+          {
+            id: "h-state",
+            createdAt: "2026-10-13T00:00:00.000Z",
+            actor: LINEAR_USER,
+            fromState: { name: "Todo" },
+            toState: { name: "In Progress" },
+            toAssignee: null,
+          },
+          {
+            id: "h-assign",
+            createdAt: "2026-10-14T00:00:00.000Z",
+            actor: null,
+            fromState: null,
+            toState: null,
+            toAssignee: { name: "Dev Two", email: null },
+          },
+        ],
+        pageInfo: LINEAR_LAST_PAGE,
+      },
+      comments: {
+        nodes: [
+          {
+            id: "c-1",
+            createdAt: "2026-10-15T00:00:00.000Z",
+            url: "https://linear.app/acme/issue/ENG-1/fix-login#comment-c1",
+            body: "Looks good",
+            user: { name: "Dev Two", email: null },
+          },
+        ],
+        pageInfo: LINEAR_LAST_PAGE,
+      },
+    });
+
+    const { drafts } = mapLinearIssues([issue], { since: LINEAR_SINCE });
+
+    expect(drafts.map((draft) => [draft.kind, draft.externalId])).toEqual([
+      [EActivityKind.ISSUE_CREATED, "issue-1:created"],
+      [EActivityKind.ISSUE_STATUS_CHANGED, "h-state"],
+      [EActivityKind.ISSUE_ASSIGNED, "h-assign"],
+      [EActivityKind.ISSUE_COMMENTED, "c-1"],
+    ]);
+    expect(drafts.every((draft) => draft.source === ESource.LINEAR)).toBe(true);
+    expect(drafts[0]?.url).toBe(issue.url);
+    expect(drafts[0]?.title).toBe("ENG-1 Fix login");
+    expect(drafts[0]?.actor).toBe(LINEAR_USER.email);
+    expect(drafts[1]?.detail).toBe("Todo to In Progress");
+    expect(drafts[2]?.detail).toBe("Dev Two");
+    expect(drafts[3]?.url).toContain("#comment-c1");
+    expect(drafts[3]?.actor).toBe("Dev Two");
+    expect(drafts[3]?.detail).toBe("Looks good");
+  });
+
+  test("gives a state change and an assignment from one history entry separate ids", () => {
+    const issue = linearIssue({
+      history: {
+        nodes: [
+          {
+            id: "h-both",
+            createdAt: "2026-10-13T00:00:00.000Z",
+            actor: LINEAR_USER,
+            fromState: null,
+            toState: { name: "Done" },
+            toAssignee: LINEAR_USER,
+          },
+        ],
+        pageInfo: LINEAR_LAST_PAGE,
+      },
+    });
+
+    const { drafts } = mapLinearIssues([issue], { since: LINEAR_SINCE });
+
+    expect(drafts.map((draft) => draft.externalId)).toEqual(["h-both", "h-both:assigned"]);
+  });
+
+  test("skips changes older than the cursor and issues with no link", () => {
+    const old = linearIssue({
+      history: {
+        nodes: [
+          {
+            id: "h-old",
+            createdAt: "2026-10-02T00:00:00.000Z",
+            actor: null,
+            fromState: null,
+            toState: { name: "Done" },
+            toAssignee: null,
+          },
+        ],
+        pageInfo: LINEAR_LAST_PAGE,
+      },
+    });
+    const noLink = linearIssue({ id: "issue-2", url: "", createdAt: "2026-10-12T00:00:00.000Z" });
+
+    expect(mapLinearIssues([old, noLink], { since: LINEAR_SINCE }).drafts).toEqual([]);
   });
 });

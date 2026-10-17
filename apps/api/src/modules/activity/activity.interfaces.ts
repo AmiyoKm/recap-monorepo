@@ -39,6 +39,10 @@ export interface IDriveMapContext {
   commentedFileIds: Set<string>;
 }
 
+export interface ILinearMapContext {
+  since: string;
+}
+
 export interface ICalendarMapContext {
   identityEmail: string;
   timeZone: string | null;

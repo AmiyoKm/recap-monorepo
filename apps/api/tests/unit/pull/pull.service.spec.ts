@@ -10,8 +10,10 @@ import { PullService } from "#api/modules/pull/pull.service";
 import { bindings } from "#api/shared/bindings/bindings.client";
 import type { IPullMessage } from "#api/shared/bindings/bindings.interfaces";
 import { cache } from "#api/shared/cache/cache.client";
+import { decryptSecret } from "#api/shared/crypto/crypto.helpers";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { db } from "#api/shared/db/db.client";
+import { ENV } from "#api/shared/env/env.constants";
 import { EGmailLabel } from "#api/shared/providers/google/google.enums";
 import type {
   IGoogleCalendarPage,
@@ -30,6 +32,8 @@ import type {
   TGoogleDriveActivity,
   TGoogleGmailMessage,
 } from "#api/shared/providers/google/google.types";
+import type { ILinearIssuesPage } from "#api/shared/providers/linear/linear.interfaces";
+import { LinearService } from "#api/shared/providers/linear/linear.service";
 import {
   CALENDAR_EMAIL,
   CALENDAR_READ_SCOPE,
@@ -37,10 +41,12 @@ import {
   CHAT_SPACES_SCOPE,
   DRIVE_ACTIVITY_SCOPE,
   GMAIL_METADATA_SCOPE,
+  LINEAR_LAST_PAGE,
 } from "#api-tests/fixtures/fixtures.constants";
 import {
   createUser,
   seedGoogleConnection,
+  seedLinearConnection,
   uniqueEmail,
   wipeCache,
   wipeDatabase,
@@ -766,5 +772,245 @@ describe("PullService.pullConnection for Calendar and Chat", () => {
     expect(calendar).toHaveBeenCalledTimes(1);
     expect(chatList).toHaveBeenCalledTimes(1);
     expect((await connectionRow(connectionId))?.lastPulledAt).not.toBeNull();
+  });
+});
+
+const LINEAR_ROWS_PER_PAGE = 3;
+const LINEAR_ISSUE_URL = "https://linear.app/acme/issue/ENG-1/fix-login";
+const LINEAR_ROTATED_TOKEN = {
+  accessToken: "linear-fresh-access",
+  refreshToken: "linear-rotated-refresh",
+  expiresInSeconds: 86399,
+  scopes: [],
+};
+
+function linearPage(
+  overrides: Partial<ILinearIssuesPage> = {},
+  createdAt = dayjs().subtract(1, "day").toISOString(),
+): ILinearIssuesPage {
+  return {
+    issues: [
+      {
+        id: "issue-1",
+        identifier: "ENG-1",
+        title: "Fix login",
+        url: LINEAR_ISSUE_URL,
+        createdAt,
+        creator: { name: "Dev", email: "dev@employer.example" },
+        history: {
+          nodes: [
+            {
+              id: "h-1",
+              createdAt,
+              actor: null,
+              fromState: { name: "Todo" },
+              toState: { name: "Done" },
+              toAssignee: null,
+            },
+          ],
+          pageInfo: LINEAR_LAST_PAGE,
+        },
+        comments: {
+          nodes: [
+            {
+              id: "c-1",
+              createdAt,
+              url: `${LINEAR_ISSUE_URL}#comment-c-1`,
+              body: "Done",
+              user: null,
+            },
+          ],
+          pageInfo: LINEAR_LAST_PAGE,
+        },
+      },
+    ],
+    nextPageCursor: null,
+    ...overrides,
+  };
+}
+
+describe("PullService.pullConnection for Linear", () => {
+  let linear: Awaited<ReturnType<typeof seedLinearConnection>>;
+
+  beforeEach(async () => {
+    linear = await seedLinearConnection(await createUser(uniqueEmail()));
+    spyOn(LinearService, "refreshAccessToken").mockResolvedValue(LINEAR_ROTATED_TOKEN);
+  });
+
+  test("first pull reads 7 days back and saves one row for each change with its own link", async () => {
+    const list = spyOn(LinearService, "listIssues").mockResolvedValue(linearPage());
+
+    await PullService.pullConnection(linear.connectionId);
+
+    const input = list.mock.calls[0]?.[0];
+    expect(input?.accessToken).toBe("linear-fresh-access");
+    expect(input?.after).toBeNull();
+    expect(dayjs().subtract(LOOKBACK_DAYS, "day").diff(dayjs(input?.since), "minute")).toBeLessThan(
+      MINUTES_TOLERANCE,
+    );
+    const rows = await activityRows(linear.connectionId);
+    expect(rows.map((row) => [row.kind, row.externalId, row.url]).sort()).toEqual([
+      ["issue_commented", "c-1", `${LINEAR_ISSUE_URL}#comment-c-1`],
+      ["issue_created", "issue-1:created", LINEAR_ISSUE_URL],
+      ["issue_status_changed", "h-1", LINEAR_ISSUE_URL],
+    ]);
+    expect(rows.every((row) => row.source === "linear")).toBe(true);
+  });
+
+  test("saves the rotated refresh token and caches the access token", async () => {
+    spyOn(LinearService, "listIssues").mockResolvedValue(linearPage());
+
+    await PullService.pullConnection(linear.connectionId);
+
+    const row = await connectionRow(linear.connectionId);
+    expect(decryptSecret(ENV.connectionEncryptionKey, row?.refreshTokenEnc ?? "")).toBe(
+      "linear-rotated-refresh",
+    );
+    expect(await cache.get(connectionTokenKey(linear.connectionId))).toBe("linear-fresh-access");
+  });
+
+  test("keeps pulling for more than one day: the next pull starts at the last run start", async () => {
+    const list = spyOn(LinearService, "listIssues").mockResolvedValue(linearPage());
+
+    await PullService.pullConnection(linear.connectionId);
+    await PullService.pullConnection(linear.connectionId);
+
+    const second = list.mock.calls[1]?.[0];
+    expect(dayjs().diff(dayjs(second?.since), "minute")).toBeLessThan(MINUTES_TOLERANCE);
+    expect((await activityRows(linear.connectionId)).length).toBe(LINEAR_ROWS_PER_PAGE);
+    expect((await connectionRow(linear.connectionId))?.lastPulledAt).not.toBeNull();
+  });
+
+  test("sends a follow-up message and keeps the page cursor when more pages remain", async () => {
+    const list = spyOn(LinearService, "listIssues")
+      .mockResolvedValueOnce(linearPage({ nextPageCursor: "page-2" }))
+      .mockResolvedValueOnce(linearPage());
+
+    await PullService.pullConnection(linear.connectionId);
+    expect(queue.sent).toEqual([{ connectionId: linear.connectionId }]);
+    await PullService.pullConnection(linear.connectionId);
+
+    expect(list.mock.calls[1]?.[0].after).toBe("page-2");
+    expect(list.mock.calls[1]?.[0].since).toBe(list.mock.calls[0]?.[0].since);
+  });
+
+  test("reads the remaining history and comment pages of a busy issue before the cursor moves", async () => {
+    const busy = linearPage().issues.map((issue) => ({
+      ...issue,
+      history: {
+        nodes: issue.history.nodes,
+        pageInfo: { hasNextPage: true, endCursor: "h-page-2" },
+      },
+      comments: {
+        nodes: issue.comments.nodes,
+        pageInfo: { hasNextPage: true, endCursor: "c-page-2" },
+      },
+    }));
+    const [first] = busy;
+    if (!first) {
+      throw new Error("busy issue missing");
+    }
+    const day = dayjs().subtract(1, "hour").toISOString();
+    const rest = {
+      ...first,
+      history: {
+        nodes: [
+          {
+            id: "h-2",
+            createdAt: day,
+            actor: null,
+            fromState: null,
+            toState: { name: "Done" },
+            toAssignee: null,
+          },
+        ],
+        pageInfo: LINEAR_LAST_PAGE,
+      },
+      comments: {
+        nodes: [
+          {
+            id: "c-2",
+            createdAt: day,
+            url: `${LINEAR_ISSUE_URL}#comment-c-2`,
+            body: "x",
+            user: null,
+          },
+        ],
+        pageInfo: LINEAR_LAST_PAGE,
+      },
+    };
+    const list = spyOn(LinearService, "listIssues").mockResolvedValue({
+      issues: busy,
+      nextPageCursor: null,
+    });
+    const read = spyOn(LinearService, "readIssue").mockResolvedValue({ issue: rest });
+
+    await PullService.pullConnection(linear.connectionId);
+    expect(queue.sent).toEqual([{ connectionId: linear.connectionId }]);
+    expect((await connectionRow(linear.connectionId))?.lastPulledAt).toBeNull();
+    await PullService.pullConnection(linear.connectionId);
+
+    expect(list.mock.calls.length).toBe(1);
+    expect(read.mock.calls[0]?.[0]).toMatchObject({
+      issueId: "issue-1",
+      historyAfter: "h-page-2",
+      commentsAfter: "c-page-2",
+    });
+    const rows = await activityRows(linear.connectionId);
+    expect(rows.map((row) => row.externalId).sort()).toEqual([
+      "c-1",
+      "c-2",
+      "h-1",
+      "h-2",
+      "issue-1:created",
+    ]);
+    expect((await connectionRow(linear.connectionId))?.lastPulledAt).not.toBeNull();
+  });
+
+  test("drops a pending issue that Linear no longer has and finishes the pull", async () => {
+    const busy = linearPage().issues.map((issue) => ({
+      ...issue,
+      history: { nodes: issue.history.nodes, pageInfo: LINEAR_LAST_PAGE },
+      comments: {
+        nodes: issue.comments.nodes,
+        pageInfo: { hasNextPage: true, endCursor: "c-page-2" },
+      },
+    }));
+    spyOn(LinearService, "listIssues").mockResolvedValue({ issues: busy, nextPageCursor: null });
+    const read = spyOn(LinearService, "readIssue").mockResolvedValue({ issue: null });
+
+    await PullService.pullConnection(linear.connectionId);
+    await PullService.pullConnection(linear.connectionId);
+
+    expect(read.mock.calls.length).toBe(1);
+    expect((await connectionRow(linear.connectionId))?.lastPulledAt).not.toBeNull();
+    expect(queue.sent).toEqual([{ connectionId: linear.connectionId }]);
+  });
+
+  test("marks the Connection needs_reconnect when Linear rejects the refresh token", async () => {
+    spyOn(LinearService, "refreshAccessToken").mockResolvedValue(null);
+
+    await PullService.pullConnection(linear.connectionId);
+
+    expect((await connectionRow(linear.connectionId))?.status).toBe(
+      EConnectionStatus.NEEDS_RECONNECT,
+    );
+  });
+
+  test("marks the Connection needs_reconnect when Linear rejects a fresh access token", async () => {
+    spyOn(LinearService, "listIssues").mockResolvedValue(null);
+
+    await PullService.pullConnection(linear.connectionId);
+
+    expect((await connectionRow(linear.connectionId))?.status).toBe(
+      EConnectionStatus.NEEDS_RECONNECT,
+    );
+  });
+
+  test("saves lastPullError and throws on other failures", async () => {
+    spyOn(LinearService, "listIssues").mockRejectedValue(new Error("boom"));
+
+    await expect(PullService.pullConnection(linear.connectionId)).rejects.toThrow("boom");
+    expect((await connectionRow(linear.connectionId))?.lastPullError).toContain("boom");
   });
 });
