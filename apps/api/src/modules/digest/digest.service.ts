@@ -5,6 +5,8 @@ import { ActivityRepository } from "#api/modules/activity/activity.repository";
 import {
   DEFAULT_DIGEST_TIME_ZONE,
   DIGEST_ACTIVITY_LIMIT,
+  DIGEST_EMBEDDING_DIMENSIONS,
+  DIGEST_EMBEDDING_MODEL,
   DIGEST_ERROR_MAX_LENGTH,
   DIGEST_FINAL_PULL_MAX_STEPS,
   DIGEST_FINAL_PULL_PAGES_PER_STEP,
@@ -18,13 +20,17 @@ import { EDigestMessages } from "#api/modules/digest/digest.enums";
 import {
   buildDigestPrompt,
   buildNothingNewContent,
+  buildSectionEmbeddingText,
   capWindowRows,
   defaultWindowStart,
+  digestVectorId,
+  hasSectionItems,
   isDigestDue,
   isSupportedTimeZone,
   localDigestDate,
   missingSourceStepName,
   nextDigestRunAt,
+  parseDigestContent,
   pullStepName,
   requireDigest,
   startOfNextLocalDay,
@@ -84,6 +90,13 @@ async function pullOnePage(target: IPullTarget): Promise<EPullOutcome> {
 async function timeZoneOf(userId: string): Promise<string> {
   const setting = await DigestRepository.findSetting(userId);
   return setting?.timeZone ?? DEFAULT_DIGEST_TIME_ZONE;
+}
+
+function requireEmbedding(embedding: number[] | undefined, digestId: string): number[] {
+  if (!embedding) {
+    throw new Error(EDigestMessages.EMBEDDING_MISSING, { cause: digestId });
+  }
+  return embedding;
 }
 
 export abstract class DigestService {
@@ -256,6 +269,30 @@ export abstract class DigestService {
       schema: digestAiOutputSchema,
     });
     await DigestService.saveContent(digestId, toDigestContent(output, contentInput), DIGEST_MODEL);
+  }
+
+  static async embedDigest(digestId: string): Promise<void> {
+    const digest = requireDigest(await DigestRepository.findById(digestId), digestId);
+    const sections = (parseDigestContent(digest.content)?.sections ?? []).filter(hasSectionItems);
+    if (sections.length === 0) {
+      return;
+    }
+    const embeddings = await AiService.embedMany({
+      model: DIGEST_EMBEDDING_MODEL,
+      values: sections.map((section) => buildSectionEmbeddingText(section, digest.digestDate)),
+      dimensions: DIGEST_EMBEDDING_DIMENSIONS,
+    });
+    await bindings.DIGEST_VECTORS.upsert(
+      sections.map((section, index) => ({
+        id: digestVectorId(digest.userId, digest.digestDate, section.identityId),
+        values: requireEmbedding(embeddings[index], digestId),
+        metadata: {
+          userId: digest.userId,
+          identityId: section.identityId,
+          digestDate: digest.digestDate,
+        },
+      })),
+    );
   }
 
   static async failDigest(digestId: string, error: unknown): Promise<void> {

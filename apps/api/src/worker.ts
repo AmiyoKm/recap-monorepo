@@ -45,6 +45,9 @@ export class DigestWorkflow extends WorkflowEntrypoint<Cloudflare.Env, IDigestWo
       await step.do(EDigestStep.FAIL_DIGEST, () => DigestService.failDigest(digestId, error));
       throw error;
     }
+    await step.do(EDigestStep.EMBED_DIGEST, DIGEST_WORKFLOW_STEP_CONFIG, () =>
+      DigestService.embedDigest(digestId),
+    );
   }
 }
 

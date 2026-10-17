@@ -219,3 +219,22 @@ export function installFakeDigestWorkflow(): {
     restore: () => Object.defineProperty(bindings, "DIGEST_WORKFLOW", original),
   };
 }
+
+export function installFakeDigestVectors(): {
+  upserts: VectorizeVector[][];
+  restore: () => void;
+} {
+  const upserts: VectorizeVector[][] = [];
+  const index = {
+    upsert: (vectors: VectorizeVector[]) => {
+      upserts.push(vectors);
+      return Promise.resolve({ mutationId: randomUUID() });
+    },
+  };
+  const original = Object.getOwnPropertyDescriptor(bindings, "DIGEST_VECTORS") ?? {};
+  Object.defineProperty(bindings, "DIGEST_VECTORS", { get: () => index, configurable: true });
+  return {
+    upserts,
+    restore: () => Object.defineProperty(bindings, "DIGEST_VECTORS", original),
+  };
+}

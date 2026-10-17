@@ -17,6 +17,12 @@ describe("readBindings", () => {
     expect(env.CACHE).toBe(bindings.CACHE);
   });
 
+  test("throws on DIGEST_VECTORS access when it is missing", () => {
+    const bindings = readBindings({ ...env, DIGEST_VECTORS: undefined });
+
+    expect(() => bindings.DIGEST_VECTORS).toThrow(EBindingsMessages.MISSING_BINDING);
+  });
+
   test("throws on DB access when DB is missing", () => {
     const bindings = readBindings({ ...env, DB: undefined });
 

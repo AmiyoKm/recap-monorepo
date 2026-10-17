@@ -9,8 +9,10 @@ import {
 } from "#api/modules/digest/digest.constants";
 import {
   buildNothingNewContent,
+  buildSectionEmbeddingText,
   capWindowRows,
   defaultWindowStart,
+  digestVectorId,
   isDigestDue,
   isSupportedTimeZone,
   localDigestDate,
@@ -21,6 +23,7 @@ import {
   toDigestStart,
 } from "#api/modules/digest/digest.helpers";
 import type { IDigestContentInput } from "#api/modules/digest/digest.interfaces";
+import { VECTORIZE_ID_MAX_LENGTH } from "#api-tests/fixtures/fixtures.constants";
 
 const OVERFLOW = 5;
 
@@ -474,5 +477,52 @@ describe("toDigestStart", () => {
     expect(
       toDigestStart(candidate, now, [{ userId: "u1", digestDate: "2026-10-14", windowEnd: now }]),
     ).toBeNull();
+  });
+});
+
+describe("digestVectorId", () => {
+  const userId = "6f1c0f0e-3b0a-4f43-a1f5-0b3a1f0e9c11";
+  const digestDate = "2026-10-14";
+  const identityId = "9a7d2b64-51c8-4e0e-9a43-2f6f0f1c7d20";
+
+  test("is stable and fits the 64 byte Vectorize limit", () => {
+    const id = digestVectorId(userId, digestDate, identityId);
+
+    expect(id).toBe(digestVectorId(userId, digestDate, identityId));
+    expect(id).toHaveLength(VECTORIZE_ID_MAX_LENGTH);
+  });
+
+  test("differs per Work Identity, per date and per user", () => {
+    const id = digestVectorId(userId, digestDate, identityId);
+
+    expect(digestVectorId(userId, digestDate, "other")).not.toBe(id);
+    expect(digestVectorId(userId, "2026-10-15", identityId)).not.toBe(id);
+    expect(digestVectorId("other", digestDate, identityId)).not.toBe(id);
+  });
+});
+
+describe("buildSectionEmbeddingText", () => {
+  test("lists the identity, the date and only the lists that have items", () => {
+    const text = buildSectionEmbeddingText(
+      {
+        identityId: "i1",
+        identityEmail: "me@example.com",
+        highlights: [{ text: "Budget thread opened", activityIds: [] }],
+        meetingsAhead: [],
+        needsYou: [{ text: "Reply to Sam", activityIds: [] }],
+      },
+      "2026-10-14",
+    );
+
+    expect(text).toBe(
+      [
+        "Work Identity: me@example.com",
+        "Date: 2026-10-14",
+        "Highlights:",
+        "- Budget thread opened",
+        "Needs you:",
+        "- Reply to Sam",
+      ].join("\n"),
+    );
   });
 });

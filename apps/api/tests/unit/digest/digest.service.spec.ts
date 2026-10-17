@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { randomUUID } from "node:crypto";
 
 import { eq } from "drizzle-orm";
 
@@ -7,6 +8,8 @@ import { schema } from "@recap/db";
 import { ESource } from "#api/modules/activity/activity.enums";
 import {
   DIGEST_ACTIVITY_LIMIT,
+  DIGEST_EMBEDDING_DIMENSIONS,
+  DIGEST_EMBEDDING_MODEL,
   DIGEST_FINAL_PULL_MAX_STEPS,
   DIGEST_FINAL_PULL_PAGES_PER_STEP,
   DIGEST_MODEL,
@@ -18,7 +21,9 @@ import {
   pullStepName,
 } from "#api/modules/digest/digest.helpers";
 import type { IDigestStepRunner } from "#api/modules/digest/digest.interfaces";
+import { DigestRepository } from "#api/modules/digest/digest.repository";
 import { DigestService } from "#api/modules/digest/digest.service";
+import type { TDigestSection } from "#api/modules/digest/digest.types";
 import { EConnectionStatus } from "#api/modules/identity/identity.enums";
 import { EPullOutcome } from "#api/modules/pull/pull.enums";
 import { PullService } from "#api/modules/pull/pull.service";
@@ -27,8 +32,10 @@ import { bindings } from "#api/shared/bindings/bindings.client";
 import type { IDigestWorkflowParams } from "#api/shared/bindings/bindings.interfaces";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { db } from "#api/shared/db/db.client";
+import { VECTORIZE_ID_MAX_LENGTH } from "#api-tests/fixtures/fixtures.constants";
 import {
   createUser,
+  installFakeDigestVectors,
   installFakeDigestWorkflow,
   seedActivity,
   seedGoogleConnection,
@@ -48,6 +55,8 @@ let userId: string;
 let first: Awaited<ReturnType<typeof seedGoogleConnection>>;
 let created: IDigestWorkflowParams[];
 let restoreWorkflow: () => void;
+let upserts: VectorizeVector[][];
+let restoreVectors: () => void;
 
 async function digestRow(id: string) {
   const rows = await db.select().from(schema.digest).where(eq(schema.digest.id, id));
@@ -71,11 +80,13 @@ beforeEach(async () => {
   userId = await createUser(uniqueEmail());
   first = await seedGoogleConnection(userId);
   ({ created, restore: restoreWorkflow } = installFakeDigestWorkflow());
+  ({ upserts, restore: restoreVectors } = installFakeDigestVectors());
 });
 
 afterEach(() => {
   mock.restore();
   restoreWorkflow();
+  restoreVectors();
 });
 
 describe("DigestService.startDigest", () => {
@@ -334,6 +345,107 @@ describe("DigestService.writeDigest", () => {
       error: "Error: model overloaded",
     });
     expect(await db.select().from(schema.activity)).toHaveLength(1);
+  });
+});
+
+function fakeVector(seed: number): number[] {
+  return Array.from({ length: DIGEST_EMBEDDING_DIMENSIONS }, () => seed);
+}
+
+async function readyDigestWith(sections: TDigestSection[]): Promise<string> {
+  const id = await startedDigest();
+  await DigestRepository.saveReady({
+    digestId: id,
+    content: JSON.stringify({ nothingNew: false, truncated: false, sections }),
+    model: DIGEST_MODEL,
+  });
+  return id;
+}
+
+function sectionOf(identityId: string, highlight: string): TDigestSection {
+  return {
+    identityId,
+    identityEmail: "me@example.com",
+    highlights: [{ text: highlight, activityIds: [] }],
+    meetingsAhead: [],
+    needsYou: [],
+  };
+}
+
+describe("DigestService.embedDigest", () => {
+  test("upserts one vector per section with user, identity and date metadata", async () => {
+    const otherIdentityId = randomUUID();
+    const embed = spyOn(AiService, "embedMany").mockResolvedValue([fakeVector(1), fakeVector(2)]);
+    const id = await readyDigestWith([
+      sectionOf(first.identityId, "Budget thread opened"),
+      sectionOf(otherIdentityId, "Launch moved"),
+    ]);
+
+    await DigestService.embedDigest(id);
+
+    const [input] = embed.mock.calls[0] ?? [];
+    expect(input?.model).toBe(DIGEST_EMBEDDING_MODEL);
+    expect(input?.dimensions).toBe(DIGEST_EMBEDDING_DIMENSIONS);
+    expect(input?.values).toHaveLength(2);
+    expect(input?.values[0]).toContain("Budget thread opened");
+    expect(input?.values[1]).toContain("Launch moved");
+    expect(upserts).toHaveLength(1);
+    const [vectors = []] = upserts;
+    expect(vectors.map((vector) => vector.metadata)).toEqual([
+      { userId, identityId: first.identityId, digestDate: "2026-10-14" },
+      { userId, identityId: otherIdentityId, digestDate: "2026-10-14" },
+    ]);
+    expect(vectors.map((vector) => vector.values)).toEqual([fakeVector(1), fakeVector(2)]);
+    const ids = vectors.map((vector) => vector.id);
+    expect(new Set(ids).size).toBe(2);
+    for (const vectorId of ids) {
+      expect(vectorId.length).toBeLessThanOrEqual(VECTORIZE_ID_MAX_LENGTH);
+    }
+  });
+
+  test("builds the same ids again on regenerate with a new Digest id", async () => {
+    spyOn(AiService, "embedMany").mockResolvedValue([fakeVector(1)]);
+    const oldId = await readyDigestWith([sectionOf(first.identityId, "Budget thread opened")]);
+    await DigestService.embedDigest(oldId);
+    const id = randomUUID();
+    await db.update(schema.digest).set({ id }).where(eq(schema.digest.id, oldId));
+    await DigestService.embedDigest(id);
+
+    expect(upserts).toHaveLength(2);
+    expect(upserts[0]?.map((vector) => vector.id)).toEqual(upserts[1]?.map((vector) => vector.id));
+  });
+
+  test("calls neither the embedder nor Vectorize for a Digest with no sections", async () => {
+    const embed = spyOn(AiService, "embedMany");
+    const id = await readyDigestWith([]);
+
+    await DigestService.embedDigest(id);
+
+    expect(embed).not.toHaveBeenCalled();
+    expect(upserts).toEqual([]);
+  });
+
+  test("skips a section with no items", async () => {
+    const embed = spyOn(AiService, "embedMany").mockResolvedValue([fakeVector(1)]);
+    const id = await readyDigestWith([
+      sectionOf(first.identityId, "Budget thread opened"),
+      { ...sectionOf(randomUUID(), "x"), highlights: [] },
+    ]);
+
+    await DigestService.embedDigest(id);
+
+    const [input] = embed.mock.calls[0] ?? [];
+    expect(input?.values).toHaveLength(1);
+    expect(upserts[0]).toHaveLength(1);
+  });
+
+  test("throws when embedding fails and writes nothing", async () => {
+    spyOn(AiService, "embedMany").mockRejectedValue(new Error("quota"));
+    const id = await readyDigestWith([sectionOf(first.identityId, "Budget thread opened")]);
+
+    await expect(DigestService.embedDigest(id)).rejects.toThrow("quota");
+
+    expect(upserts).toEqual([]);
   });
 });
 
