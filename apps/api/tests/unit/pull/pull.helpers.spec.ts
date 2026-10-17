@@ -22,6 +22,7 @@ const PAGE: IGoogleCalendarPage = {
   nextPageToken: null,
   nextSyncToken: "sync-2",
   usedSyncToken: true,
+  timeZone: null,
 };
 
 function connection(overrides: Partial<TConnectionRow>): TConnectionRow {

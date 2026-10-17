@@ -9,8 +9,8 @@ import {
   PAGINATION_OF,
   PAGINATION_PAGE_OF,
   PAGINATION_PREVIOUS,
-  PAGINATION_TOTAL,
 } from "@/features/activity/components/ActivityPagination/ActivityPagination.constants";
+import { totalLabel } from "@/features/activity/components/ActivityPagination/ActivityPagination.helpers";
 import type { IActivityPaginationProps } from "@/features/activity/components/ActivityPagination/ActivityPagination.interfaces";
 
 export function ActivityPagination({ page, total }: IActivityPaginationProps) {
@@ -21,7 +21,7 @@ export function ActivityPagination({ page, total }: IActivityPaginationProps) {
   return (
     <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
       <p className="text-sm text-muted-foreground">
-        {PAGINATION_PAGE_OF} {page} {PAGINATION_OF} {pages}, {total} {PAGINATION_TOTAL}
+        {PAGINATION_PAGE_OF} {page} {PAGINATION_OF} {pages}, {total} {totalLabel(total)}
       </p>
       <Pagination className="mx-0 w-auto">
         <PaginationContent>

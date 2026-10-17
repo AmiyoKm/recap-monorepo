@@ -79,6 +79,7 @@ function page(
     nextPageToken: null,
     nextSyncToken: "sync-next",
     usedSyncToken: false,
+    timeZone: null,
     ...overrides,
   };
 }

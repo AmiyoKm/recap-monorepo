@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 
+import { eq } from "drizzle-orm";
+
 import { schema } from "@recap/db";
 
 import { IdentityRepository } from "#api/modules/identity/identity.repository";
@@ -120,26 +122,54 @@ describe("connection rows", () => {
     );
   });
 
-  test("replaces a stale connection with the new row", async () => {
+  test("reconnects a stale connection in place and keeps its id and cursor", async () => {
     const { identityId } = await insertIdentityWithUser(`sub-conn-replace-${randomUUID()}`);
     const stale = connectionValues(identityId, "jira");
-    const fresh = connectionValues(identityId, "jira");
-    await IdentityRepository.replaceConnection(stale);
+    await IdentityRepository.replaceConnection({ ...stale, pullCursor: "cursor-1" });
+    await db
+      .update(schema.connection)
+      .set({ status: "needs_reconnect", lastPullError: "rejected" })
+      .where(eq(schema.connection.id, stale.id));
+    const fresh = { ...connectionValues(identityId, "jira"), id: stale.id, refreshTokenEnc: "new" };
 
     expect(await IdentityRepository.replaceConnection(fresh, stale.id)).toBe(true);
-    expect((await IdentityRepository.findConnection(identityId, "jira"))?.id).toBe(fresh.id);
+
+    const row = await IdentityRepository.findConnection(identityId, "jira");
+    expect(row?.id).toBe(stale.id);
+    expect(row?.refreshTokenEnc).toBe("new");
+    expect(row?.status).toBe("active");
+    expect(row?.lastPullError).toBeNull();
+    expect(row?.pullCursor).toBe("cursor-1");
   });
 
-  test("keeps the stale connection when the new row conflicts", async () => {
-    const { identityId } = await insertIdentityWithUser(`sub-conn-keep-${randomUUID()}`);
-    const stale = connectionValues(identityId, "jira");
-    const other = connectionValues(identityId, "linear");
+  test("keeps the Activities of a reconnected connection", async () => {
+    const { identityId } = await insertIdentityWithUser(`sub-conn-act-${randomUUID()}`);
+    const stale = connectionValues(identityId, "google");
     await IdentityRepository.replaceConnection(stale);
-    await IdentityRepository.replaceConnection(other);
+    await db.insert(schema.activity).values({
+      id: randomUUID(),
+      identityId,
+      connectionId: stale.id,
+      source: "calendar",
+      kind: "calendar_event",
+      externalId: "event-1",
+      occurredAt: dayjs().toISOString(),
+      title: "Planning",
+      url: "https://example.com/e",
+      createdAt: dayjs().toISOString(),
+      updatedAt: dayjs().toISOString(),
+    });
 
-    const conflicting = connectionValues(identityId, "linear");
-    expect(await IdentityRepository.replaceConnection(conflicting, stale.id)).toBe(false);
-    expect((await IdentityRepository.findConnection(identityId, "jira"))?.id).toBe(stale.id);
+    await IdentityRepository.replaceConnection(
+      { ...connectionValues(identityId, "google"), id: stale.id },
+      stale.id,
+    );
+
+    const rows = await db
+      .select()
+      .from(schema.activity)
+      .where(eq(schema.activity.connectionId, stale.id));
+    expect(rows.length).toBe(1);
   });
 
   test("allows the same provider under another identity", async () => {

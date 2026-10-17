@@ -124,6 +124,10 @@ describe("GET /activities", () => {
       query: { from: "2026-10-10T00:00:00.000Z", to: "2026-10-17T00:00:00.000Z" },
       ...authed(),
     });
+    const offsetRange = await api.activities.get({
+      query: { from: "2026-10-16T14:00:00+06:00", to: "2026-10-16T16:00:00+06:00" },
+      ...authed(),
+    });
     const bySource = await api.activities.get({
       query: { source: [ESource.GMAIL] },
       ...authed(),
@@ -137,6 +141,8 @@ describe("GET /activities", () => {
       ...authed(),
     });
 
+    expect(offsetRange.data?.rows.map((entry) => entry.title)).toContain("In range");
+    expect(offsetRange.data?.rows.map((entry) => entry.title)).not.toContain("Too early");
     expect(range.data?.rows.map((entry) => entry.title)).not.toContain("Too early");
     expect(range.data?.total).toBe(IN_RANGE_ROWS);
     expect(bySource.data?.rows.map((entry) => entry.title)).toEqual(["Mail"]);

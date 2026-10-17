@@ -2,7 +2,7 @@ import {
   ACTIVITY_PAGE_DEFAULT,
   ACTIVITY_PAGE_SIZE_DEFAULT,
 } from "#api/modules/activity/activity.constants";
-import { nonEmpty, toActivityView } from "#api/modules/activity/activity.helpers";
+import { nonEmpty, toActivityView, toIsoBound } from "#api/modules/activity/activity.helpers";
 import { ActivityRepository } from "#api/modules/activity/activity.repository";
 import type {
   TActivityListQuery,
@@ -18,8 +18,8 @@ export abstract class ActivityService {
     const pageSize = query.pageSize ?? ACTIVITY_PAGE_SIZE_DEFAULT;
     const filters = {
       userId,
-      from: query.from,
-      to: query.to,
+      from: toIsoBound(query.from),
+      to: toIsoBound(query.to),
       sources: nonEmpty(query.source),
       identityIds: nonEmpty(query.identityId),
       kinds: nonEmpty(query.kind),

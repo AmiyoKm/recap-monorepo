@@ -221,7 +221,10 @@ export abstract class PullService {
       return null;
     }
     return {
-      batch: mapCalendarEvents(page.events, input.target.identityEmail),
+      batch: mapCalendarEvents(page.events, {
+        identityEmail: input.target.identityEmail,
+        timeZone: page.timeZone,
+      }),
       nextCursor: nextCalendarCursor(cursor, page),
       hasMore: page.nextPageToken !== null,
     };

@@ -16,7 +16,12 @@ import {
   EGoogleOAuthError,
   EGoogleOAuthValue,
 } from "#api/shared/providers/google/google.enums";
-import { toGoogleProfile, toGoogleTokens } from "#api/shared/providers/google/google.helpers";
+import {
+  calendarRange,
+  hasStatus,
+  toGoogleProfile,
+  toGoogleTokens,
+} from "#api/shared/providers/google/google.helpers";
 import type {
   IGoogleAuthorization,
   IGoogleAuthorizeInput,
@@ -91,7 +96,7 @@ export abstract class GoogleService {
     try {
       return await GoogleService.readCalendarPage(input);
     } catch (error) {
-      if (GoogleService.hasStatus(error, HTTP_UNAUTHORIZED)) {
+      if (hasStatus(error, HTTP_UNAUTHORIZED)) {
         return null;
       }
       throw error;
@@ -104,7 +109,7 @@ export abstract class GoogleService {
     try {
       return await GoogleService.requestCalendarPage(input);
     } catch (error) {
-      if (!(input.syncToken && GoogleService.hasStatus(error, HTTP_GONE))) {
+      if (!(input.syncToken && hasStatus(error, HTTP_GONE))) {
         throw error;
       }
       return GoogleService.requestCalendarPage({ ...input, syncToken: null, pageToken: null });
@@ -124,21 +129,15 @@ export abstract class GoogleService {
       maxResults: GOOGLE_CALENDAR_PAGE_SIZE,
       singleEvents: true,
       pageToken: input.pageToken ?? undefined,
-      ...GoogleService.calendarRange(input),
+      ...calendarRange(input),
     });
     return {
       events: data.items ?? [],
       nextPageToken: data.nextPageToken ?? null,
       nextSyncToken: data.nextSyncToken ?? null,
       usedSyncToken: input.syncToken !== null,
+      timeZone: data.timeZone ?? null,
     };
-  }
-
-  private static calendarRange(input: IGoogleCalendarReadInput) {
-    if (input.syncToken) {
-      return { syncToken: input.syncToken };
-    }
-    return { timeMin: input.timeMin, timeMax: input.timeMax };
   }
 
   private static createClient(): OAuth2Client {
@@ -147,10 +146,6 @@ export abstract class GoogleService {
       clientSecret: ENV.auth.google.clientSecret,
       transporterOptions: { timeout: GOOGLE_REQUEST_TIMEOUT_MS },
     });
-  }
-
-  private static hasStatus(error: unknown, status: number): boolean {
-    return error instanceof gaxios.GaxiosError && error.status === status;
   }
 
   private static hasOAuthError(error: unknown, code: EGoogleOAuthError): boolean {

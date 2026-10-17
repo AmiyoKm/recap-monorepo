@@ -33,3 +33,8 @@ export interface IActivityListFilters {
   page: number;
   pageSize: number;
 }
+
+export interface ICalendarMapContext {
+  identityEmail: string;
+  timeZone: string | null;
+}

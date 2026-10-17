@@ -167,6 +167,7 @@ describe("GoogleService.listCalendarEvents", () => {
       nextPageToken: null,
       nextSyncToken: "sync-1",
       usedSyncToken: false,
+      timeZone: null,
     });
     expect(list.mock.calls[0]?.[0]).toMatchObject({
       timeMin: input.timeMin,

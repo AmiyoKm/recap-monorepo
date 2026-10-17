@@ -5,11 +5,13 @@ import {
   escapeLike,
   mapCalendarEvents,
   nonEmpty,
+  toIsoBound,
   withAuthUser,
 } from "#api/modules/activity/activity.helpers";
 import type { TGoogleCalendarEvent } from "#api/shared/providers/google/google.types";
 import { CALENDAR_EMAIL } from "#api-tests/fixtures/fixtures.constants";
 
+const CONTEXT = { identityEmail: CALENDAR_EMAIL, timeZone: null };
 const EVENT_LINK = "https://www.google.com/calendar/event?eid=abc123";
 
 function event(overrides: TGoogleCalendarEvent): TGoogleCalendarEvent {
@@ -27,7 +29,7 @@ function event(overrides: TGoogleCalendarEvent): TGoogleCalendarEvent {
 
 describe("mapCalendarEvents", () => {
   test("maps a confirmed event to a calendar Activity with an authuser link", () => {
-    const { drafts, removedExternalIds } = mapCalendarEvents([event({})], CALENDAR_EMAIL);
+    const { drafts, removedExternalIds } = mapCalendarEvents([event({})], CONTEXT);
 
     expect(removedExternalIds).toEqual([]);
     expect(drafts).toEqual([
@@ -48,10 +50,26 @@ describe("mapCalendarEvents", () => {
   test("maps an all-day event to midnight UTC", () => {
     const { drafts } = mapCalendarEvents(
       [event({ start: { date: "2026-10-17" }, end: { date: "2026-10-18" } })],
-      CALENDAR_EMAIL,
+      CONTEXT,
     );
 
     expect(drafts[0]?.occurredAt).toBe("2026-10-17T00:00:00.000Z");
+  });
+
+  test("maps an all-day event to midnight in the calendar time zone", () => {
+    const { drafts } = mapCalendarEvents(
+      [event({ start: { date: "2026-10-17" }, end: { date: "2026-10-18" } })],
+      { ...CONTEXT, timeZone: "Asia/Dhaka" },
+    );
+
+    expect(drafts[0]?.occurredAt).toBe("2026-10-16T18:00:00.000Z");
+    expect(drafts[0]?.endsAt).toBe("2026-10-17T18:00:00.000Z");
+  });
+
+  test("keeps the instant of a timed event whatever the calendar time zone", () => {
+    const { drafts } = mapCalendarEvents([event({})], { ...CONTEXT, timeZone: "America/New_York" });
+
+    expect(drafts[0]?.occurredAt).toBe("2026-10-16T03:00:00.000Z");
   });
 
   test("skips an event that the user declined and marks it for removal", () => {
@@ -62,14 +80,14 @@ describe("mapCalendarEvents", () => {
       ],
     });
 
-    const batch = mapCalendarEvents([declined], CALENDAR_EMAIL);
+    const batch = mapCalendarEvents([declined], CONTEXT);
 
     expect(batch.drafts).toEqual([]);
     expect(batch.removedExternalIds).toEqual(["event-1"]);
   });
 
   test("marks a cancelled event for removal", () => {
-    const batch = mapCalendarEvents([event({ status: "cancelled" })], CALENDAR_EMAIL);
+    const batch = mapCalendarEvents([event({ status: "cancelled" })], CONTEXT);
 
     expect(batch.drafts).toEqual([]);
     expect(batch.removedExternalIds).toEqual(["event-1"]);
@@ -78,8 +96,8 @@ describe("mapCalendarEvents", () => {
   test("keeps the same external id when an event moves", () => {
     const moved = event({ start: { dateTime: "2026-10-17T09:00:00+06:00" } });
 
-    const [first] = mapCalendarEvents([event({})], CALENDAR_EMAIL).drafts;
-    const [second] = mapCalendarEvents([moved], CALENDAR_EMAIL).drafts;
+    const [first] = mapCalendarEvents([event({})], CONTEXT).drafts;
+    const [second] = mapCalendarEvents([moved], CONTEXT).drafts;
 
     expect(second?.externalId).toBe(first?.externalId);
     expect(second?.occurredAt).toBe("2026-10-17T03:00:00.000Z");
@@ -90,7 +108,7 @@ describe("mapCalendarEvents", () => {
     { name: "has no start", overrides: { start: undefined } },
     { name: "has no id", overrides: { id: undefined } },
   ])("drops an event that $name", ({ overrides }) => {
-    const batch = mapCalendarEvents([event(overrides)], CALENDAR_EMAIL);
+    const batch = mapCalendarEvents([event(overrides)], CONTEXT);
 
     expect(batch.drafts).toEqual([]);
     expect(batch.removedExternalIds).toEqual([]);
@@ -120,5 +138,15 @@ describe("nonEmpty", () => {
     expect(nonEmpty(undefined)).toBeUndefined();
     expect(nonEmpty([])).toBeUndefined();
     expect(nonEmpty(["a"])).toEqual(["a"]);
+  });
+});
+
+describe("toIsoBound", () => {
+  test("normalizes an offset timestamp to UTC", () => {
+    expect(toIsoBound("2026-10-16T09:00:00+06:00")).toBe("2026-10-16T03:00:00.000Z");
+  });
+
+  test("returns undefined when no bound is given", () => {
+    expect(toIsoBound(undefined)).toBeUndefined();
   });
 });

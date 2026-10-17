@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import {
   ACTIVITY_NO_TITLE,
   AUTHUSER_PARAM,
+  CALENDAR_FALLBACK_TIME_ZONE,
   LIKE_ESCAPE_CHARACTER,
   LIKE_WILDCARDS,
 } from "#api/modules/activity/activity.constants";
@@ -17,6 +18,7 @@ import type {
   IActivityBatch,
   IActivityDraft,
   IActivityWriteInput,
+  ICalendarMapContext,
 } from "#api/modules/activity/activity.interfaces";
 import type {
   TActivityInsert,
@@ -44,12 +46,17 @@ export function escapeLike(text: string): string {
   return text.replace(LIKE_WILDCARDS, (character) => `${LIKE_ESCAPE_CHARACTER}${character}`);
 }
 
-function calendarTimeToIso(time: TGoogleCalendarEvent["start"]): string | null {
-  const value = time?.dateTime ?? time?.date;
-  if (!value) {
+function calendarTimeToIso(
+  time: TGoogleCalendarEvent["start"],
+  timeZone: string | null,
+): string | null {
+  if (time?.dateTime) {
+    return dayjs.utc(time.dateTime).toISOString();
+  }
+  if (!time?.date) {
     return null;
   }
-  return dayjs.utc(value).toISOString();
+  return dayjs.tz(time.date, timeZone ?? CALENDAR_FALLBACK_TIME_ZONE).toISOString();
 }
 
 function isRemovedCalendarEvent(event: TGoogleCalendarEvent): boolean {
@@ -65,10 +72,10 @@ function isRemovedCalendarEvent(event: TGoogleCalendarEvent): boolean {
 function toCalendarDraft(
   event: TGoogleCalendarEvent,
   externalId: string,
-  identityEmail: string,
+  context: ICalendarMapContext,
 ): IActivityDraft | null {
-  const occurredAt = calendarTimeToIso(event.start);
-  const url = withAuthUser(event.htmlLink, identityEmail);
+  const occurredAt = calendarTimeToIso(event.start, context.timeZone);
+  const url = withAuthUser(event.htmlLink, context.identityEmail);
   if (!(occurredAt && url)) {
     return null;
   }
@@ -77,7 +84,7 @@ function toCalendarDraft(
     kind: EActivityKind.CALENDAR_EVENT,
     externalId,
     occurredAt,
-    endsAt: calendarTimeToIso(event.end),
+    endsAt: calendarTimeToIso(event.end, context.timeZone),
     title: event.summary ?? ACTIVITY_NO_TITLE,
     url,
     actor: event.organizer?.email ?? null,
@@ -87,7 +94,7 @@ function toCalendarDraft(
 
 export function mapCalendarEvents(
   events: TGoogleCalendarEvent[],
-  identityEmail: string,
+  context: ICalendarMapContext,
 ): IActivityBatch {
   const batch: IActivityBatch = { drafts: [], removedExternalIds: [] };
   for (const event of events) {
@@ -98,7 +105,7 @@ export function mapCalendarEvents(
       batch.removedExternalIds.push(event.id);
       continue;
     }
-    const draft = toCalendarDraft(event, event.id, identityEmail);
+    const draft = toCalendarDraft(event, event.id, context);
     if (!draft) {
       logError(EActivityMessages.ITEM_WITHOUT_URL_DROPPED, new Error(event.id));
       continue;
@@ -145,4 +152,11 @@ export function toInsert(
   now: string,
 ): TActivityInsert {
   return { id: randomUUID(), ...input, ...draft, createdAt: now, updatedAt: now };
+}
+
+export function toIsoBound(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  return dayjs(value).toISOString();
 }

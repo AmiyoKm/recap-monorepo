@@ -851,7 +851,7 @@ describe("google connections", () => {
     expect(await db.select().from(schema.connection)).toEqual([]);
   });
 
-  test("replaces an active google connection on reconnect without a revoke", async () => {
+  test("reconnects an active google connection in place without a revoke", async () => {
     const { cookie } = await signUp(uniqueEmail());
     const { identityId, connectionId } = await connectGoogle(cookie, {
       identityCode: "code-g-re-id",
@@ -866,16 +866,16 @@ describe("google connections", () => {
     expect(readLocation(completed)).toBe(googleConnectedUrl(CALENDAR_EMAIL, "drive"));
 
     const row = await readOnlyConnectionRow();
-    expect(row.id).not.toBe(connectionId);
+    expect(row.id).toBe(connectionId);
     expect(row.status).toBe(EConnectionStatus.ACTIVE);
-    expect(await cache.get(connectionTokenKey(connectionId))).toBeNull();
+    expect(await cache.get(connectionTokenKey(connectionId))).toBe("code-g-re-second");
     expect(provider.google.revokedTokens).toEqual([]);
 
     const { data } = await listIdentities(cookie);
     expect(data?.[0]?.connections[0]?.sources).toEqual(["calendar"]);
   });
 
-  test("replaces a google connection that needs a reconnect", async () => {
+  test("reconnects a google connection that needs a reconnect in place", async () => {
     const { cookie } = await signUp(uniqueEmail());
     const { identityId, connectionId } = await connectGoogle(cookie, {
       identityCode: "code-g-nr-id",
@@ -890,7 +890,7 @@ describe("google connections", () => {
     expect(readLocation(completed)).toBe(googleConnectedUrl(CALENDAR_EMAIL));
 
     const row = await readOnlyConnectionRow();
-    expect(row.id).not.toBe(connectionId);
+    expect(row.id).toBe(connectionId);
     expect(row.status).toBe(EConnectionStatus.ACTIVE);
   });
 

@@ -49,4 +49,5 @@ export interface IGoogleCalendarPage {
   nextPageToken: string | null;
   nextSyncToken: string | null;
   usedSyncToken: boolean;
+  timeZone: string | null;
 }

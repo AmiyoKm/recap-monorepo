@@ -3,13 +3,16 @@ import { describe, expect, test } from "bun:test";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { EGoogleMessages, EGoogleSource } from "#api/shared/providers/google/google.enums";
 import {
+  calendarRange,
   deniedSources,
   grantedSources,
+  hasStatus,
   sourceScopes,
   toGoogleProfile,
   toGoogleTokens,
 } from "#api/shared/providers/google/google.helpers";
 
+const HTTP_GONE = 410;
 const ONE_HOUR_IN_SECONDS = 3600;
 const CLOCK_SLACK_SECONDS = 5;
 const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
@@ -131,5 +134,31 @@ describe("deniedSources", () => {
     expect(deniedSources({ requested: [...requested], granted: [...granted] })).toEqual([
       ...denied,
     ]);
+  });
+});
+
+describe("calendarRange", () => {
+  const input = {
+    accessToken: "a",
+    pageToken: null,
+    timeMin: "2026-10-10T00:00:00.000Z",
+    timeMax: "2026-11-10T00:00:00.000Z",
+  };
+
+  test("sends only the sync token when there is one", () => {
+    expect(calendarRange({ ...input, syncToken: "sync-0" })).toEqual({ syncToken: "sync-0" });
+  });
+
+  test("sends the time window without a sync token", () => {
+    expect(calendarRange({ ...input, syncToken: null })).toEqual({
+      timeMin: input.timeMin,
+      timeMax: input.timeMax,
+    });
+  });
+});
+
+describe("hasStatus", () => {
+  test("rejects a plain error", () => {
+    expect(hasStatus(new Error("x"), HTTP_GONE)).toBe(false);
   });
 });

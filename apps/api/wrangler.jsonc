@@ -31,7 +31,9 @@
       ],
       "queues": {
         "producers": [{ "binding": "PULL_QUEUE", "queue": "recap-pull-dev", "remote": true }],
-        "consumers": [{ "queue": "recap-pull-dev", "max_batch_size": 10, "max_retries": 3 }]
+        "consumers": [
+          { "queue": "recap-pull-dev", "max_batch_size": 1, "max_concurrency": 1, "max_retries": 3 }
+        ]
       }
     },
     "prod": {
@@ -52,7 +54,14 @@
       ],
       "queues": {
         "producers": [{ "binding": "PULL_QUEUE", "queue": "recap-pull-prod" }],
-        "consumers": [{ "queue": "recap-pull-prod", "max_batch_size": 10, "max_retries": 3 }]
+        "consumers": [
+          {
+            "queue": "recap-pull-prod",
+            "max_batch_size": 1,
+            "max_concurrency": 1,
+            "max_retries": 3
+          }
+        ]
       }
     }
   }
