@@ -17,6 +17,8 @@ import {
   EDriveCursorKey,
   EGmailCursorKey,
   EJiraCursorKey,
+  ELinearCursorKey,
+  ELinearPendingKey,
   EPullMessageKey,
 } from "#api/modules/pull/pull.enums";
 import type {
@@ -26,6 +28,8 @@ import type {
   IGmailCursor,
   IGmailStep,
   IJiraCursor,
+  ILinearCursor,
+  ILinearStep,
   ISourceCursor,
   ISourcePage,
 } from "#api/modules/pull/pull.interfaces";
@@ -43,6 +47,12 @@ import type {
 import type { TGoogleGmailMessage } from "#api/shared/providers/google/google.types";
 import { JIRA_MAX_ACTIVITIES_PER_PAGE } from "#api/shared/providers/jira/jira.constants";
 import type { IJiraIssuePage } from "#api/shared/providers/jira/jira.interfaces";
+import { nestedContinuation } from "#api/shared/providers/linear/linear.helpers";
+import type {
+  ILinearIssue,
+  ILinearIssuesPage,
+  ILinearNestedCursor,
+} from "#api/shared/providers/linear/linear.interfaces";
 import { OAUTH_SCOPE_SEPARATOR } from "#api/shared/providers/providers.constants";
 import { EProvider } from "#api/shared/providers/providers.enums";
 
@@ -53,6 +63,9 @@ export function isPullableProvider(provider: string): boolean {
 export function readableSources(connection: TConnectionRow): ESource[] {
   if (connection.provider === EProvider.JIRA) {
     return [ESource.JIRA].filter((source) => READABLE_SOURCES.includes(source));
+  }
+  if (connection.provider === EProvider.LINEAR) {
+    return [ESource.LINEAR];
   }
   if (connection.provider !== EProvider.GOOGLE || !connection.scopes) {
     return [];
@@ -353,6 +366,58 @@ function readJiraCursor(stored: string): IJiraCursor | null {
   }
 }
 
+function freshLinearCursor(now: string): ILinearCursor {
+  return {
+    since: dayjs(now).subtract(PULL_FIRST_LOOKBACK_DAYS, "day").toISOString(),
+    after: null,
+    startedAt: now,
+    pending: [],
+  };
+}
+
+function readLinearPending(value: unknown): ILinearNestedCursor | null {
+  const record = toStringRecord(value);
+  const issueId = record?.[ELinearPendingKey.ISSUE_ID];
+  if (typeof issueId !== "string") {
+    return null;
+  }
+  return {
+    issueId,
+    historyAfter: stringOrNull(record?.[ELinearPendingKey.HISTORY_AFTER]),
+    commentsAfter: stringOrNull(record?.[ELinearPendingKey.COMMENTS_AFTER]),
+  };
+}
+
+function readLinearPendingList(value: unknown): ILinearNestedCursor[] | null {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const items = value.map((item) => readLinearPending(item));
+  return items.filter((item) => item !== null);
+}
+
+function readLinearCursor(stored: string): ILinearCursor | null {
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    const record = toStringRecord(parsed);
+    const since = record?.[ELinearCursorKey.SINCE];
+    const startedAt = record?.[ELinearCursorKey.STARTED_AT];
+    if (typeof since !== "string" || typeof startedAt !== "string") {
+      return null;
+    }
+    const pending = readLinearPendingList(record?.[ELinearCursorKey.PENDING]);
+    if (!pending) {
+      return null;
+    }
+    return { since, after: stringOrNull(record?.[ELinearCursorKey.AFTER]), startedAt, pending };
+  } catch {
+    return null;
+  }
+}
+
 export function parseGmailCursor(stored: string | null, now: string): IGmailCursor {
   if (!stored) {
     return freshGmailCursor(now);
@@ -501,4 +566,71 @@ export function nextJiraCursor(
     return JSON.stringify({ ...cursor, offset: cursor.offset + JIRA_MAX_ACTIVITIES_PER_PAGE });
   }
   return JSON.stringify({ ...cursor, pageToken: page.nextPageToken, offset: 0 });
+}
+
+export function parseLinearCursor(stored: string | null, now: string): ILinearCursor {
+  if (!stored) {
+    return freshLinearCursor(now);
+  }
+  const cursor = readLinearCursor(stored);
+  if (!cursor) {
+    return freshLinearCursor(now);
+  }
+  if (cursor.after || cursor.pending.length > 0) {
+    return cursor;
+  }
+  return { ...cursor, startedAt: now };
+}
+
+export function linearListStep(page: ILinearIssuesPage, since: string): ILinearStep {
+  return {
+    after: page.nextPageCursor,
+    pending: page.issues.flatMap((issue) => nestedContinuations(issue, since, null)),
+  };
+}
+
+export function linearNestedStep(
+  cursor: ILinearCursor,
+  issue: ILinearIssue,
+  since: string,
+): ILinearStep {
+  return {
+    after: cursor.after,
+    pending: [
+      ...nestedContinuations(issue, since, cursor.pending[0] ?? null),
+      ...cursor.pending.slice(1),
+    ],
+  };
+}
+
+export function linearGoneStep(cursor: ILinearCursor): ILinearStep {
+  return { after: cursor.after, pending: cursor.pending.slice(1) };
+}
+
+function nestedContinuations(
+  issue: ILinearIssue,
+  since: string,
+  previous: ILinearNestedCursor | null,
+): ILinearNestedCursor[] {
+  const continuation = nestedContinuation(issue, since, previous);
+  if (!continuation) {
+    return [];
+  }
+  return [continuation];
+}
+
+export function linearStepHasMore(step: ILinearStep): boolean {
+  return step.after !== null || step.pending.length > 0;
+}
+
+export function nextLinearCursor(cursor: ILinearCursor, step: ILinearStep): string {
+  if (linearStepHasMore(step)) {
+    return JSON.stringify({ ...cursor, after: step.after, pending: step.pending });
+  }
+  return JSON.stringify({
+    since: cursor.startedAt,
+    after: null,
+    startedAt: cursor.startedAt,
+    pending: [],
+  });
 }

@@ -2,6 +2,7 @@ import type { ESource } from "#api/modules/activity/activity.enums";
 import type { IActivityBatch } from "#api/modules/activity/activity.interfaces";
 import type { TConnectionRow } from "#api/modules/pull/pull.types";
 import type { EGmailLabel } from "#api/shared/providers/google/google.enums";
+import type { ILinearNestedCursor } from "#api/shared/providers/linear/linear.interfaces";
 
 export interface IPullTarget {
   connection: TConnectionRow;
@@ -45,6 +46,18 @@ export interface IJiraCursor {
   startedAt: string;
   pageToken: string | null;
   offset: number;
+}
+
+export interface ILinearCursor {
+  since: string;
+  after: string | null;
+  startedAt: string;
+  pending: ILinearNestedCursor[];
+}
+
+export interface ILinearStep {
+  after: string | null;
+  pending: ILinearNestedCursor[];
 }
 
 export interface IPullState {

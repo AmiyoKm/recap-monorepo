@@ -11,6 +11,7 @@ import {
 } from "#api/shared/providers/google/google.constants";
 import { EGmailLabel, EGoogleSource } from "#api/shared/providers/google/google.enums";
 import { JIRA_MAX_ACTIVITIES_PER_PAGE } from "#api/shared/providers/jira/jira.constants";
+import { LINEAR_MAX_DRAFTS_PER_PAGE } from "#api/shared/providers/linear/linear.constants";
 import { EProvider } from "#api/shared/providers/providers.enums";
 
 export const PULL_MAX_PAGES_PER_MESSAGE = 1;
@@ -23,13 +24,14 @@ export const QUEUE_SEND_BATCH_MAX = 100;
 export const ACCESS_TOKEN_EXPIRY_MARGIN_SECONDS = 120;
 export const PULL_ERROR_MAX_LENGTH = 500;
 export const GMAIL_BACKFILL_LABELS: EGmailLabel[] = [EGmailLabel.SENT, EGmailLabel.INBOX];
-export const PULLABLE_PROVIDERS: EProvider[] = [EProvider.GOOGLE, EProvider.JIRA];
+export const PULLABLE_PROVIDERS: EProvider[] = [EProvider.GOOGLE, EProvider.JIRA, EProvider.LINEAR];
 export const READABLE_SOURCES: ESource[] = [
   ESource.CALENDAR,
   ESource.GMAIL,
   ESource.CHAT,
   ESource.DRIVE,
   ESource.JIRA,
+  ESource.LINEAR,
 ];
 
 export const GOOGLE_SOURCE_TO_SOURCE: Record<EGoogleSource, ESource> = {
@@ -53,6 +55,7 @@ const GMAIL_D1_STATEMENTS_PER_PAGE = Math.ceil(GOOGLE_GMAIL_PAGE_SIZE / ACTIVITY
 const JIRA_D1_STATEMENTS_PER_PAGE =
   Math.ceil(JIRA_MAX_ACTIVITIES_PER_PAGE / ACTIVITY_INSERT_ROWS) +
   Math.ceil(JIRA_MAX_ACTIVITIES_PER_PAGE / ACTIVITY_DELETE_CHUNK);
+const LINEAR_D1_STATEMENTS_PER_PAGE = Math.ceil(LINEAR_MAX_DRAFTS_PER_PAGE / ACTIVITY_INSERT_ROWS);
 export const PULL_D1_STATEMENTS_PER_MESSAGE_BOUND =
   PULL_MAX_PAGES_PER_MESSAGE *
     Math.max(
@@ -61,5 +64,6 @@ export const PULL_D1_STATEMENTS_PER_MESSAGE_BOUND =
       DRIVE_D1_STATEMENTS_PER_PAGE,
       GMAIL_D1_STATEMENTS_PER_PAGE,
       JIRA_D1_STATEMENTS_PER_PAGE,
+      LINEAR_D1_STATEMENTS_PER_PAGE,
     ) +
   PULL_FIXED_D1_STATEMENTS;

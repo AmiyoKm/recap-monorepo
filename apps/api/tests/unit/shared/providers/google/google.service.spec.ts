@@ -8,12 +8,14 @@ import { EGmailLabel, EGoogleMessages } from "#api/shared/providers/google/googl
 import { GoogleService } from "#api/shared/providers/google/google.service";
 import {
   HTTP_BAD_REQUEST,
-  HTTP_FORBIDDEN,
-  HTTP_GONE,
   HTTP_NOT_FOUND,
   HTTP_OK,
-  HTTP_SERVER_ERROR,
   HTTP_UNAUTHORIZED,
+} from "#api-tests/fixtures/fixtures.constants";
+import {
+  HTTP_FORBIDDEN,
+  HTTP_GONE,
+  HTTP_SERVER_ERROR,
 } from "#api-tests/unit/shared/providers/providers.constants";
 
 const MIN_EXPECTED_LIFETIME_SECONDS = 3000;

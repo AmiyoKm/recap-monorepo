@@ -5,6 +5,7 @@ import {
   mapDriveActivities,
   mapGmailMessages,
   mapJiraIssues,
+  mapLinearIssues,
 } from "#api/modules/activity/activity.helpers";
 import type { IActivityBatch } from "#api/modules/activity/activity.interfaces";
 import { ActivityRepository } from "#api/modules/activity/activity.repository";
@@ -26,6 +27,10 @@ import {
   completedChatCursor,
   gmailMessagesSince,
   isPullableProvider,
+  linearGoneStep,
+  linearListStep,
+  linearNestedStep,
+  linearStepHasMore,
   nextCalendarCursor,
   nextChatSpaceCursor,
   nextChatSpacesPageCursor,
@@ -33,12 +38,14 @@ import {
   nextGmailBackfillStep,
   nextGmailHistoryStep,
   nextJiraCursor,
+  nextLinearCursor,
   parseCalendarCursor,
   parseChatCursor,
   parseCursorMap,
   parseDriveCursor,
   parseGmailCursor,
   parseJiraCursor,
+  parseLinearCursor,
   readableSources,
   readConnectionId,
   remainingSources,
@@ -49,6 +56,8 @@ import {
 import type {
   IAccessToken,
   IGmailCursor,
+  ILinearCursor,
+  ILinearStep,
   IPullState,
   IPullTarget,
   ISourcePage,
@@ -65,6 +74,7 @@ import { dayjs } from "#api/shared/date/date.helpers";
 import { ENV } from "#api/shared/env/env.constants";
 import { describeError, logError } from "#api/shared/logger/logger.helpers";
 import { EGmailLabel } from "#api/shared/providers/google/google.enums";
+import type { ILinearNestedCursor } from "#api/shared/providers/linear/linear.interfaces";
 import { providers } from "#api/shared/providers/providers.client";
 import { EProvider } from "#api/shared/providers/providers.enums";
 import type { IProviderTokens } from "#api/shared/providers/providers.interfaces";
@@ -234,7 +244,7 @@ export abstract class PullService {
       case ESource.JIRA:
         return PullService.readJiraPage(input);
       case ESource.LINEAR:
-        throw new Error(EPullMessages.SOURCE_UNSUPPORTED, { cause: source });
+        return PullService.readLinearPage(input);
     }
   }
 
@@ -407,6 +417,66 @@ export abstract class PullService {
     };
   }
 
+  private static async readLinearPage(input: ISourceReadInput): Promise<ISourcePage | null> {
+    const cursor = parseLinearCursor(input.cursor, input.now);
+    const [nested] = cursor.pending;
+    if (nested) {
+      return PullService.readLinearNestedPage(input, cursor, nested);
+    }
+    const page = await providers.linear.listIssues({
+      accessToken: input.accessToken,
+      since: cursor.since,
+      after: cursor.after,
+    });
+    if (!page) {
+      return null;
+    }
+    return PullService.linearSourcePage(
+      cursor,
+      mapLinearIssues(page.issues, { since: cursor.since }),
+      linearListStep(page, cursor.since),
+    );
+  }
+
+  private static async readLinearNestedPage(
+    input: ISourceReadInput,
+    cursor: ILinearCursor,
+    nested: ILinearNestedCursor,
+  ): Promise<ISourcePage | null> {
+    const read = await providers.linear.readIssue({
+      ...nested,
+      accessToken: input.accessToken,
+      since: cursor.since,
+    });
+    if (!read) {
+      return null;
+    }
+    if (!read.issue) {
+      return PullService.linearSourcePage(
+        cursor,
+        { drafts: [], removedExternalIds: [] },
+        linearGoneStep(cursor),
+      );
+    }
+    return PullService.linearSourcePage(
+      cursor,
+      mapLinearIssues([read.issue], { since: cursor.since }),
+      linearNestedStep(cursor, read.issue, cursor.since),
+    );
+  }
+
+  private static linearSourcePage(
+    cursor: ILinearCursor,
+    batch: IActivityBatch,
+    step: ILinearStep,
+  ): ISourcePage {
+    return {
+      batch,
+      nextCursor: nextLinearCursor(cursor, step),
+      hasMore: linearStepHasMore(step),
+    };
+  }
+
   private static async resolveAccessToken(
     connection: TConnectionRow,
   ): Promise<IAccessToken | null> {
@@ -423,22 +493,30 @@ export abstract class PullService {
   }
 
   private static refreshAccessToken(connection: TConnectionRow): Promise<IProviderTokens | null> {
-    if (connection.provider === EProvider.JIRA) {
-      const jiraToken = decryptSecret(ENV.connectionEncryptionKey, connection.refreshTokenEnc);
-      return PullService.refreshJiraToken(connection.id, jiraToken);
-    }
-    if (connection.provider !== EProvider.GOOGLE) {
-      throw new Error(EPullMessages.PROVIDER_UNSUPPORTED, { cause: connection.provider });
-    }
     const refreshToken = decryptSecret(ENV.connectionEncryptionKey, connection.refreshTokenEnc);
-    return providers.google.refreshAccessToken(refreshToken);
+    switch (connection.provider) {
+      case EProvider.GOOGLE:
+        return providers.google.refreshAccessToken(refreshToken);
+      case EProvider.JIRA:
+        return PullService.saveRotatedToken(
+          connection.id,
+          providers.jira.refreshAccessToken(refreshToken),
+        );
+      case EProvider.LINEAR:
+        return PullService.saveRotatedToken(
+          connection.id,
+          providers.linear.refreshAccessToken(refreshToken),
+        );
+      default:
+        throw new Error(EPullMessages.PROVIDER_UNSUPPORTED, { cause: connection.provider });
+    }
   }
 
-  private static async refreshJiraToken(
+  private static async saveRotatedToken(
     connectionId: string,
-    refreshToken: string,
+    refreshing: Promise<IProviderTokens | null>,
   ): Promise<IProviderTokens | null> {
-    const tokens = await providers.jira.refreshAccessToken(refreshToken);
+    const tokens = await refreshing;
     if (!tokens?.refreshToken) {
       return tokens;
     }

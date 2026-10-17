@@ -51,3 +51,4 @@ export const DRIVE_FILE_PREFIX: Record<
   [EActivityKind.DRIVE_FILE_EDITED]: EDriveExternalIdPrefix.EDIT,
 };
 export const JIRA_STATUS_CHANGE_DETAIL_SEPARATOR = " to ";
+export const ACTIVITY_NO_PREVIOUS_STATE = "(none)";

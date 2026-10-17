@@ -15,6 +15,7 @@ import {
   JIRA_CLOUD_ID,
   JIRA_REFRESH_TOKEN,
   JIRA_SITE,
+  LINEAR_GRANT,
   TEST_PASSWORD,
   TEST_USER_NAME,
 } from "#api-tests/fixtures/fixtures.constants";
@@ -58,49 +59,17 @@ export async function wipeCache(): Promise<void> {
   await Promise.all(keys.map((key) => cache.delete(key.name)));
 }
 
-export async function seedGoogleConnection(
-  userId: string,
-  scopes: string[] = ALL_SOURCES_GRANTED_SCOPES,
-): Promise<{ identityId: string; connectionId: string }> {
-  const identityId = randomUUID();
-  const connectionId = randomUUID();
-  const now = dayjs().toISOString();
-  await db.insert(schema.identity).values({
-    id: identityId,
-    userId,
-    googleSub: `sub-${identityId}`,
-    email: CALENDAR_EMAIL,
-    displayName: null,
-    avatarUrl: null,
-    createdAt: now,
-    updatedAt: now,
-  });
-  await db.insert(schema.connection).values(
-    buildOAuthConnectionRow({
-      id: connectionId,
-      identityId,
-      provider: EProvider.GOOGLE,
-      refreshToken: "refresh-token-1",
-      tokens: {
-        accessToken: "access-token-1",
-        refreshToken: "refresh-token-1",
-        expiresInSeconds: DEFAULT_TOKEN_EXPIRY_SECONDS,
-        scopes,
-      },
-      account: { accountId: `sub-${identityId}`, accountEmail: CALENDAR_EMAIL },
-      site: null,
-      resourceId: null,
-    }),
-  );
-  return { identityId, connectionId };
+interface ISeedConnectionInput {
+  provider: EProvider;
+  refreshToken: string;
+  tokens: Parameters<typeof buildOAuthConnectionRow>[0]["tokens"];
+  account: Parameters<typeof buildOAuthConnectionRow>[0]["account"];
+  site: string | null;
+  resourceId: string | null;
 }
 
-export async function seedJiraConnection(
-  userId: string,
-  email: string,
-): Promise<{ identityId: string; connectionId: string }> {
+async function seedIdentity(userId: string, email: string): Promise<string> {
   const identityId = randomUUID();
-  const connectionId = randomUUID();
   const now = dayjs().toISOString();
   await db.insert(schema.identity).values({
     id: identityId,
@@ -112,24 +81,71 @@ export async function seedJiraConnection(
     createdAt: now,
     updatedAt: now,
   });
-  await db.insert(schema.connection).values(
-    buildOAuthConnectionRow({
-      id: connectionId,
-      identityId,
-      provider: EProvider.JIRA,
-      refreshToken: JIRA_REFRESH_TOKEN,
-      tokens: {
-        accessToken: "jira-access-1",
-        refreshToken: JIRA_REFRESH_TOKEN,
-        expiresInSeconds: DEFAULT_TOKEN_EXPIRY_SECONDS,
-        scopes: ["read:jira-user", "read:jira-work", "offline_access"],
-      },
-      account: { accountId: `jira-${identityId}`, accountEmail: email },
-      site: JIRA_SITE,
-      resourceId: JIRA_CLOUD_ID,
-    }),
-  );
+  return identityId;
+}
+
+async function seedConnection(
+  userId: string,
+  email: string,
+  input: ISeedConnectionInput,
+): Promise<{ identityId: string; connectionId: string }> {
+  const identityId = await seedIdentity(userId, email);
+  const connectionId = randomUUID();
+  await db
+    .insert(schema.connection)
+    .values(buildOAuthConnectionRow({ id: connectionId, identityId, ...input }));
   return { identityId, connectionId };
+}
+
+export function seedGoogleConnection(
+  userId: string,
+  scopes: string[] = ALL_SOURCES_GRANTED_SCOPES,
+): Promise<{ identityId: string; connectionId: string }> {
+  return seedConnection(userId, CALENDAR_EMAIL, {
+    provider: EProvider.GOOGLE,
+    refreshToken: "refresh-token-1",
+    tokens: {
+      accessToken: "access-token-1",
+      refreshToken: "refresh-token-1",
+      expiresInSeconds: DEFAULT_TOKEN_EXPIRY_SECONDS,
+      scopes,
+    },
+    account: { accountId: `sub-${userId}`, accountEmail: CALENDAR_EMAIL },
+    site: null,
+    resourceId: null,
+  });
+}
+
+export function seedJiraConnection(
+  userId: string,
+  email: string,
+): Promise<{ identityId: string; connectionId: string }> {
+  return seedConnection(userId, email, {
+    provider: EProvider.JIRA,
+    refreshToken: JIRA_REFRESH_TOKEN,
+    tokens: {
+      accessToken: "jira-access-1",
+      refreshToken: JIRA_REFRESH_TOKEN,
+      expiresInSeconds: DEFAULT_TOKEN_EXPIRY_SECONDS,
+      scopes: ["read:jira-user", "read:jira-work", "offline_access"],
+    },
+    account: { accountId: `jira-${userId}`, accountEmail: email },
+    site: JIRA_SITE,
+    resourceId: JIRA_CLOUD_ID,
+  });
+}
+
+export function seedLinearConnection(
+  userId: string,
+): Promise<{ identityId: string; connectionId: string }> {
+  return seedConnection(userId, CALENDAR_EMAIL, {
+    provider: EProvider.LINEAR,
+    refreshToken: "linear-refresh-1",
+    tokens: LINEAR_GRANT.tokens,
+    account: LINEAR_GRANT.account,
+    site: null,
+    resourceId: null,
+  });
 }
 
 export async function signUpTestUser(email: string): Promise<{ cookie: string; userId: string }> {

@@ -7,12 +7,16 @@ import {
   chatSpacesToRead,
   completedChatCursor,
   isPullableProvider,
+  linearListStep,
+  linearNestedStep,
+  linearStepHasMore,
   nextCalendarCursor,
   nextChatSpacesPageCursor,
   nextDriveCursor,
   nextGmailBackfillStep,
   nextGmailHistoryStep,
   nextJiraCursor,
+  nextLinearCursor,
   orderSources,
   parseCalendarCursor,
   parseChatCursor,
@@ -20,6 +24,7 @@ import {
   parseDriveCursor,
   parseGmailCursor,
   parseJiraCursor,
+  parseLinearCursor,
   readableSources,
   remainingSources,
   restartGmailPage,
@@ -34,9 +39,27 @@ import type {
   IGoogleGmailPage,
 } from "#api/shared/providers/google/google.interfaces";
 import { JIRA_MAX_ACTIVITIES_PER_PAGE } from "#api/shared/providers/jira/jira.constants";
-import { ALL_SOURCES_GRANTED_SCOPES } from "#api-tests/fixtures/fixtures.constants";
+import type { ILinearIssue } from "#api/shared/providers/linear/linear.interfaces";
+import {
+  ALL_SOURCES_GRANTED_SCOPES,
+  LINEAR_LAST_PAGE,
+} from "#api-tests/fixtures/fixtures.constants";
 
 const NOW = "2026-10-17T08:00:00.000Z";
+
+function linearIssueFixture(overrides: Partial<ILinearIssue>): ILinearIssue {
+  return {
+    id: "i1",
+    identifier: "ENG-1",
+    title: "Title",
+    url: "https://linear.app/acme/issue/ENG-1",
+    createdAt: "2026-10-12T00:00:00.000Z",
+    creator: null,
+    history: { nodes: [], pageInfo: LINEAR_LAST_PAGE },
+    comments: { nodes: [], pageInfo: LINEAR_LAST_PAGE },
+    ...overrides,
+  };
+}
 
 const PAGE: IGoogleCalendarPage = {
   events: [],
@@ -150,7 +173,9 @@ describe("source selection", () => {
     ]);
     expect(readableSources(connection({ scopes: "openid email" }))).toEqual([]);
     expect(readableSources(connection({ provider: "jira", scopes: null }))).toEqual([ESource.JIRA]);
-    expect(readableSources(connection({ provider: "linear", scopes: null }))).toEqual([]);
+    expect(readableSources(connection({ provider: "linear", scopes: "read" }))).toEqual([
+      ESource.LINEAR,
+    ]);
   });
 
   test("puts Sources with pending pages first", () => {
@@ -173,7 +198,7 @@ describe("source selection", () => {
   test("knows which providers have a pull reader", () => {
     expect(isPullableProvider("google")).toBe(true);
     expect(isPullableProvider("jira")).toBe(true);
-    expect(isPullableProvider("linear")).toBe(false);
+    expect(isPullableProvider("linear")).toBe(true);
   });
 });
 
@@ -528,5 +553,118 @@ describe("drive cursor", () => {
       pageToken: null,
       startedAt: NOW,
     });
+  });
+});
+
+describe("linear cursor", () => {
+  test("starts 7 days back with no cursor", () => {
+    expect(parseLinearCursor(null, NOW)).toEqual({
+      since: "2026-10-10T08:00:00.000Z",
+      after: null,
+      startedAt: NOW,
+      pending: [],
+    });
+  });
+
+  test("restarts from scratch on a broken cursor", () => {
+    expect(parseLinearCursor("{broken", NOW).after).toBeNull();
+    expect(parseLinearCursor(JSON.stringify({ since: 1 }), NOW).startedAt).toBe(NOW);
+  });
+
+  test("keeps the run start while pages remain", () => {
+    const stored = JSON.stringify({ since: "S", after: "page-2", startedAt: "T0" });
+
+    expect(parseLinearCursor(stored, NOW)).toEqual({
+      since: "S",
+      after: "page-2",
+      startedAt: "T0",
+      pending: [],
+    });
+  });
+
+  test("starts a new run from the last run start after the final page", () => {
+    const cursor = { since: "S", after: null, startedAt: "T0", pending: [] };
+    const done = nextLinearCursor(cursor, { after: null, pending: [] });
+
+    expect(parseLinearCursor(done, NOW)).toEqual({
+      since: "T0",
+      after: null,
+      startedAt: NOW,
+      pending: [],
+    });
+  });
+
+  test("moves to the next page and keeps the window", () => {
+    const cursor = { since: "S", after: null, startedAt: "T0", pending: [] };
+    const next = nextLinearCursor(cursor, { after: "page-2", pending: [] });
+
+    expect(parseLinearCursor(next, NOW)).toEqual({
+      since: "S",
+      after: "page-2",
+      startedAt: "T0",
+      pending: [],
+    });
+  });
+
+  test("keeps the window and the run start while nested pages are pending on the last page", () => {
+    const cursor = { since: "S", after: null, startedAt: "T0", pending: [] };
+    const pending = [{ issueId: "i1", historyAfter: "h2", commentsAfter: null }];
+    const next = nextLinearCursor(cursor, { after: null, pending });
+
+    expect(parseLinearCursor(next, NOW)).toEqual({
+      since: "S",
+      after: null,
+      startedAt: "T0",
+      pending,
+    });
+  });
+
+  test("does not finish the run while a nested page is pending", () => {
+    const cursor = { since: "S", after: "page-2", startedAt: "T0", pending: [] };
+    const issue = linearIssueFixture({
+      history: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } },
+      comments: { nodes: [], pageInfo: { hasNextPage: true, endCursor: "c2" } },
+    });
+    const step = linearNestedStep(
+      { ...cursor, pending: [{ issueId: "i1", historyAfter: null, commentsAfter: "c1" }] },
+      issue,
+      "S",
+    );
+
+    expect(step).toEqual({
+      after: "page-2",
+      pending: [{ issueId: "i1", historyAfter: null, commentsAfter: "c2" }],
+    });
+    expect(linearStepHasMore({ after: null, pending: [] })).toBe(false);
+  });
+
+  test("queues an issue only while its history page still reaches into the window", () => {
+    const page = (createdAt: string) =>
+      linearIssueFixture({
+        history: {
+          nodes: [
+            {
+              id: "h",
+              createdAt,
+              actor: null,
+              fromState: null,
+              toState: null,
+              toAssignee: null,
+            },
+          ],
+          pageInfo: { hasNextPage: true, endCursor: "h2" },
+        },
+      });
+    const inside = linearListStep(
+      { issues: [page("2026-10-12T00:00:00.000Z")], nextPageCursor: null },
+      "2026-10-10T00:00:00.000Z",
+    );
+    const outside = linearListStep(
+      { issues: [page("2026-10-01T00:00:00.000Z")], nextPageCursor: null },
+      "2026-10-10T00:00:00.000Z",
+    );
+
+    expect(inside.pending).toEqual([{ issueId: "i1", historyAfter: "h2", commentsAfter: null }]);
+    expect(outside.pending).toEqual([]);
   });
 });

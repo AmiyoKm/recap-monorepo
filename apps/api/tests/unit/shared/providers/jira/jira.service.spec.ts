@@ -6,8 +6,10 @@ import { JiraService } from "#api/shared/providers/jira/jira.service";
 import {
   HTTP_BAD_REQUEST,
   HTTP_OK,
-  HTTP_SERVER_ERROR,
   HTTP_UNAUTHORIZED,
+} from "#api-tests/fixtures/fixtures.constants";
+import {
+  HTTP_SERVER_ERROR,
   PROVIDER_EMAIL,
 } from "#api-tests/unit/shared/providers/providers.constants";
 import {
