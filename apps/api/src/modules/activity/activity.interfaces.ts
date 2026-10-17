@@ -42,3 +42,10 @@ export interface ICalendarMapContext {
 export interface IGmailMapContext {
   identityEmail: string;
 }
+
+export interface IChatMapContext {
+  identityEmail: string;
+  userId: string;
+  spaceId: string;
+  isDirectMessage: boolean;
+}

@@ -7,6 +7,8 @@ import {
   ACTIVITY_NO_TITLE,
   ACTIVITY_TITLE_MAX_LENGTH,
   CALENDAR_FALLBACK_TIME_ZONE,
+  CHAT_RESOURCE_SEPARATOR,
+  CHAT_USER_PREFIX,
   GMAIL_EXCLUDED_LABELS,
   GMAIL_RECIPIENT_SEPARATOR,
   LIKE_ESCAPE_CHARACTER,
@@ -17,6 +19,9 @@ import {
   EActivityMessages,
   ECalendarEventStatus,
   ECalendarResponseStatus,
+  EChatAnnotationType,
+  EChatMentionType,
+  EChatWebPath,
   ESource,
 } from "#api/modules/activity/activity.enums";
 import type {
@@ -24,6 +29,7 @@ import type {
   IActivityDraft,
   IActivityWriteInput,
   ICalendarMapContext,
+  IChatMapContext,
   IGmailMapContext,
 } from "#api/modules/activity/activity.interfaces";
 import type {
@@ -40,6 +46,7 @@ import {
 } from "#api/shared/providers/google/google.enums";
 import type {
   TGoogleCalendarEvent,
+  TGoogleChatMessage,
   TGoogleGmailMessage,
 } from "#api/shared/providers/google/google.types";
 import { ROUTES } from "#api/shared/routes/routes.constants";
@@ -150,6 +157,32 @@ function gmailKind(labels: string[]): EActivityKind | null {
   return null;
 }
 
+function resourceId(name: string | null | undefined): string | null {
+  return name?.split(CHAT_RESOURCE_SEPARATOR).at(-1) || null;
+}
+
+function isChatMentionOf(message: TGoogleChatMessage, userId: string): boolean {
+  return (message.annotations ?? []).some(
+    (annotation) =>
+      annotation.type === EChatAnnotationType.USER_MENTION &&
+      annotation.userMention?.type === EChatMentionType.MENTION &&
+      annotation.userMention.user?.name === `${CHAT_USER_PREFIX}${userId}`,
+  );
+}
+
+function chatKind(message: TGoogleChatMessage, context: IChatMapContext): EActivityKind | null {
+  if (message.sender?.name === `${CHAT_USER_PREFIX}${context.userId}`) {
+    return EActivityKind.CHAT_MESSAGE;
+  }
+  if (isChatMentionOf(message, context.userId)) {
+    return EActivityKind.CHAT_MENTION;
+  }
+  if (context.isDirectMessage) {
+    return EActivityKind.CHAT_MESSAGE;
+  }
+  return null;
+}
+
 function gmailRecipients(message: TGoogleGmailMessage): string | null {
   const recipients = [EGmailHeader.TO, EGmailHeader.CC]
     .map((name) => gmailHeader(message, name))
@@ -207,6 +240,57 @@ export function mapGmailMessages(
     batch.drafts.push(draft);
   }
   return batch;
+}
+
+function chatWebArea(context: IChatMapContext): EChatWebPath {
+  if (context.isDirectMessage) {
+    return EChatWebPath.DM;
+  }
+  return EChatWebPath.ROOM;
+}
+
+function chatUrl(message: TGoogleChatMessage, context: IChatMapContext): string | null {
+  const threadId = resourceId(message.thread?.name);
+  const messageId = resourceId(message.name);
+  if (!(threadId && messageId)) {
+    return null;
+  }
+  const link = ROUTES.GOOGLE.CHAT_WEB([chatWebArea(context), context.spaceId, threadId, messageId]);
+  return withAuthUser(link, context.identityEmail);
+}
+
+function toChatDraft(message: TGoogleChatMessage, context: IChatMapContext): IActivityDraft | null {
+  const kind = chatKind(message, context);
+  if (!kind) {
+    return null;
+  }
+  const url = chatUrl(message, context);
+  if (!(message.name && message.createTime && url)) {
+    logError(
+      EActivityMessages.ITEM_WITHOUT_URL_DROPPED,
+      new Error(message.name ?? context.spaceId),
+    );
+    return null;
+  }
+  return {
+    source: ESource.CHAT,
+    kind,
+    externalId: message.name,
+    occurredAt: dayjs.utc(message.createTime).toISOString(),
+    endsAt: null,
+    title: (message.text || ACTIVITY_NO_TITLE).slice(0, ACTIVITY_TITLE_MAX_LENGTH),
+    url,
+    actor: message.sender?.displayName ?? message.sender?.name ?? null,
+    detail: null,
+  };
+}
+
+export function mapChatMessages(
+  messages: TGoogleChatMessage[],
+  context: IChatMapContext,
+): IActivityBatch {
+  const drafts = messages.flatMap((message) => toChatDraft(message, context) ?? []);
+  return { drafts, removedExternalIds: [] };
 }
 
 function toKnownValue<TValue extends string>(values: TValue[], value: string): TValue {

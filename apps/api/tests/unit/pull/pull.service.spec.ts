@@ -16,16 +16,21 @@ import { EGmailLabel } from "#api/shared/providers/google/google.enums";
 import type {
   IGoogleCalendarPage,
   IGoogleCalendarReadInput,
+  IGoogleChatMessagesPage,
+  IGoogleChatSpace,
   IGoogleGmailPage,
 } from "#api/shared/providers/google/google.interfaces";
 import { GoogleService } from "#api/shared/providers/google/google.service";
 import type {
   TGoogleCalendarEvent,
+  TGoogleChatMessage,
   TGoogleGmailMessage,
 } from "#api/shared/providers/google/google.types";
 import {
   CALENDAR_EMAIL,
   CALENDAR_READ_SCOPE,
+  CHAT_MESSAGES_SCOPE,
+  CHAT_SPACES_SCOPE,
   GMAIL_METADATA_SCOPE,
 } from "#api-tests/fixtures/fixtures.constants";
 import {
@@ -157,8 +162,7 @@ const queueDescriptor = Object.getOwnPropertyDescriptor(bindings, "PULL_QUEUE") 
 beforeEach(async () => {
   await wipeDatabase();
   await wipeCache();
-  seeded = await seedGoogleConnection(await createUser(uniqueEmail()));
-  await grantOnly(seeded.connectionId, CALENDAR_READ_SCOPE);
+  seeded = await seedGoogleConnection(await createUser(uniqueEmail()), [CALENDAR_READ_SCOPE]);
   spyOn(GoogleService, "refreshAccessToken").mockResolvedValue(REFRESHED_TOKEN);
   queue = new FakeQueue();
   Object.defineProperty(bindings, "PULL_QUEUE", { get: () => queue, configurable: true });
@@ -400,5 +404,177 @@ describe("PullService.enqueueActiveConnections", () => {
     await PullService.enqueueActiveConnections();
 
     expect(queue.sent).toEqual([{ connectionId: seeded.connectionId }]);
+  });
+});
+
+const CHAT_SCOPES = [CHAT_SPACES_SCOPE, CHAT_MESSAGES_SCOPE];
+const CHAT_NOW_TOLERANCE_MINUTES = 2;
+
+function chatSpace(id: string, isDirectMessage = false): IGoogleChatSpace {
+  return { id: `spaces/${id}`, isDirectMessage };
+}
+
+function chatMessage(spaceId: string, id: string, overrides: TGoogleChatMessage = {}) {
+  return {
+    name: `spaces/${spaceId}/messages/${id}`,
+    createTime: dayjs().subtract(1, "hour").toISOString(),
+    text: `Message ${id}`,
+    sender: { name: "users/other", displayName: "Sam" },
+    thread: { name: `spaces/${spaceId}/threads/${id}` },
+    ...overrides,
+  };
+}
+
+function chatPage(
+  messages: TGoogleChatMessage[],
+  nextPageToken: string | null = null,
+): IGoogleChatMessagesPage {
+  return { messages, nextPageToken };
+}
+
+async function seedChat(): Promise<string> {
+  const chat = await seedGoogleConnection(await createUser(uniqueEmail()), CHAT_SCOPES);
+  return chat.connectionId;
+}
+
+async function chatSender(connectionId: string): Promise<string> {
+  const row = await connectionRow(connectionId);
+  return `users/${row?.providerAccountId}`;
+}
+
+describe("PullService.pullConnection for Chat", () => {
+  test("saves sent messages, mentions and DM messages and skips other space messages", async () => {
+    const connectionId = await seedChat();
+    const me = await chatSender(connectionId);
+    spyOn(GoogleService, "listChatSpaces").mockResolvedValue([
+      chatSpace("DM1", true),
+      chatSpace("ROOM1"),
+    ]);
+    spyOn(GoogleService, "listChatMessages")
+      .mockResolvedValueOnce(chatPage([chatMessage("DM1", "dm-in")]))
+      .mockResolvedValueOnce(
+        chatPage([
+          chatMessage("ROOM1", "sent", { sender: { name: me } }),
+          chatMessage("ROOM1", "mention", {
+            annotations: [
+              { type: "USER_MENTION", userMention: { type: "MENTION", user: { name: me } } },
+            ],
+          }),
+          chatMessage("ROOM1", "noise"),
+        ]),
+      );
+
+    await PullService.pullConnection(connectionId);
+
+    const rows = await activityRows(connectionId);
+    expect(rows.map((row) => [row.externalId, row.kind]).sort()).toEqual([
+      ["spaces/DM1/messages/dm-in", "chat_message"],
+      ["spaces/ROOM1/messages/mention", "chat_mention"],
+      ["spaces/ROOM1/messages/sent", "chat_message"],
+    ]);
+    expect(rows.find((row) => row.externalId.endsWith("dm-in"))?.url).toStartWith(
+      "https://chat.google.com/dm/DM1/dm-in/dm-in?",
+    );
+    expect((await connectionRow(connectionId))?.lastPulledAt).not.toBeNull();
+  });
+
+  test("reads 7 days back first, then from the start of the last sweep", async () => {
+    const connectionId = await seedChat();
+    spyOn(GoogleService, "listChatSpaces").mockResolvedValue([chatSpace("ROOM1")]);
+    const list = spyOn(GoogleService, "listChatMessages").mockResolvedValue(chatPage([]));
+
+    await PullService.pullConnection(connectionId);
+    const before = dayjs();
+    await PullService.pullConnection(connectionId);
+
+    const first = list.mock.calls[0]?.[0].since;
+    const second = list.mock.calls[1]?.[0].since;
+    expect(dayjs().subtract(LOOKBACK_DAYS, "day").diff(dayjs(first), "minute")).toBeLessThan(
+      CHAT_NOW_TOLERANCE_MINUTES,
+    );
+    expect(before.diff(dayjs(second), "minute")).toBeLessThan(CHAT_NOW_TOLERANCE_MINUTES);
+    expect(dayjs(second).isAfter(dayjs(first))).toBe(true);
+  });
+
+  test("reads at most five spaces for each message and continues after the last one", async () => {
+    const connectionId = await seedChat();
+    const spaces = ["A", "B", "C", "D", "E", "F", "G"].map((id) => chatSpace(id));
+    spyOn(GoogleService, "listChatSpaces").mockResolvedValue(spaces);
+    const list = spyOn(GoogleService, "listChatMessages").mockResolvedValue(chatPage([]));
+
+    await PullService.pullConnection(connectionId);
+
+    expect(list.mock.calls.map((call) => call[0].spaceId)).toEqual([
+      "spaces/A",
+      "spaces/B",
+      "spaces/C",
+      "spaces/D",
+      "spaces/E",
+    ]);
+    expect(queue.sent).toEqual([{ connectionId }]);
+
+    list.mockClear();
+    await PullService.pullConnection(connectionId);
+
+    expect(list.mock.calls.map((call) => call[0].spaceId)).toEqual(["spaces/F", "spaces/G"]);
+    expect((await connectionRow(connectionId))?.lastPulledAt).not.toBeNull();
+  });
+
+  test("resumes a space with more messages from its page token", async () => {
+    const connectionId = await seedChat();
+    spyOn(GoogleService, "listChatSpaces").mockResolvedValue([chatSpace("A"), chatSpace("B")]);
+    const list = spyOn(GoogleService, "listChatMessages")
+      .mockResolvedValueOnce(chatPage([], "more"))
+      .mockResolvedValue(chatPage([]));
+
+    await PullService.pullConnection(connectionId);
+    await PullService.pullConnection(connectionId);
+
+    expect(list.mock.calls.map((call) => [call[0].spaceId, call[0].pageToken])).toEqual([
+      ["spaces/A", null],
+      ["spaces/A", "more"],
+      ["spaces/B", null],
+    ]);
+  });
+
+  test("fails loudly when the Connection has no provider account id", async () => {
+    const connectionId = await seedChat();
+    await db
+      .update(schema.connection)
+      .set({ providerAccountId: null })
+      .where(eq(schema.connection.id, connectionId));
+    spyOn(GoogleService, "listChatSpaces").mockResolvedValue([]);
+
+    await expect(PullService.pullConnection(connectionId)).rejects.toThrow();
+  });
+
+  test("marks the Connection needs_reconnect when Google rejects the access token", async () => {
+    const connectionId = await seedChat();
+    spyOn(GoogleService, "listChatSpaces").mockResolvedValue(null);
+
+    await PullService.pullConnection(connectionId);
+
+    expect((await connectionRow(connectionId))?.status).toBe(EConnectionStatus.NEEDS_RECONNECT);
+  });
+});
+
+describe("PullService.pullConnection for Calendar and Chat", () => {
+  test("reads each Source in turn across messages", async () => {
+    const connectionId = (await seedGoogleConnection(await createUser(uniqueEmail()))).connectionId;
+    const calendar = spyOn(GoogleService, "listCalendarEvents").mockResolvedValue(page([]));
+    const chatList = spyOn(GoogleService, "listChatMessages").mockResolvedValue(chatPage([]));
+    spyOn(GoogleService, "listChatSpaces").mockResolvedValue([chatSpace("A")]);
+
+    await PullService.pullConnection(connectionId);
+
+    expect(calendar).toHaveBeenCalledTimes(1);
+    expect(chatList).not.toHaveBeenCalled();
+    expect(queue.sent).toEqual([{ connectionId }]);
+
+    await PullService.pullConnection(connectionId);
+
+    expect(calendar).toHaveBeenCalledTimes(1);
+    expect(chatList).toHaveBeenCalledTimes(1);
+    expect((await connectionRow(connectionId))?.lastPulledAt).not.toBeNull();
   });
 });

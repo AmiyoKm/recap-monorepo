@@ -8,6 +8,7 @@ import { EGmailLabel, EGoogleMessages } from "#api/shared/providers/google/googl
 import { GoogleService } from "#api/shared/providers/google/google.service";
 import {
   HTTP_BAD_REQUEST,
+  HTTP_FORBIDDEN,
   HTTP_GONE,
   HTTP_NOT_FOUND,
   HTTP_OK,
@@ -370,5 +371,105 @@ describe("GoogleService Gmail reads", () => {
         pageToken: null,
       }),
     ).rejects.toThrow();
+  });
+});
+
+const originalChat = { ...(await import("@googleapis/chat")) };
+
+describe("GoogleService chat reads", () => {
+  const listSpaces = mock<(params: Record<string, unknown>) => Promise<{ data: object }>>();
+  const listMessages = mock<(params: Record<string, unknown>) => Promise<{ data: object }>>();
+
+  afterAll(() => {
+    mock.module("@googleapis/chat", () => originalChat);
+  });
+
+  beforeEach(() => {
+    listSpaces.mockReset();
+    listMessages.mockReset();
+    mock.module("@googleapis/chat", () => ({
+      chat: () => ({ spaces: { list: listSpaces, messages: { list: listMessages } } }),
+    }));
+  });
+
+  test("lists the spaces sorted by name and flags the DMs", async () => {
+    listSpaces.mockResolvedValue({
+      data: {
+        spaces: [
+          { name: "spaces/BBB", spaceType: "SPACE" },
+          { name: "spaces/AAA", spaceType: "DIRECT_MESSAGE" },
+          { spaceType: "SPACE" },
+        ],
+      },
+    });
+
+    const spaces = await GoogleService.listChatSpaces("access-1");
+
+    expect(spaces).toEqual([
+      { id: "spaces/AAA", isDirectMessage: true },
+      { id: "spaces/BBB", isDirectMessage: false },
+    ]);
+  });
+
+  test("lists the messages created after the time in one space", async () => {
+    listMessages.mockResolvedValue({
+      data: { messages: [{ name: "spaces/AAA/messages/M1" }], nextPageToken: "next" },
+    });
+
+    const page = await GoogleService.listChatMessages({
+      accessToken: "access-1",
+      spaceId: "spaces/AAA",
+      since: "2026-10-10T00:00:00.000Z",
+      pageToken: "page-1",
+    });
+
+    expect(page).toEqual({ messages: [{ name: "spaces/AAA/messages/M1" }], nextPageToken: "next" });
+    expect(listMessages.mock.calls[0]?.[0]).toMatchObject({
+      parent: "spaces/AAA",
+      filter: 'createTime > "2026-10-10T00:00:00.000Z"',
+      pageToken: "page-1",
+    });
+  });
+
+  test("returns null when google rejects the access token", async () => {
+    listSpaces.mockImplementation(async () => {
+      throw await revokeError(HTTP_UNAUTHORIZED, "unauthorized");
+    });
+    listMessages.mockImplementation(async () => {
+      throw await revokeError(HTTP_UNAUTHORIZED, "unauthorized");
+    });
+
+    expect(await GoogleService.listChatSpaces("access-1")).toBeNull();
+    expect(
+      await GoogleService.listChatMessages({
+        accessToken: "access-1",
+        spaceId: "spaces/AAA",
+        since: "2026-10-10T00:00:00.000Z",
+        pageToken: null,
+      }),
+    ).toBeNull();
+  });
+
+  test.each([HTTP_FORBIDDEN, HTTP_NOT_FOUND])("skips a space that answers %d", async (status) => {
+    listMessages.mockImplementation(async () => {
+      throw await revokeError(status, "denied");
+    });
+
+    const page = await GoogleService.listChatMessages({
+      accessToken: "access-1",
+      spaceId: "spaces/AAA",
+      since: "2026-10-10T00:00:00.000Z",
+      pageToken: null,
+    });
+
+    expect(page).toEqual({ messages: [], nextPageToken: null });
+  });
+
+  test("throws on other failures", async () => {
+    listSpaces.mockImplementation(async () => {
+      throw await revokeError(HTTP_SERVER_ERROR, "server_error");
+    });
+
+    await expect(GoogleService.listChatSpaces("access-1")).rejects.toThrow();
   });
 });

@@ -4,6 +4,7 @@ import { EActivityKind, ESource } from "#api/modules/activity/activity.enums";
 import {
   escapeLike,
   mapCalendarEvents,
+  mapChatMessages,
   mapGmailMessages,
   nonEmpty,
   toIsoBound,
@@ -11,6 +12,7 @@ import {
 } from "#api/modules/activity/activity.helpers";
 import type {
   TGoogleCalendarEvent,
+  TGoogleChatMessage,
   TGoogleGmailMessage,
 } from "#api/shared/providers/google/google.types";
 import { CALENDAR_EMAIL } from "#api-tests/fixtures/fixtures.constants";
@@ -173,6 +175,26 @@ function mail(overrides: TGoogleGmailMessage): TGoogleGmailMessage {
   };
 }
 
+const CHAT_USER_ID = "1001";
+const OTHER_USER_ID = "2002";
+const CHAT_CONTEXT = {
+  identityEmail: CALENDAR_EMAIL,
+  userId: CHAT_USER_ID,
+  spaceId: "AAAA",
+  isDirectMessage: false,
+};
+
+function chatMessage(overrides: TGoogleChatMessage): TGoogleChatMessage {
+  return {
+    name: "spaces/AAAA/messages/TTTT.MMMM",
+    createTime: "2026-10-16T09:00:00.000Z",
+    text: "Lunch?",
+    sender: { name: `users/${OTHER_USER_ID}`, displayName: "Sam" },
+    thread: { name: "spaces/AAAA/threads/TTTT" },
+    ...overrides,
+  };
+}
+
 describe("mapGmailMessages", () => {
   test("maps an Inbox message to email_received with a thread link in the right account", () => {
     const { drafts } = mapGmailMessages([mail({})], CONTEXT);
@@ -223,5 +245,86 @@ describe("mapGmailMessages", () => {
 
     expect(drafts[0]?.title).toBe("(No subject)");
     expect(JSON.stringify(drafts)).not.toContain("secret body");
+  });
+});
+
+function mentionOf(userId: string, type = "MENTION"): TGoogleChatMessage {
+  return {
+    annotations: [
+      { type: "USER_MENTION", userMention: { type, user: { name: `users/${userId}` } } },
+    ],
+  };
+}
+
+describe("mapChatMessages", () => {
+  test("maps a message that the user sent to chat_message with a room link", () => {
+    const { drafts } = mapChatMessages(
+      [chatMessage({ sender: { name: `users/${CHAT_USER_ID}`, displayName: "Me" } })],
+      CHAT_CONTEXT,
+    );
+
+    expect(drafts).toEqual([
+      {
+        source: ESource.CHAT,
+        kind: EActivityKind.CHAT_MESSAGE,
+        externalId: "spaces/AAAA/messages/TTTT.MMMM",
+        occurredAt: "2026-10-16T09:00:00.000Z",
+        endsAt: null,
+        title: "Lunch?",
+        url: `https://chat.google.com/room/AAAA/TTTT/TTTT.MMMM?authuser=${encodeURIComponent(CALENDAR_EMAIL)}`,
+        actor: "Me",
+        detail: null,
+      },
+    ]);
+  });
+
+  test("maps a message that mentions the user to chat_mention", () => {
+    const { drafts } = mapChatMessages([chatMessage(mentionOf(CHAT_USER_ID))], CHAT_CONTEXT);
+
+    expect(drafts.map((draft) => draft.kind)).toEqual([EActivityKind.CHAT_MENTION]);
+  });
+
+  test("skips a space message that only mentions someone else", () => {
+    const batch = mapChatMessages([chatMessage(mentionOf(OTHER_USER_ID))], CHAT_CONTEXT);
+
+    expect(batch.drafts).toEqual([]);
+  });
+
+  test("skips a space message from someone else without a mention", () => {
+    expect(mapChatMessages([chatMessage({})], CHAT_CONTEXT).drafts).toEqual([]);
+  });
+
+  test("ignores a mention that only adds a user to the space", () => {
+    const batch = mapChatMessages([chatMessage(mentionOf(CHAT_USER_ID, "ADD"))], CHAT_CONTEXT);
+
+    expect(batch.drafts).toEqual([]);
+  });
+
+  test("keeps every message of a DM with a dm link", () => {
+    const { drafts } = mapChatMessages([chatMessage({})], {
+      ...CHAT_CONTEXT,
+      isDirectMessage: true,
+    });
+
+    expect(drafts[0]?.kind).toBe(EActivityKind.CHAT_MESSAGE);
+    expect(drafts[0]?.url).toStartWith("https://chat.google.com/dm/AAAA/TTTT/TTTT.MMMM?");
+  });
+
+  test("drops a message without a thread and does not add a row", () => {
+    const batch = mapChatMessages(
+      [chatMessage({ thread: undefined, sender: { name: `users/${CHAT_USER_ID}` } })],
+      CHAT_CONTEXT,
+    );
+
+    expect(batch.drafts).toEqual([]);
+  });
+
+  test("uses a placeholder title for a message without text", () => {
+    const { drafts } = mapChatMessages(
+      [chatMessage({ text: undefined, sender: { name: `users/${CHAT_USER_ID}` } })],
+      CHAT_CONTEXT,
+    );
+
+    expect(drafts[0]?.title).toBe("(No title)");
   });
 });

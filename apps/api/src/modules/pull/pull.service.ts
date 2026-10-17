@@ -1,9 +1,15 @@
 import { ESource } from "#api/modules/activity/activity.enums";
-import { mapCalendarEvents, mapGmailMessages } from "#api/modules/activity/activity.helpers";
+import {
+  mapCalendarEvents,
+  mapChatMessages,
+  mapGmailMessages,
+} from "#api/modules/activity/activity.helpers";
+import type { IActivityBatch } from "#api/modules/activity/activity.interfaces";
 import { ActivityRepository } from "#api/modules/activity/activity.repository";
 import { EConnectionStatus } from "#api/modules/identity/identity.enums";
 import { connectionTokenKey } from "#api/modules/identity/identity.helpers";
 import {
+  CHAT_SPACES_PER_PAGE,
   PULL_ERROR_MAX_LENGTH,
   PULL_MAX_PAGES_PER_MESSAGE,
   PULLABLE_PROVIDERS,
@@ -12,12 +18,16 @@ import {
 import { EPullMessages, EPullOutcome } from "#api/modules/pull/pull.enums";
 import {
   accessTokenTtlSeconds,
+  chatSpaceId,
+  chatSpacesToRead,
+  completedChatCursor,
   gmailMessagesSince,
   isPullableProvider,
   nextCalendarCursor,
   nextGmailBackfillStep,
   nextGmailHistoryStep,
   parseCalendarCursor,
+  parseChatCursor,
   parseCursorMap,
   parseGmailCursor,
   readableSources,
@@ -29,6 +39,7 @@ import {
 } from "#api/modules/pull/pull.helpers";
 import type {
   IAccessToken,
+  IChatCursor,
   IGmailCursor,
   IPullState,
   IPullTarget,
@@ -209,6 +220,7 @@ export abstract class PullService {
       case ESource.GMAIL:
         return PullService.readGmailPage(input);
       case ESource.CHAT:
+        return PullService.readChatPage(input);
       case ESource.DRIVE:
       case ESource.JIRA:
       case ESource.LINEAR:
@@ -283,6 +295,56 @@ export abstract class PullService {
       nextCursor: nextCalendarCursor(cursor, page),
       hasMore: page.nextPageToken !== null,
     };
+  }
+
+  private static async readChatPage(input: ISourceReadInput): Promise<ISourcePage | null> {
+    const userId = input.target.connection.providerAccountId;
+    if (!userId) {
+      throw new Error(EPullMessages.ACCOUNT_ID_MISSING, { cause: input.target.connection.id });
+    }
+    const cursor = parseChatCursor(input.cursor, input.now);
+    const spaces = await providers.google.listChatSpaces(input.accessToken);
+    if (!spaces) {
+      return null;
+    }
+    const pending = chatSpacesToRead(spaces, cursor);
+    const slice = pending.slice(0, CHAT_SPACES_PER_PAGE);
+    const batch: IActivityBatch = { drafts: [], removedExternalIds: [] };
+    for (const space of slice) {
+      const page = await providers.google.listChatMessages({
+        accessToken: input.accessToken,
+        spaceId: space.id,
+        since: cursor.since,
+        pageToken: PullService.chatPageToken(cursor, space.id),
+      });
+      if (!page) {
+        return null;
+      }
+      const mapped = mapChatMessages(page.messages, {
+        identityEmail: input.target.identityEmail,
+        userId,
+        spaceId: chatSpaceId(space.id),
+        isDirectMessage: space.isDirectMessage,
+      });
+      batch.drafts.push(...mapped.drafts);
+      if (page.nextPageToken) {
+        const next = { ...cursor, resumeSpace: space.id, pageToken: page.nextPageToken };
+        return { batch, nextCursor: JSON.stringify(next), hasMore: true };
+      }
+    }
+    const lastRead = slice.at(-1);
+    if (lastRead && pending.length > slice.length) {
+      const next = { ...cursor, afterSpace: lastRead.id, resumeSpace: null, pageToken: null };
+      return { batch, nextCursor: JSON.stringify(next), hasMore: true };
+    }
+    return { batch, nextCursor: JSON.stringify(completedChatCursor(cursor)), hasMore: false };
+  }
+
+  private static chatPageToken(cursor: IChatCursor, spaceId: string): string | null {
+    if (cursor.resumeSpace !== spaceId) {
+      return null;
+    }
+    return cursor.pageToken;
   }
 
   private static async resolveAccessToken(

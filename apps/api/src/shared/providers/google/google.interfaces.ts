@@ -1,6 +1,7 @@
 import type { EGmailLabel, EGoogleSource } from "#api/shared/providers/google/google.enums";
 import type {
   TGoogleCalendarEvent,
+  TGoogleChatMessage,
   TGoogleGmailMessage,
 } from "#api/shared/providers/google/google.types";
 import type { IProviderTokens } from "#api/shared/providers/providers.interfaces";
@@ -72,4 +73,21 @@ export interface IGoogleGmailPage {
   nextPageToken: string | null;
   historyId: string | null;
   isHistoryExpired: boolean;
+}
+
+export interface IGoogleChatSpace {
+  id: string;
+  isDirectMessage: boolean;
+}
+
+export interface IGoogleChatMessagesInput {
+  accessToken: string;
+  spaceId: string;
+  since: string;
+  pageToken: string | null;
+}
+
+export interface IGoogleChatMessagesPage {
+  messages: TGoogleChatMessage[];
+  nextPageToken: string | null;
 }

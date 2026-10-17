@@ -1,4 +1,5 @@
 import { calendar } from "@googleapis/calendar";
+import { chat } from "@googleapis/chat";
 import { gmail } from "@googleapis/gmail";
 import { CodeChallengeMethod, gaxios, OAuth2Client } from "google-auth-library";
 
@@ -8,10 +9,14 @@ import {
   GOOGLE_CALENDAR_API_VERSION,
   GOOGLE_CALENDAR_ID,
   GOOGLE_CALENDAR_PAGE_SIZE,
+  GOOGLE_CHAT_API_VERSION,
+  GOOGLE_CHAT_MESSAGES_PAGE_SIZE,
+  GOOGLE_CHAT_SPACES_PAGE_SIZE,
   GOOGLE_GMAIL_API_VERSION,
   GOOGLE_GMAIL_PAGE_SIZE,
   GOOGLE_GMAIL_USER_ID,
   GOOGLE_REQUEST_TIMEOUT_MS,
+  HTTP_FORBIDDEN,
   HTTP_GONE,
   HTTP_NOT_FOUND,
   HTTP_UNAUTHORIZED,
@@ -26,8 +31,10 @@ import {
 } from "#api/shared/providers/google/google.enums";
 import {
   calendarRange,
+  chatMessageFilter,
   hasStatus,
   historyMessageIds,
+  toChatSpaces,
   toGoogleProfile,
   toGoogleTokens,
 } from "#api/shared/providers/google/google.helpers";
@@ -36,6 +43,9 @@ import type {
   IGoogleAuthorizeInput,
   IGoogleCalendarPage,
   IGoogleCalendarReadInput,
+  IGoogleChatMessagesInput,
+  IGoogleChatMessagesPage,
+  IGoogleChatSpace,
   IGoogleCodeExchangeInput,
   IGoogleGmailHistoryInput,
   IGoogleGmailListInput,
@@ -114,6 +124,48 @@ export abstract class GoogleService {
       }
       throw error;
     }
+  }
+
+  static async listChatSpaces(accessToken: string): Promise<IGoogleChatSpace[] | null> {
+    try {
+      const { data } = await GoogleService.createChatApi(accessToken).spaces.list({
+        pageSize: GOOGLE_CHAT_SPACES_PAGE_SIZE,
+      });
+      return toChatSpaces(data.spaces ?? []);
+    } catch (error) {
+      if (hasStatus(error, HTTP_UNAUTHORIZED)) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  static async listChatMessages(
+    input: IGoogleChatMessagesInput,
+  ): Promise<IGoogleChatMessagesPage | null> {
+    try {
+      const { data } = await GoogleService.createChatApi(input.accessToken).spaces.messages.list({
+        parent: input.spaceId,
+        filter: chatMessageFilter(input.since),
+        pageSize: GOOGLE_CHAT_MESSAGES_PAGE_SIZE,
+        pageToken: input.pageToken ?? undefined,
+      });
+      return { messages: data.messages ?? [], nextPageToken: data.nextPageToken ?? null };
+    } catch (error) {
+      if (hasStatus(error, HTTP_UNAUTHORIZED)) {
+        return null;
+      }
+      if (hasStatus(error, HTTP_FORBIDDEN) || hasStatus(error, HTTP_NOT_FOUND)) {
+        return { messages: [], nextPageToken: null };
+      }
+      throw error;
+    }
+  }
+
+  private static createChatApi(accessToken: string) {
+    const client = GoogleService.createClient();
+    client.setCredentials({ access_token: accessToken });
+    return chat({ version: GOOGLE_CHAT_API_VERSION, auth: client });
   }
 
   private static async readCalendarPage(

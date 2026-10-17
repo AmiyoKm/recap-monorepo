@@ -1,3 +1,4 @@
+import { CHAT_RESOURCE_SEPARATOR } from "#api/modules/activity/activity.constants";
 import { ESource } from "#api/modules/activity/activity.enums";
 import {
   ACCESS_TOKEN_EXPIRY_MARGIN_SECONDS,
@@ -9,9 +10,15 @@ import {
   PULLABLE_PROVIDERS,
   READABLE_SOURCES,
 } from "#api/modules/pull/pull.constants";
-import { ECalendarCursorKey, EGmailCursorKey, EPullMessageKey } from "#api/modules/pull/pull.enums";
+import {
+  ECalendarCursorKey,
+  EChatCursorKey,
+  EGmailCursorKey,
+  EPullMessageKey,
+} from "#api/modules/pull/pull.enums";
 import type {
   ICalendarCursor,
+  IChatCursor,
   IGmailCursor,
   IGmailStep,
   ISourceCursor,
@@ -24,6 +31,7 @@ import { EGmailLabel } from "#api/shared/providers/google/google.enums";
 import { grantedSources } from "#api/shared/providers/google/google.helpers";
 import type {
   IGoogleCalendarPage,
+  IGoogleChatSpace,
   IGoogleGmailPage,
 } from "#api/shared/providers/google/google.interfaces";
 import type { TGoogleGmailMessage } from "#api/shared/providers/google/google.types";
@@ -218,6 +226,40 @@ function readGmailCursor(stored: string): IGmailCursor | null {
   }
 }
 
+function freshChatCursor(now: string): IChatCursor {
+  return {
+    since: dayjs(now).subtract(PULL_FIRST_LOOKBACK_DAYS, "day").toISOString(),
+    sweepStartedAt: now,
+    afterSpace: null,
+    resumeSpace: null,
+    pageToken: null,
+  };
+}
+
+function readChatCursor(stored: string): IChatCursor | null {
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    const record = toStringRecord(parsed);
+    const since = record?.[EChatCursorKey.SINCE];
+    const sweepStartedAt = record?.[EChatCursorKey.SWEEP_STARTED_AT];
+    if (typeof since !== "string" || typeof sweepStartedAt !== "string") {
+      return null;
+    }
+    if (!(dayjs(since).isValid() && dayjs(sweepStartedAt).isValid())) {
+      return null;
+    }
+    return {
+      since: dayjs(since).toISOString(),
+      sweepStartedAt: dayjs(sweepStartedAt).toISOString(),
+      afterSpace: stringOrNull(record?.[EChatCursorKey.AFTER_SPACE]),
+      resumeSpace: stringOrNull(record?.[EChatCursorKey.RESUME_SPACE]),
+      pageToken: stringOrNull(record?.[EChatCursorKey.PAGE_TOKEN]),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function parseGmailCursor(stored: string | null, now: string): IGmailCursor {
   if (!stored) {
     return freshGmailCursor(now);
@@ -272,4 +314,47 @@ export function restartGmailPage(now: string): ISourcePage {
     nextCursor: JSON.stringify(freshGmailCursor(now)),
     hasMore: true,
   };
+}
+
+export function parseChatCursor(stored: string | null, now: string): IChatCursor {
+  if (!stored) {
+    return freshChatCursor(now);
+  }
+  const cursor = readChatCursor(stored);
+  if (!cursor) {
+    return freshChatCursor(now);
+  }
+  const isMidSweep = cursor.afterSpace !== null || cursor.resumeSpace !== null;
+  if (isMidSweep) {
+    return cursor;
+  }
+  return { ...cursor, sweepStartedAt: now };
+}
+
+export function completedChatCursor(cursor: IChatCursor): IChatCursor {
+  return {
+    since: cursor.sweepStartedAt,
+    sweepStartedAt: cursor.sweepStartedAt,
+    afterSpace: null,
+    resumeSpace: null,
+    pageToken: null,
+  };
+}
+
+export function chatSpacesToRead(
+  spaces: IGoogleChatSpace[],
+  cursor: IChatCursor,
+): IGoogleChatSpace[] {
+  const { resumeSpace, afterSpace } = cursor;
+  if (resumeSpace) {
+    return spaces.filter((space) => space.id >= resumeSpace);
+  }
+  if (afterSpace) {
+    return spaces.filter((space) => space.id > afterSpace);
+  }
+  return spaces;
+}
+
+export function chatSpaceId(spaceName: string): string {
+  return spaceName.split(CHAT_RESOURCE_SEPARATOR).at(-1) ?? spaceName;
 }
