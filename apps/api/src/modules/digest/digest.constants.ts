@@ -1,0 +1,9 @@
+export const DEFAULT_DIGEST_TIME_ZONE = "Asia/Dhaka";
+export const DIGEST_RUN_HOUR = 8;
+export const DIGEST_LOCAL_DATE_FORMAT = "YYYY-MM-DD";
+export const DIGEST_TIME_ZONE_MAX_LENGTH = 64;
+export const DIGEST_TIMESTAMP_MAX_LENGTH = 64;
+export const DIGEST_TIME_ZONE_PATTERN = "^[A-Za-z0-9_+\\-/]+$";
+export const DIGEST_EXTRA_TIME_ZONES = ["UTC"];
+export const SATURDAY = 6;
+export const SUNDAY = 0;

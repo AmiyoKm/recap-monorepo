@@ -1,0 +1,2 @@
+export const DIGEST_EXTRA_TIME_ZONES = ["UTC"];
+export const DIGEST_REFETCH_MARGIN_MS = 60_000;

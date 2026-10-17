@@ -14,6 +14,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppPage } from "@/features/app-shell/components/AppPage";
 import { AddIdentityDialog } from "@/features/settings/components/AddIdentityDialog";
+import { DigestCard } from "@/features/settings/components/DigestCard";
 import { IdentityCard } from "@/features/settings/components/IdentityCard";
 import {
   SETTINGS_DESCRIPTION,
@@ -65,6 +66,7 @@ export function SettingsContainer() {
         {identities.data?.map((identity) => (
           <IdentityCard key={identity.id} identity={identity} />
         ))}
+        <DigestCard />
       </div>
     </AppPage>
   );
