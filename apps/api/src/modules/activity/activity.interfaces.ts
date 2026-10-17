@@ -22,8 +22,18 @@ export interface IActivityWriteInput extends IActivityBatch {
   connectionId: string;
 }
 
+export interface IActivityWindowInput {
+  userId: string;
+  from: string;
+  to: string;
+  sources: string[] | undefined;
+  limit: number;
+  isNewestFirst: boolean;
+}
+
 export interface IActivityListFilters {
   userId: string;
+  ids: string[] | undefined;
   from: string | undefined;
   to: string | undefined;
   sources: string[] | undefined;

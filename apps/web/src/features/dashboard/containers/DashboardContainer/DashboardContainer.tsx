@@ -1,7 +1,7 @@
 import { useSessionQuery } from "@/api/auth/auth.queries";
 import { useIdentitiesQuery } from "@/api/identity/identity.queries";
 import { AppPage } from "@/features/app-shell/components/AppPage";
-import { RecapPanel } from "@/features/dashboard/components/RecapPanel";
+import { DigestPanel } from "@/features/dashboard/components/DigestPanel";
 import { SetupChecklist } from "@/features/dashboard/components/SetupChecklist";
 import { SourceMap } from "@/features/dashboard/components/SourceMap";
 import {
@@ -26,7 +26,7 @@ export function DashboardContainer() {
     <AppPage title={greetingTitle(greeting, name)} description={now.format(DASHBOARD_DATE_FORMAT)}>
       <div className="grid items-start gap-6 lg:grid-cols-3">
         <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
-          <RecapPanel />
+          <DigestPanel />
           <SourceMap
             identities={identities.data}
             isPending={identities.isPending}

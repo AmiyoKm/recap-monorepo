@@ -10,7 +10,6 @@ export function buildSetupSteps(identities: TIdentity[]): ISetupStep[] {
     { step: ESetupStep.ACCOUNT, done: true, available: true },
     { step: ESetupStep.IDENTITY, done: hasIdentity, available: true },
     { step: ESetupStep.CONNECTION, done: hasConnection, available: hasIdentity },
-    { step: ESetupStep.AI_KEY, done: false, available: false },
   ];
 }
 

@@ -6,6 +6,7 @@ import { schema } from "@recap/db";
 
 import { EConnectionStatus } from "#api/modules/identity/identity.enums";
 import { connectionTokenKey } from "#api/modules/identity/identity.helpers";
+import { EPullOutcome } from "#api/modules/pull/pull.enums";
 import { PullService } from "#api/modules/pull/pull.service";
 import { bindings } from "#api/shared/bindings/bindings.client";
 import type { IPullMessage } from "#api/shared/bindings/bindings.interfaces";
@@ -74,6 +75,7 @@ class FakeQueue implements Queue<IPullMessage> {
 }
 
 const MINUTES_TOLERANCE = 2;
+const PAGES_IN_TWO_PULLS = 3;
 const LOOKBACK_DAYS = 7;
 
 const REFRESHED_TOKEN = {
@@ -313,6 +315,39 @@ describe("PullService.pullConnection", () => {
     await PullService.pullConnection(seeded.connectionId);
 
     expect(list).not.toHaveBeenCalled();
+  });
+});
+
+describe("PullService.pullConnectionUpTo", () => {
+  test("reads up to the page cap, sends no follow-up message and reports more pages", async () => {
+    const list = spyOn(GoogleService, "listCalendarEvents")
+      .mockResolvedValueOnce(page([], { nextPageToken: "p2", nextSyncToken: null }))
+      .mockResolvedValueOnce(page([], { nextPageToken: "p3", nextSyncToken: null }))
+      .mockResolvedValueOnce(page([]));
+
+    const first = await PullService.pullConnectionUpTo(seeded.connectionId, 2);
+
+    expect(first).toBe(EPullOutcome.MORE_PAGES);
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(queue.sent).toEqual([]);
+    expect((await connectionRow(seeded.connectionId))?.lastPulledAt).toBeNull();
+
+    const second = await PullService.pullConnectionUpTo(seeded.connectionId, 2);
+
+    expect(second).toBe(EPullOutcome.COMPLETE);
+    expect(list).toHaveBeenCalledTimes(PAGES_IN_TWO_PULLS);
+    expect((await connectionRow(seeded.connectionId))?.lastPulledAt).not.toBeNull();
+  });
+
+  test("reports a rejected Connection", async () => {
+    spyOn(GoogleService, "listCalendarEvents").mockResolvedValue(null);
+
+    const outcome = await PullService.pullConnectionUpTo(seeded.connectionId, 2);
+
+    expect(outcome).toBe(EPullOutcome.REJECTED);
+    expect((await connectionRow(seeded.connectionId))?.status).toBe(
+      EConnectionStatus.NEEDS_RECONNECT,
+    );
   });
 });
 

@@ -56,8 +56,8 @@ function readText(search: Record<string, unknown>): string | undefined {
   return value;
 }
 
-function readIdentityIds(search: Record<string, unknown>): string[] | undefined {
-  const ids = readStrings(search, "identityId");
+function readIds(search: Record<string, unknown>, key: string): string[] | undefined {
+  const ids = readStrings(search, key);
   if (ids.length === 0) {
     return undefined;
   }
@@ -69,7 +69,8 @@ export function readActivitySearch(search: Record<string, unknown>): IActivitySe
     from: readDate(search, "from"),
     to: readDate(search, "to"),
     source: readKnown(Object.values(ESource), search, "source"),
-    identityId: readIdentityIds(search),
+    identityId: readIds(search, "identityId"),
+    id: readIds(search, "id"),
     kind: readKnown(Object.values(EActivityKind), search, "kind"),
     q: readText(search),
     page: readPage(search),
@@ -82,6 +83,7 @@ export function toActivityFilters(search: IActivitySearch): IActivityFilters {
     to: search.to,
     sources: search.source ?? [],
     identityIds: search.identityId ?? [],
+    ids: search.id ?? [],
     kinds: search.kind ?? [],
     text: search.q,
     page: search.page ?? ACTIVITY_FIRST_PAGE,
@@ -94,7 +96,13 @@ export function withSearchPatch(search: IActivitySearch, patch: IActivitySearch)
 
 export function hasActiveFilters(search: IActivitySearch): boolean {
   return Boolean(
-    search.from || search.to || search.source || search.identityId || search.kind || search.q,
+    search.from ||
+      search.to ||
+      search.source ||
+      search.identityId ||
+      search.id ||
+      search.kind ||
+      search.q,
   );
 }
 

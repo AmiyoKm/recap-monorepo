@@ -1,12 +1,14 @@
 import {
   type AnyColumn,
   and,
+  asc,
   count,
   desc,
   eq,
   gte,
   inArray,
   isNotNull,
+  lt,
   lte,
   or,
   type SQL,
@@ -18,6 +20,7 @@ import { schema } from "@recap/db";
 import {
   ACTIVITY_DELETE_CHUNK,
   ACTIVITY_INSERT_ROWS,
+  ACTIVITY_LIST_COLUMNS,
   LIKE_ESCAPE_CHARACTER,
 } from "#api/modules/activity/activity.constants";
 import { EActivityKind } from "#api/modules/activity/activity.enums";
@@ -28,6 +31,7 @@ import {
 } from "#api/modules/activity/activity.helpers";
 import type {
   IActivityListFilters,
+  IActivityWindowInput,
   IActivityWriteInput,
 } from "#api/modules/activity/activity.interfaces";
 import type { TActivityListRow } from "#api/modules/activity/activity.types";
@@ -49,6 +53,9 @@ function textCondition(text: string): SQL | undefined {
 
 function buildConditions(filters: IActivityListFilters): SQL[] {
   const conditions: (SQL | undefined)[] = [eq(schema.identity.userId, filters.userId)];
+  if (filters.ids) {
+    conditions.push(inArray(schema.activity.id, filters.ids));
+  }
   if (filters.from) {
     conditions.push(gte(schema.activity.occurredAt, filters.from));
   }
@@ -68,6 +75,13 @@ function buildConditions(filters: IActivityListFilters): SQL[] {
     conditions.push(textCondition(filters.text));
   }
   return conditions.filter((condition) => condition !== undefined);
+}
+
+function windowOrder(isNewestFirst: boolean) {
+  if (isNewestFirst) {
+    return [desc(schema.activity.occurredAt), desc(schema.activity.id)];
+  }
+  return [asc(schema.activity.occurredAt), asc(schema.activity.id)];
 }
 
 export abstract class ActivityRepository {
@@ -123,21 +137,27 @@ export abstract class ActivityRepository {
     return [...new Set(fileIds)];
   }
 
+  static async listInWindow(input: IActivityWindowInput): Promise<TActivityListRow[]> {
+    const conditions = [
+      eq(schema.identity.userId, input.userId),
+      gte(schema.activity.occurredAt, input.from),
+      lt(schema.activity.occurredAt, input.to),
+    ];
+    if (input.sources) {
+      conditions.push(inArray(schema.activity.source, input.sources));
+    }
+    return await db
+      .select(ACTIVITY_LIST_COLUMNS)
+      .from(schema.activity)
+      .innerJoin(schema.identity, eq(schema.activity.identityId, schema.identity.id))
+      .where(and(...conditions))
+      .orderBy(...windowOrder(input.isNewestFirst))
+      .limit(input.limit);
+  }
+
   static async list(filters: IActivityListFilters): Promise<TActivityListRow[]> {
     return await db
-      .select({
-        id: schema.activity.id,
-        identityId: schema.activity.identityId,
-        identityEmail: schema.identity.email,
-        source: schema.activity.source,
-        kind: schema.activity.kind,
-        occurredAt: schema.activity.occurredAt,
-        endsAt: schema.activity.endsAt,
-        title: schema.activity.title,
-        url: schema.activity.url,
-        actor: schema.activity.actor,
-        detail: schema.activity.detail,
-      })
+      .select(ACTIVITY_LIST_COLUMNS)
       .from(schema.activity)
       .innerJoin(schema.identity, eq(schema.activity.identityId, schema.identity.id))
       .where(and(...buildConditions(filters)))

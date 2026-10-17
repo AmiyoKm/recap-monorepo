@@ -150,6 +150,18 @@ describe("GET /activities", () => {
     expect(byIdentity.data?.rows.map((entry) => entry.title)).toEqual(["Other identity"]);
   });
 
+  test("filters by Activity ids from a Digest item", async () => {
+    const wanted = randomUUID();
+    await db
+      .insert(schema.activity)
+      .values([row({ id: wanted, title: "Linked" }), row({ title: "Not linked" })]);
+
+    const { data } = await api.activities.get({ query: { id: [wanted] }, ...authed() });
+
+    expect(data?.rows.map((entry) => entry.title)).toEqual(["Linked"]);
+    expect(data?.total).toBe(1);
+  });
+
   test("searches title, actor and detail, and treats wildcards as text", async () => {
     await db
       .insert(schema.activity)

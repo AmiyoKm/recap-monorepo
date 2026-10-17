@@ -18,6 +18,7 @@ export abstract class ActivityService {
     const pageSize = query.pageSize ?? ACTIVITY_PAGE_SIZE_DEFAULT;
     const filters = {
       userId,
+      ids: nonEmpty(query.id),
       from: toIsoBound(query.from),
       to: toIsoBound(query.to),
       sources: nonEmpty(query.source),

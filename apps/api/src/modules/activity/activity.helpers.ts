@@ -642,7 +642,7 @@ export function mapLinearIssues(
   return batch;
 }
 
-function toKnownValue<TValue extends string>(values: TValue[], value: string): TValue {
+export function toKnownValue<TValue extends string>(values: TValue[], value: string): TValue {
   const match = values.find((entry) => entry === value);
   if (match === undefined) {
     throw new Error(EActivityMessages.UNKNOWN_ACTIVITY_VALUE, { cause: value });

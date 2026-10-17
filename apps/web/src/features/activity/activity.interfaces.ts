@@ -5,6 +5,7 @@ export interface IActivitySearch {
   to?: string;
   source?: ESource[];
   identityId?: string[];
+  id?: string[];
   kind?: EActivityKind[];
   q?: string;
   page?: number;

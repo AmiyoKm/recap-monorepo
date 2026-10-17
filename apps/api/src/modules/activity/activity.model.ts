@@ -15,7 +15,7 @@ import {
 } from "#api/modules/activity/activity.constants";
 import { EActivityKind, ESource } from "#api/modules/activity/activity.enums";
 
-const sourceSchema = t.Union([
+export const sourceSchema = t.Union([
   t.Literal(`${ESource.CALENDAR}`),
   t.Literal(`${ESource.GMAIL}`),
   t.Literal(`${ESource.CHAT}`),
@@ -43,6 +43,11 @@ export const activityListQuery = t.Object({
   from: t.Optional(t.String({ format: "date-time", maxLength: ACTIVITY_TIMESTAMP_MAX_LENGTH })),
   to: t.Optional(t.String({ format: "date-time", maxLength: ACTIVITY_TIMESTAMP_MAX_LENGTH })),
   source: t.Optional(t.ArrayQuery(sourceSchema, { maxItems: ACTIVITY_FILTER_VALUES_MAX })),
+  id: t.Optional(
+    t.ArrayQuery(t.String({ maxLength: ACTIVITY_ID_MAX_LENGTH }), {
+      maxItems: ACTIVITY_FILTER_VALUES_MAX,
+    }),
+  ),
   identityId: t.Optional(
     t.ArrayQuery(t.String({ maxLength: ACTIVITY_ID_MAX_LENGTH }), {
       maxItems: ACTIVITY_FILTER_VALUES_MAX,

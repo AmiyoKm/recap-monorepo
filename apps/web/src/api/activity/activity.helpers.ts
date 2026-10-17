@@ -25,6 +25,7 @@ function nonEmpty<TValue>(values: TValue[]): TValue[] | undefined {
 
 export function toActivityQuery(filters: IActivityFilters) {
   return {
+    id: nonEmpty(filters.ids),
     from: startOfLocalDay(filters.from),
     to: endOfLocalDay(filters.to),
     source: nonEmpty(filters.sources),

@@ -1,3 +1,5 @@
+import { schema } from "@recap/db";
+
 import {
   EActivityKind,
   EDriveCommentDetail,
@@ -52,3 +54,17 @@ export const DRIVE_FILE_PREFIX: Record<
 };
 export const JIRA_STATUS_CHANGE_DETAIL_SEPARATOR = " to ";
 export const ACTIVITY_NO_PREVIOUS_STATE = "(none)";
+
+export const ACTIVITY_LIST_COLUMNS = {
+  id: schema.activity.id,
+  identityId: schema.activity.identityId,
+  identityEmail: schema.identity.email,
+  source: schema.activity.source,
+  kind: schema.activity.kind,
+  occurredAt: schema.activity.occurredAt,
+  endsAt: schema.activity.endsAt,
+  title: schema.activity.title,
+  url: schema.activity.url,
+  actor: schema.activity.actor,
+  detail: schema.activity.detail,
+};

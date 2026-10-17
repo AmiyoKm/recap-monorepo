@@ -10,12 +10,17 @@ export interface IAuthEnv {
   google: IOAuthClientEnv;
 }
 
+export interface IAiEnv {
+  googleApiKey: string;
+}
+
 export interface IEnv {
   webOrigin: string;
   connectionEncryptionKey: string;
   auth: IAuthEnv;
   jira: IOAuthClientEnv;
   linear: IOAuthClientEnv;
+  ai: IAiEnv;
 }
 
 export interface IEnvSource {

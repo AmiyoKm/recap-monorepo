@@ -44,6 +44,12 @@ describe("readActivitySearch", () => {
     });
   });
 
+  test("keeps Activity ids from a Digest link", () => {
+    expect(readActivitySearch({ id: ["a-1", "a-2"] }).id).toEqual(["a-1", "a-2"]);
+    expect(hasActiveFilters({ id: ["a-1"] })).toBe(true);
+    expect(toActivityFilters({ id: ["a-1"] }).ids).toEqual(["a-1"]);
+  });
+
   test("drops unknown values, bad dates and a first or invalid page", () => {
     const search = readActivitySearch({
       from: "yesterday",
@@ -104,6 +110,7 @@ describe("filters and query", () => {
     expect(filters).toMatchObject({
       sources: [],
       identityIds: [],
+      ids: [],
       kinds: [],
       text: "plan",
       page: 1,
@@ -116,12 +123,14 @@ describe("filters and query", () => {
       to: "2026-10-10",
       sources: [],
       identityIds: [],
+      ids: [],
       kinds: [],
       text: undefined,
       page: 1,
     });
 
     expect(query.source).toBeUndefined();
+    expect(query.id).toBeUndefined();
     expect(query.pageSize).toBe(ACTIVITY_PAGE_SIZE);
     expect(dayjs(query.to).isAfter(dayjs(query.from))).toBe(true);
   });

@@ -6,4 +6,6 @@ export const ACTIVITY_EMPTY_DESCRIPTION =
   "Recap reads your connected Sources each hour. New Activities show here within the hour.";
 export const ACTIVITY_FILTERED_EMPTY_TITLE = "No Activities match";
 export const ACTIVITY_FILTERED_EMPTY_DESCRIPTION = "Change or clear the filters to see more.";
+export const ACTIVITY_ITEM_FILTER = "Showing the Activities behind one Digest item.";
+export const ACTIVITY_ITEM_FILTER_CLEAR = "Show all";
 export const ACTIVITY_CLEAR_FILTERS = "Clear filters";

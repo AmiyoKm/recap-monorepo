@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, type SQL } from "drizzle-orm";
 
 import { schema } from "@recap/db";
 
@@ -8,12 +8,21 @@ import { db } from "#api/shared/db/db.client";
 
 export abstract class PullRepository {
   static async findPullTarget(connectionId: string): Promise<IPullTarget | undefined> {
-    const rows = await db
+    const rows = await PullRepository.listTargets(eq(schema.connection.id, connectionId));
+    return rows[0];
+  }
+
+  static async listUserTargets(userId: string): Promise<IPullTarget[]> {
+    return await PullRepository.listTargets(eq(schema.identity.userId, userId));
+  }
+
+  private static async listTargets(condition: SQL): Promise<IPullTarget[]> {
+    return await db
       .select({ connection: schema.connection, identityEmail: schema.identity.email })
       .from(schema.connection)
       .innerJoin(schema.identity, eq(schema.connection.identityId, schema.identity.id))
-      .where(eq(schema.connection.id, connectionId));
-    return rows[0];
+      .where(condition)
+      .orderBy(schema.connection.id);
   }
 
   static async listActiveConnectionIds(providers: string[]): Promise<string[]> {

@@ -126,7 +126,7 @@ One enum for all Sources: `calendar_event`, `email_sent`, `email_received`, `cha
 - **Due-user rule** (pure helper): given the current UTC time and a time zone, a user is due when the local hour is 8, the local weekday is Monday to Friday, and no Digest row exists for that local date. The window starts at the previous Digest's `windowEnd`. When there is no previous Digest, it starts 24 hours before (Monday: at Friday 8:00 local).
 - **DigestService** entry points that the Workflow steps call:
   - `startDigest(userId, now)`: creates or resets the Digest row for the local date with status `pending`, and fixes the window.
-  - `finalPull(userId)`: pulls each active Connection of the user once (the same code as the Queue consumer), and records the failed ones in `missingSources`.
+  - `pullForDigest(connectionId, runner)`: for each active Connection of the user, runs the final pull as up to 8 Workflow steps named `pull-connection:<id>:<n>`. Each step pulls one page (under the 50 D1 statement limit) and returns the outcome. It stops on `complete` or `rejected`. A Connection that is not complete after the last step, or whose pull fails, is saved in `missingSources`.
   - `writeDigest(digestId)`: reads the Digest Window Activities and today's remaining calendar Activities, and calls the AI. With no Activities and no meetings ahead, it skips the AI call and saves a "Nothing new" content object. It saves the content with status `ready`.
   - `embedDigest(digestId)`: embeds each section and upserts the vectors into Vectorize.
   - Any step that fails after its retries sets status `failed` and saves the error.
