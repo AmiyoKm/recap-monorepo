@@ -77,6 +77,13 @@ describe("JiraService.exchangeCode", () => {
       "https://api.atlassian.com/oauth/token/accessible-resources",
       "https://api.atlassian.com/ex/jira/cloud-1/rest/api/3/myself",
     ]);
+    expect(JSON.parse(recordedRequests[0]?.body ?? "")).toEqual({
+      grant_type: "authorization_code",
+      client_id: ENV.jira?.clientId,
+      client_secret: ENV.jira?.clientSecret,
+      code: "code-1",
+      redirect_uri: REDIRECT_URI,
+    });
     expect(recordedRequests[2]?.headers.get("authorization")).toBe("Bearer jira-access");
   });
 

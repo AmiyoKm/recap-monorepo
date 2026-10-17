@@ -70,7 +70,19 @@ describe("LinearService.exchangeCode", () => {
       site: null,
       resourceId: null,
     });
-    expect(recordedRequests[0]?.url).toBe("https://api.linear.app/oauth/token");
+    const tokenRequest = recordedRequests[0];
+    expect(tokenRequest?.url).toBe("https://api.linear.app/oauth/token");
+    expect(tokenRequest?.method).toBe("POST");
+    expect(Object.fromEntries(new URLSearchParams(tokenRequest?.body))).toEqual({
+      grant_type: "authorization_code",
+      code: "code-1",
+      code_verifier: "verifier-1",
+      redirect_uri: REDIRECT_URI,
+    });
+    const credentials = Buffer.from(`${ENV.linear?.clientId}:${ENV.linear?.clientSecret}`).toString(
+      "base64",
+    );
+    expect(tokenRequest?.headers.get("authorization")).toBe(`Basic ${credentials}`);
     expect(recordedRequests[1]?.url).toBe("https://api.linear.app/graphql");
     expect(recordedRequests[1]?.headers.get("authorization")).toBe("Bearer linear-access");
   });

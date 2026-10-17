@@ -25,14 +25,19 @@ export function stubFetchSequence(responses: IStubResponse[]): void {
   recordedRequests.length = 0;
   const pending = [...responses];
   globalThis.fetch = Object.assign(
-    (input: string | URL | Request, init?: RequestInit) => {
+    async (input: string | URL | Request, init?: RequestInit) => {
       const request = toRequest(input, init);
-      recordedRequests.push({ url: request.url, method: request.method, headers: request.headers });
+      recordedRequests.push({
+        url: request.url,
+        method: request.method,
+        headers: request.headers,
+        body: await request.clone().text(),
+      });
       const next = pending.shift() ?? responses.at(-1);
       if (!next) {
-        return Promise.reject(new Error(request.url));
+        throw new Error(request.url);
       }
-      return Promise.resolve(toResponse(next));
+      return toResponse(next);
     },
     { preconnect: realFetch.preconnect },
   );
