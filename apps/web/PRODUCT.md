@@ -8,7 +8,7 @@ web
 
 ## Users
 
-Knowledge workers whose work is spread across tools (Google Calendar, Google Chat, Jira, Linear, Slack, GitHub) and who want one daily/weekly overview of what they did, without manual bookkeeping. Recap ships as a public product from day one (confirmed 2026-10-11); the first real users are the developer's own two work profiles (one on Jira/Google, one on Linear/Slack), so real data exists but onboarding polish must assume strangers.
+Knowledge workers whose work is spread across tools (Google Calendar, Gmail, Google Drive, Google Chat, Jira, Linear, Slack, GitHub) and who want one daily/weekly overview of what they did, without manual bookkeeping. Recap ships as a public product from day one (confirmed 2026-10-11); the first real users are the developer's own two work profiles (one on Jira/Google, one on Linear/Slack), so real data exists but onboarding polish must assume strangers.
 
 ## Product Purpose
 
@@ -21,7 +21,7 @@ Activity is anchored to professional identities, not to a login. A user proves o
 ## Operating Context
 
 - Sources are connected once from the Settings page. The Google consent URL is explicitly designed to be completed in a different browser profile, where the work Google account actually lives; the cross-profile flow is a core workflow, not an edge case, and the UI must make copy-and-paste of the consent URL a first-class action.
-- Tool landscape: Google Calendar, Google Chat, Jira, Linear, Slack, GitHub.
+- Tool landscape: Google (Calendar, Gmail, Drive and Chat as Sources of one Connection), Jira, Linear, Slack, GitHub.
 - Digests: daily and weekly, AI-summarized with the user's own key.
 - Deployment: web on Cloudflare Workers, API on Cloudflare Workers with D1 and KV (dev and prod).
 
@@ -30,7 +30,7 @@ Activity is anchored to professional identities, not to a login. A user proves o
 - Binding terminology (GLOSSARY.md): Work Identity (professional identity anchored by one Google account; owns Connections), Connection (authorized grant to an external provider, holding credentials and scopes), Connector (code that pulls data through a Connection).
 - Google sign-up creates the user's first Work Identity from the Google account. Each further Work Identity is a separate, explicit consent that requests only the email scope and stores no token.
 - Credentials (refresh tokens) live server-side, encrypted with AES-256-GCM, and are never sent to the web app.
-- First cut of connectable sources: Google Calendar, Jira and Linear, all through OAuth consent. Slack, Google Chat and GitHub are registered providers that are not wired yet.
+- First cut of connectable tools: Google (the user picks Calendar, Gmail, Drive and Chat as Sources), Jira and Linear, all through OAuth consent. Slack and GitHub are registered providers that are not wired yet.
 - Not built yet (as of 2026-10-11): data pulling, digest building, scheduling. Settings ships identities and connections only.
 
 ## Brand Commitments

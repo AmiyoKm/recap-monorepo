@@ -12,6 +12,8 @@ export enum EIdentityMessages {
   IDENTITY_NOT_FOUND = "Work Identity was not found",
   CONNECTION_NOT_FOUND = "Connection was not found",
   PROVIDER_UNSUPPORTED = "That provider cannot be connected yet",
+  SOURCES_INVALID = "Google needs one or more different Sources, and other providers take none",
+  GOOGLE_REVOKE_FAILED = "Google token revoke failed",
   CODE_VERIFIER_MISSING = "Pending grant has no code verifier",
   UNKNOWN_CONNECTION_VALUE = "Connection row holds an unknown value",
   CONNECTION_CACHE_FAILED = "Connection token cache update failed",

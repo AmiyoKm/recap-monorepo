@@ -28,8 +28,10 @@ export function useConnectIdentityMutation() {
 export function useConnectProviderMutation() {
   const queryClient = useQueryClient();
   return useMutation<IAuthorizeResult, ApiError<TConnectConnectionError>, IConnectProviderInput>({
-    mutationFn: async ({ identityId, provider }) => {
-      const data = await ensureOk(api.identities({ identityId }).connections.post({ provider }));
+    mutationFn: async ({ identityId, provider, sources }) => {
+      const data = await ensureOk(
+        api.identities({ identityId }).connections.post({ provider, sources }),
+      );
       return { authorizeUrl: readAuthorizeUrl(data) };
     },
     onSuccess: () => {

@@ -6,7 +6,10 @@ import {
   readConnectResultMessage,
   toKnownConnected,
 } from "@/api/identity/identity.helpers";
-import { connectResultDescription } from "@/features/connect-result/containers/ConnectResultContainer/ConnectResultContainer.helpers";
+import {
+  connectResultDescription,
+  deniedSourcesNote,
+} from "@/features/connect-result/containers/ConnectResultContainer/ConnectResultContainer.helpers";
 
 describe("connectErrorMessage", () => {
   test("maps known connect errors", () => {
@@ -24,11 +27,11 @@ describe("connectErrorMessage", () => {
 
 describe("connectedTitle", () => {
   test("names a new Google account", () => {
-    expect(connectedTitle("google")).toBe("Google account added");
+    expect(connectedTitle("identity")).toBe("Google account added");
   });
 
   test("names a connected tool", () => {
-    expect(connectedTitle("google-calendar")).toBe("Google Calendar connected");
+    expect(connectedTitle("google")).toBe("Google connected");
     expect(connectedTitle("linear")).toBe("Linear connected");
   });
 });
@@ -51,6 +54,7 @@ describe("connectResultDescription", () => {
 
 describe("toKnownConnected", () => {
   test("keeps a new google account and known providers", () => {
+    expect(toKnownConnected("identity")).toBe("identity");
     expect(toKnownConnected("google")).toBe("google");
     expect(toKnownConnected("jira")).toBe("jira");
   });
@@ -69,5 +73,32 @@ describe("readConnectResultMessage", () => {
       email: "a@b.example",
       error: undefined,
     });
+  });
+});
+
+describe("deniedSourcesNote", () => {
+  test.each([
+    { denied: "gmail", note: "Recap did not get access to Gmail." },
+    { denied: "gmail,chat", note: "Recap did not get access to Gmail and Chat." },
+    {
+      denied: "calendar,drive,chat",
+      note: "Recap did not get access to Calendar, Drive and Chat.",
+    },
+    { denied: "gmail,photos", note: "Recap did not get access to Gmail." },
+  ])("names the sources in $denied", ({ denied, note }) => {
+    expect(deniedSourcesNote(denied)).toBe(note);
+  });
+
+  test.each([{ denied: "" }, { denied: undefined }, { denied: "photos" }])(
+    "is empty for $denied",
+    ({ denied }) => {
+      expect(deniedSourcesNote(denied)).toBeNull();
+    },
+  );
+});
+
+describe("scope denied message", () => {
+  test("asks for one or more Google sources", () => {
+    expect(connectErrorMessage("scope_denied")).toContain("one or more Google sources");
   });
 });

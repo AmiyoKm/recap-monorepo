@@ -14,6 +14,7 @@ export function ConsentDialog({
   trigger,
   title,
   description,
+  picker,
   isPending,
   isError,
   authorizeUrl,
@@ -38,11 +39,12 @@ export function ConsentDialog({
       <DialogTrigger asChild disabled={!isReady}>
         {trigger}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-dvh overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        {picker}
         {isPending && <p className="text-sm text-muted-foreground">{pendingText}</p>}
         {isError && (
           <p role="alert" className="text-sm text-destructive">

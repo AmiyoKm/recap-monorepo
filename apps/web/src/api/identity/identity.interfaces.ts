@@ -1,9 +1,10 @@
-import type { EConsentTarget, EProvider } from "@/api/identity/identity.enums";
+import type { EConsentTarget, EGoogleSource, EProvider } from "@/api/identity/identity.enums";
 import type { TConnectorProvider } from "@/api/identity/identity.types";
 
 export interface IConnectProviderInput {
   identityId: string;
   provider: TConnectorProvider;
+  sources?: EGoogleSource[];
 }
 
 export interface IAuthorizeResult {

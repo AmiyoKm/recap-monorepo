@@ -1,10 +1,11 @@
-import { and, eq, gt, inArray, lte } from "drizzle-orm";
+import { and, eq, gt, inArray, lte, ne } from "drizzle-orm";
 
 import { schema } from "@recap/db";
 
+import { EConnectionStatus } from "#api/modules/identity/identity.enums";
 import { isUniqueViolation } from "#api/modules/identity/identity.helpers";
 import type {
-  IConnectionOwnership,
+  ISharedAccountInput,
   ITakePendingGrantInput,
 } from "#api/modules/identity/identity.interfaces";
 import type {
@@ -14,6 +15,7 @@ import type {
   TIdentityRow,
   TPendingGrantInsert,
 } from "#api/modules/identity/identity.types";
+import { dayjs } from "#api/shared/date/date.helpers";
 import { db } from "#api/shared/db/db.client";
 
 export abstract class IdentityRepository {
@@ -105,23 +107,35 @@ export abstract class IdentityRepository {
       .where(inArray(schema.connection.identityId, identityIds));
   }
 
-  static async connectionIdsForIdentity(identityId: string): Promise<string[]> {
-    const rows = await db
-      .select({ id: schema.connection.id })
-      .from(schema.connection)
-      .where(eq(schema.connection.identityId, identityId));
-    return rows.map((row) => row.id);
-  }
-
-  static async findConnectionOwner(
+  static async findOwnedConnection(
+    userId: string,
     connectionId: string,
-  ): Promise<IConnectionOwnership | undefined> {
+  ): Promise<TConnectionRow | undefined> {
     const rows = await db
-      .select({ connectionId: schema.connection.id, userId: schema.identity.userId })
+      .select({ connection: schema.connection })
       .from(schema.connection)
       .innerJoin(schema.identity, eq(schema.connection.identityId, schema.identity.id))
-      .where(eq(schema.connection.id, connectionId));
-    return rows[0];
+      .where(and(eq(schema.connection.id, connectionId), eq(schema.identity.userId, userId)));
+    return rows[0]?.connection;
+  }
+
+  static async markSharedAccountNeedsReconnect({
+    provider,
+    providerAccountId,
+    revokedConnectionId,
+  }: ISharedAccountInput): Promise<string[]> {
+    const rows = await db
+      .update(schema.connection)
+      .set({ status: EConnectionStatus.NEEDS_RECONNECT, updatedAt: dayjs().toISOString() })
+      .where(
+        and(
+          eq(schema.connection.provider, provider),
+          eq(schema.connection.providerAccountId, providerAccountId),
+          ne(schema.connection.id, revokedConnectionId),
+        ),
+      )
+      .returning({ id: schema.connection.id });
+    return rows.map((row) => row.id);
   }
 
   static async deleteIdentityRow(identityId: string): Promise<void> {

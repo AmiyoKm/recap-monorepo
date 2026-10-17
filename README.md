@@ -1,6 +1,6 @@
 # Recap
 
-Daily and weekly work overview with AI summaries, from Jira, Linear, GitHub, Slack, Google Chat, and Google Calendar.
+Daily and weekly work overview with AI summaries, from Jira, Linear, GitHub, Slack, and Google (Calendar, Gmail, Drive and Chat).
 
 ## Layout
 

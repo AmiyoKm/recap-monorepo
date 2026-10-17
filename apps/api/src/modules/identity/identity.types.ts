@@ -33,3 +33,4 @@ export type TConnectionNotFoundError = typeof connectionNotFoundError.static;
 export type TConnectBadRequestError = typeof connectBadRequestError.static;
 export type TGrantRequest = IIdentityCreateGrant | IConnectionGrant;
 export type TPendingGrant = TGrantRequest & IGrantVerifier;
+export type TConnectionGrantTarget = Pick<IConnectionGrant, "identityId" | "provider" | "sources">;

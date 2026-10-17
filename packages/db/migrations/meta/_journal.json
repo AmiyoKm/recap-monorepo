@@ -15,6 +15,13 @@
       "when": 1792221380472,
       "tag": "0001_oauth_only_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792235149483,
+      "tag": "0002_google_connection_sources",
+      "breakpoints": true
     }
   ]
 }

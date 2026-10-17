@@ -1,3 +1,4 @@
+import type { EGoogleSource } from "#api/shared/providers/google/google.enums";
 import type { IProviderTokens } from "#api/shared/providers/providers.interfaces";
 
 export interface IGoogleProfile {
@@ -27,4 +28,9 @@ export interface IGoogleCodeExchangeInput {
 export interface IGoogleGrant {
   tokens: IProviderTokens;
   profile: IGoogleProfile;
+}
+
+export interface ISourceGrantResult {
+  requested: EGoogleSource[];
+  granted: EGoogleSource[];
 }

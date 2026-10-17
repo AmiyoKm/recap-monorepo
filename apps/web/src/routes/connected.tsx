@@ -8,6 +8,7 @@ export const Route = createFileRoute("/connected")({
   validateSearch: (search: Record<string, unknown>): IConnectResultSearch => ({
     connected: readSearchString(search, "connected"),
     email: readSearchString(search, "email"),
+    denied: readSearchString(search, "denied"),
     error: readSearchString(search, "error"),
   }),
   component: ConnectedRoute,
@@ -19,6 +20,7 @@ function ConnectedRoute() {
     <ConnectResultContainer
       connected={search.connected}
       email={search.email}
+      denied={search.denied}
       error={search.error}
     />
   );

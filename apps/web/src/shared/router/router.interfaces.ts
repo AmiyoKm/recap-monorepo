@@ -7,6 +7,7 @@ export interface IRouterContext {
 export interface IConnectResultSearch {
   connected?: string;
   email?: string;
+  denied?: string;
   error?: string;
 }
 

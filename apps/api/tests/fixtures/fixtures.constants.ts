@@ -5,7 +5,20 @@ export const TEST_USER_NAME = "Test User";
 export const TEST_PASSWORD = "test-password-123";
 export const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
 export const CALENDAR_READ_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
-export const CALENDAR_GRANTED_SCOPES = ["openid", "email", CALENDAR_READ_SCOPE];
+export const GMAIL_METADATA_SCOPE = "https://www.googleapis.com/auth/gmail.metadata";
+const DRIVE_ACTIVITY_SCOPE = "https://www.googleapis.com/auth/drive.activity.readonly";
+export const CHAT_SPACES_SCOPE = "https://www.googleapis.com/auth/chat.spaces.readonly";
+export const CHAT_MESSAGES_SCOPE = "https://www.googleapis.com/auth/chat.messages.readonly";
+export const ALL_SOURCES_GRANTED_SCOPES = [
+  "openid",
+  "email",
+  CALENDAR_READ_SCOPE,
+  GMAIL_METADATA_SCOPE,
+  DRIVE_ACTIVITY_SCOPE,
+  CHAT_SPACES_SCOPE,
+  CHAT_MESSAGES_SCOPE,
+];
+export const ALL_SOURCES = ["calendar", "gmail", "drive", "chat"] as const;
 export const GOOGLE_ACCESS_DENIED = "access_denied";
 export const CALENDAR_EMAIL = "work@employer.example";
 export const TEST_AVATAR_URL = "https://img.test/avatar.png";

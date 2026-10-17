@@ -1,8 +1,12 @@
 import type { Credentials, TokenPayload } from "google-auth-library";
 
 import { dayjs } from "#api/shared/date/date.helpers";
-import { EGoogleMessages } from "#api/shared/providers/google/google.enums";
-import type { IGoogleProfile } from "#api/shared/providers/google/google.interfaces";
+import { GOOGLE_SOURCE_SCOPES } from "#api/shared/providers/google/google.constants";
+import { EGoogleMessages, EGoogleSource } from "#api/shared/providers/google/google.enums";
+import type {
+  IGoogleProfile,
+  ISourceGrantResult,
+} from "#api/shared/providers/google/google.interfaces";
 import { OAUTH_SCOPE_SEPARATOR } from "#api/shared/providers/providers.constants";
 import type { IProviderTokens } from "#api/shared/providers/providers.interfaces";
 
@@ -39,4 +43,26 @@ export function toGoogleTokens(accessToken: string, credentials: Credentials): I
     expiresInSeconds: secondsUntil(credentials.expiry_date),
     scopes: splitScopes(credentials.scope),
   };
+}
+
+export function sourceScopes(sources: EGoogleSource[]): string[] {
+  return sources.flatMap((source) => GOOGLE_SOURCE_SCOPES[source]);
+}
+
+export function grantedSources(scopes: string[]): EGoogleSource[] {
+  return Object.values(EGoogleSource).filter((source) =>
+    GOOGLE_SOURCE_SCOPES[source].every((scope) => scopes.includes(scope)),
+  );
+}
+
+export function parseSources(values: readonly unknown[]): EGoogleSource[] | null {
+  const sources = Object.values(EGoogleSource).filter((source) => values.includes(source));
+  if (sources.length !== values.length) {
+    return null;
+  }
+  return sources;
+}
+
+export function deniedSources({ requested, granted }: ISourceGrantResult): EGoogleSource[] {
+  return requested.filter((source) => !granted.includes(source));
 }

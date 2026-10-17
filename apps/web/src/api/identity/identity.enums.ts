@@ -1,10 +1,16 @@
 export enum EProvider {
-  GOOGLE_CALENDAR = "google-calendar",
+  GOOGLE = "google",
   JIRA = "jira",
   LINEAR = "linear",
   SLACK = "slack",
-  GOOGLE_CHAT = "google-chat",
   GITHUB = "github",
+}
+
+export enum EGoogleSource {
+  CALENDAR = "calendar",
+  GMAIL = "gmail",
+  DRIVE = "drive",
+  CHAT = "chat",
 }
 
 export enum EConnectionStatus {

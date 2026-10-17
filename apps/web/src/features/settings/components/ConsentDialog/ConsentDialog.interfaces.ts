@@ -6,6 +6,7 @@ export interface IConsentDialogProps {
   trigger: ReactNode;
   title: string;
   description: string;
+  picker?: ReactNode;
   isPending: boolean;
   isError: boolean;
   authorizeUrl: string | undefined;

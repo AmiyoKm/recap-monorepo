@@ -14,6 +14,7 @@ import {
   MAX_URL_LENGTH,
 } from "#api/modules/identity/identity.constants";
 import { EConnectionStatus, EIdentityMessages } from "#api/modules/identity/identity.enums";
+import { EGoogleSource } from "#api/shared/providers/google/google.enums";
 import { EProvider } from "#api/shared/providers/providers.enums";
 
 export const identityIdParams = t.Object({
@@ -31,12 +32,18 @@ export const oauthCallbackQuery = t.Object({
 });
 
 const providerSchema = t.Union([
-  t.Literal(`${EProvider.GOOGLE_CALENDAR}`),
+  t.Literal(`${EProvider.GOOGLE}`),
   t.Literal(`${EProvider.JIRA}`),
   t.Literal(`${EProvider.LINEAR}`),
   t.Literal(`${EProvider.SLACK}`),
-  t.Literal(`${EProvider.GOOGLE_CHAT}`),
   t.Literal(`${EProvider.GITHUB}`),
+]);
+
+const googleSourceSchema = t.Union([
+  t.Literal(`${EGoogleSource.CALENDAR}`),
+  t.Literal(`${EGoogleSource.GMAIL}`),
+  t.Literal(`${EGoogleSource.DRIVE}`),
+  t.Literal(`${EGoogleSource.CHAT}`),
 ]);
 
 const connectionStatusSchema = t.Union([
@@ -46,6 +53,7 @@ const connectionStatusSchema = t.Union([
 
 export const connectConnectionBody = t.Object({
   provider: providerSchema,
+  sources: t.Optional(t.Array(googleSourceSchema)),
 });
 
 export const connectionResponse = t.Object({
@@ -53,6 +61,7 @@ export const connectionResponse = t.Object({
   provider: providerSchema,
   status: connectionStatusSchema,
   scopes: t.Nullable(t.String({ maxLength: MAX_SCOPES_LENGTH })),
+  sources: t.Array(googleSourceSchema),
   providerAccountId: t.Nullable(t.String({ maxLength: MAX_ACCOUNT_ID_LENGTH })),
   providerAccountEmail: t.Nullable(t.String({ maxLength: MAX_EMAIL_LENGTH })),
   providerSite: t.Nullable(t.String({ maxLength: MAX_SITE_LENGTH })),
@@ -89,5 +98,8 @@ export const connectionNotFoundError = t.Object({
 });
 
 export const connectBadRequestError = t.Object({
-  message: t.Literal(EIdentityMessages.PROVIDER_UNSUPPORTED),
+  message: t.Union([
+    t.Literal(EIdentityMessages.PROVIDER_UNSUPPORTED),
+    t.Literal(EIdentityMessages.SOURCES_INVALID),
+  ]),
 });

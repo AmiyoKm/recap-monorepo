@@ -2,7 +2,7 @@ import { EProvider } from "@/api/identity/identity.enums";
 import type { TConnectorProvider } from "@/api/identity/identity.types";
 
 export const IDENTITY_CONNECTORS: TConnectorProvider[] = [
-  EProvider.GOOGLE_CALENDAR,
+  EProvider.GOOGLE,
   EProvider.JIRA,
   EProvider.LINEAR,
 ];

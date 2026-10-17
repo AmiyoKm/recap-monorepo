@@ -3,9 +3,9 @@ import { randomUUID } from "node:crypto";
 import { status } from "elysia";
 
 import {
-  GOOGLE_CALENDAR_SCOPES,
-  GOOGLE_IDENTITY_CONNECTED,
-  IDENTITY_CREATE_SCOPES,
+  GOOGLE_ACCOUNT_SCOPES,
+  GOOGLE_SOURCE_SEPARATOR,
+  IDENTITY_CONNECTED,
 } from "#api/modules/identity/identity.constants";
 import {
   EConnectionStatus,
@@ -21,9 +21,9 @@ import {
   connectionTokenKey,
   createGrantState,
   grantCallback,
-  hasCalendarScope,
   isWiredProvider,
   parsePendingGrant,
+  readRequestedSources,
   requireCodeVerifier,
   toIdentityView,
   toProvider,
@@ -41,6 +41,7 @@ import { IdentityRepository } from "#api/modules/identity/identity.repository";
 import type {
   TAuthorizeResponse,
   TConnectBadRequestError,
+  TConnectConnectionBody,
   TConnectionNotFoundError,
   TConnectionRow,
   TDeleteResponse,
@@ -52,8 +53,16 @@ import type {
   TPendingGrant,
 } from "#api/modules/identity/identity.types";
 import { CacheService } from "#api/shared/cache/cache.service";
+import { decryptSecret } from "#api/shared/crypto/crypto.helpers";
 import { dayjs } from "#api/shared/date/date.helpers";
+import { ENV } from "#api/shared/env/env.constants";
 import { logError } from "#api/shared/logger/logger.helpers";
+import type { EGoogleSource } from "#api/shared/providers/google/google.enums";
+import {
+  deniedSources,
+  grantedSources,
+  sourceScopes,
+} from "#api/shared/providers/google/google.helpers";
 import type { IGoogleGrant } from "#api/shared/providers/google/google.interfaces";
 import { providers } from "#api/shared/providers/providers.client";
 import { EProvider } from "#api/shared/providers/providers.enums";
@@ -78,7 +87,7 @@ export abstract class IdentityService {
     const authorization = await providers.google.createAuthorization({
       state,
       redirectUri: ROUTES.API.GOOGLE_CALLBACK_URL(),
-      scopes: IDENTITY_CREATE_SCOPES,
+      scopes: GOOGLE_ACCOUNT_SCOPES,
     });
     return IdentityService.storeGrant(
       state,
@@ -90,18 +99,24 @@ export abstract class IdentityService {
   static async startConnection(
     userId: string,
     identityId: string,
-    providerName: string,
+    body: TConnectConnectionBody,
   ): Promise<TAuthorizeResponse> {
     await IdentityService.requireOwnedIdentity(userId, identityId);
-    const provider = toProvider(providerName);
+    const provider = toProvider(body.provider);
     if (!(provider && isWiredProvider(provider))) {
       throw IdentityService.unsupportedProvider();
     }
+    const sources = readRequestedSources(provider, body.sources);
+    if (!sources) {
+      throw status("Bad Request", {
+        message: EIdentityMessages.SOURCES_INVALID,
+      } satisfies TConnectBadRequestError);
+    }
     const state = createGrantState();
-    const authorization = await IdentityService.createAuthorization(provider, state);
+    const authorization = await IdentityService.createAuthorization(provider, state, sources);
     return IdentityService.storeGrant(
       state,
-      { userId, purpose: EGrantPurpose.CONNECTION, identityId, provider },
+      { userId, purpose: EGrantPurpose.CONNECTION, identityId, provider, sources },
       authorization,
     );
   }
@@ -139,19 +154,21 @@ export abstract class IdentityService {
 
   static async deleteIdentity(userId: string, identityId: string): Promise<TDeleteResponse> {
     await IdentityService.requireOwnedIdentity(userId, identityId);
-    const connectionIds = await IdentityRepository.connectionIdsForIdentity(identityId);
-    await IdentityService.deleteConnectionTokens(connectionIds);
+    const connections = await IdentityRepository.listConnections([identityId]);
+    await IdentityService.revokeGoogleAccess(connections);
+    await IdentityService.deleteConnectionTokens(connections.map((connection) => connection.id));
     await IdentityRepository.deleteIdentityRow(identityId);
     return { deleted: true };
   }
 
   static async deleteConnection(userId: string, connectionId: string): Promise<TDeleteResponse> {
-    const ownership = await IdentityRepository.findConnectionOwner(connectionId);
-    if (ownership?.userId !== userId) {
+    const connection = await IdentityRepository.findOwnedConnection(userId, connectionId);
+    if (!connection) {
       throw status("Not Found", {
         message: EIdentityMessages.CONNECTION_NOT_FOUND,
       } satisfies TConnectionNotFoundError);
     }
+    await IdentityService.revokeGoogleAccess([connection]);
     await IdentityService.deleteConnectionTokens([connectionId]);
     await IdentityRepository.deleteConnectionRow(connectionId);
     return { deleted: true };
@@ -160,13 +177,14 @@ export abstract class IdentityService {
   private static createAuthorization(
     provider: EProvider,
     state: string,
+    sources: EGoogleSource[],
   ): Promise<IProviderAuthorization> {
     switch (provider) {
-      case EProvider.GOOGLE_CALENDAR:
+      case EProvider.GOOGLE:
         return providers.google.createAuthorization({
           state,
           redirectUri: ROUTES.API.GOOGLE_CALLBACK_URL(),
-          scopes: GOOGLE_CALENDAR_SCOPES,
+          scopes: [...GOOGLE_ACCOUNT_SCOPES, ...sourceScopes(sources)],
         });
       case EProvider.JIRA:
         return Promise.resolve(
@@ -183,7 +201,6 @@ export abstract class IdentityService {
           }),
         );
       case EProvider.SLACK:
-      case EProvider.GOOGLE_CHAT:
       case EProvider.GITHUB:
         throw IdentityService.unsupportedProvider();
     }
@@ -231,7 +248,7 @@ export abstract class IdentityService {
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.ALREADY_CONNECTED });
     }
     return ROUTES.WEB.CONNECT_RESULT({
-      connected: GOOGLE_IDENTITY_CONNECTED,
+      connected: IDENTITY_CONNECTED,
       email: profile.email,
     });
   }
@@ -257,13 +274,14 @@ export abstract class IdentityService {
 
   private static async connectProvider(
     target: IConnectionTarget,
-    grant: IGrantVerifier,
+    grant: IConnectionGrant & IGrantVerifier,
     code: string,
   ): Promise<string> {
     switch (target.provider) {
-      case EProvider.GOOGLE_CALENDAR:
+      case EProvider.GOOGLE:
         return IdentityService.saveGoogleConnection({
           ...target,
+          requestedSources: grant.sources,
           grant: await IdentityService.exchangeGoogleCode(grant, code),
         });
       case EProvider.JIRA:
@@ -284,7 +302,6 @@ export abstract class IdentityService {
           }),
         });
       case EProvider.SLACK:
-      case EProvider.GOOGLE_CHAT:
       case EProvider.GITHUB:
         return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.FAILED });
     }
@@ -292,13 +309,13 @@ export abstract class IdentityService {
 
   private static async findProviderSlot(
     identityId: string,
-    provider: string,
+    provider: EProvider,
   ): Promise<IProviderSlot> {
     const existing = await IdentityRepository.findConnection(identityId, provider);
     if (!existing) {
       return { isTaken: false, staleConnectionId: undefined };
     }
-    if (existing.status !== EConnectionStatus.NEEDS_RECONNECT) {
+    if (existing.status !== EConnectionStatus.NEEDS_RECONNECT && provider !== EProvider.GOOGLE) {
       return { isTaken: true, staleConnectionId: undefined };
     }
     return { isTaken: false, staleConnectionId: existing.id };
@@ -306,31 +323,40 @@ export abstract class IdentityService {
 
   private static async saveGoogleConnection({
     grant: { tokens, profile },
+    requestedSources,
     ...target
   }: IGoogleConnectionSave): Promise<string> {
     if (profile.sub !== target.identity.googleSub) {
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.SUB_MISMATCH });
     }
-    if (!hasCalendarScope(tokens.scopes)) {
+    const granted = grantedSources(tokens.scopes);
+    if (granted.length === 0) {
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.SCOPE_DENIED });
     }
-    return await IdentityService.saveConnection({
-      ...target,
-      grant: {
-        tokens,
-        account: { accountId: profile.sub, accountEmail: profile.email },
-        site: null,
-        resourceId: null,
+    const denied = deniedSources({ requested: requestedSources, granted });
+    return await IdentityService.saveConnection(
+      {
+        ...target,
+        grant: {
+          tokens,
+          account: { accountId: profile.sub, accountEmail: profile.email },
+          site: null,
+          resourceId: null,
+        },
       },
-    });
+      { denied: denied.join(GOOGLE_SOURCE_SEPARATOR) },
+    );
   }
 
-  private static async saveConnection({
-    identity,
-    provider,
-    grant: { tokens, account, site, resourceId },
-    staleConnectionId,
-  }: IProviderConnectionSave): Promise<string> {
+  private static async saveConnection(
+    {
+      identity,
+      provider,
+      grant: { tokens, account, site, resourceId },
+      staleConnectionId,
+    }: IProviderConnectionSave,
+    resultQuery: Record<string, string> = {},
+  ): Promise<string> {
     if (tokens.refreshToken === undefined) {
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.FAILED });
     }
@@ -349,7 +375,11 @@ export abstract class IdentityService {
       return ROUTES.WEB.CONNECT_RESULT({ error: EIdentityConnectError.ALREADY_CONNECTED });
     }
     await IdentityService.runCacheTask(IdentityService.cacheConnectionToken(row.id, tokens));
-    return ROUTES.WEB.CONNECT_RESULT({ connected: provider, email: account.accountEmail });
+    return ROUTES.WEB.CONNECT_RESULT({
+      connected: provider,
+      email: account.accountEmail,
+      ...resultQuery,
+    });
   }
 
   private static async replaceConnection(
@@ -405,6 +435,34 @@ export abstract class IdentityService {
       value: tokens.accessToken,
       ttlSeconds: tokens.expiresInSeconds,
     });
+  }
+
+  private static async revokeGoogleAccess(connections: TConnectionRow[]): Promise<void> {
+    const google = connections.find((connection) => connection.provider === EProvider.GOOGLE);
+    if (!google) {
+      return;
+    }
+    try {
+      await providers.google.revokeToken(
+        decryptSecret(ENV.connectionEncryptionKey, google.refreshTokenEnc),
+      );
+    } catch (error) {
+      logError(EIdentityMessages.GOOGLE_REVOKE_FAILED, error);
+      return;
+    }
+    await IdentityService.markSharedGoogleGrantRevoked(google);
+  }
+
+  private static async markSharedGoogleGrantRevoked(revoked: TConnectionRow): Promise<void> {
+    if (!revoked.providerAccountId) {
+      return;
+    }
+    const connectionIds = await IdentityRepository.markSharedAccountNeedsReconnect({
+      provider: EProvider.GOOGLE,
+      providerAccountId: revoked.providerAccountId,
+      revokedConnectionId: revoked.id,
+    });
+    await IdentityService.runCacheTask(IdentityService.deleteConnectionTokens(connectionIds));
   }
 
   private static async deleteConnectionTokens(connectionIds: string[]): Promise<void> {
