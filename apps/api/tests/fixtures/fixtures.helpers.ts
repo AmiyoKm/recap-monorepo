@@ -38,6 +38,7 @@ export async function createUser(email: string): Promise<string> {
 export async function wipeDatabase(): Promise<void> {
   await db.batch([
     db.delete(schema.activity),
+    db.delete(schema.digestSetting),
     db.delete(schema.pendingGrant),
     db.delete(schema.rateLimit),
     db.delete(schema.verification),

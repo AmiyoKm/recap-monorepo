@@ -1,4 +1,5 @@
 import type { api } from "@/api/client";
+import type { TEdenData, TEdenError } from "@/api/client/client.types";
 import type { EProvider } from "@/api/identity/identity.enums";
 import type {
   IConnectionConsentTarget,
@@ -9,18 +10,6 @@ export type TIdentity = TIdentitiesData[number];
 export type TIdentityConnection = TIdentity["connections"][number];
 
 type TConnectionsRoute = ReturnType<typeof api.identities>;
-
-type TEdenResponse<TRequest extends (...args: never[]) => Promise<object>> = Awaited<
-  ReturnType<TRequest>
->;
-
-type TEdenError<TRequest extends (...args: never[]) => Promise<{ error: unknown }>> = NonNullable<
-  TEdenResponse<TRequest>["error"]
->;
-
-type TEdenData<TRequest extends (...args: never[]) => Promise<{ data: unknown }>> = NonNullable<
-  TEdenResponse<TRequest>["data"]
->;
 
 type TConnectionRoute = ReturnType<typeof api.connections>;
 
