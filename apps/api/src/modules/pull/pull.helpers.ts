@@ -190,7 +190,7 @@ export function remainingSources(queue: ESource[], hasMore: boolean): ESource[] 
   return queue.slice(1);
 }
 
-export function freshGmailCursor(now: string): IGmailCursor {
+function freshGmailCursor(now: string): IGmailCursor {
   return {
     historyId: null,
     label: EGmailLabel.SENT,
