@@ -26,6 +26,13 @@ export const ROUTES = {
     DRIVE_OPEN: (fileId: string): string =>
       `https://drive.google.com/open?${new URLSearchParams({ id: fileId }).toString()}`,
   },
+  JIRA: {
+    SITE: (site: string): string => `https://${site}`,
+    ISSUE: (site: string, issueKey: string): string =>
+      `${ROUTES.JIRA.SITE(site)}/browse/${issueKey}`,
+    COMMENT: (site: string, issueKey: string, commentId: string): string =>
+      `${ROUTES.JIRA.ISSUE(site, issueKey)}?focusedCommentId=${commentId}`,
+  },
   LINEAR: {
     AUTHORIZE: "https://linear.app/oauth/authorize",
     TOKEN: "https://api.linear.app/oauth/token",

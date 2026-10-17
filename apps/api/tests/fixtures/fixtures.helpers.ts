@@ -12,6 +12,9 @@ import {
   ALL_SOURCES_GRANTED_SCOPES,
   CALENDAR_EMAIL,
   DEFAULT_TOKEN_EXPIRY_SECONDS,
+  JIRA_CLOUD_ID,
+  JIRA_REFRESH_TOKEN,
+  JIRA_SITE,
   TEST_PASSWORD,
   TEST_USER_NAME,
 } from "#api-tests/fixtures/fixtures.constants";
@@ -87,6 +90,43 @@ export async function seedGoogleConnection(
       account: { accountId: `sub-${identityId}`, accountEmail: CALENDAR_EMAIL },
       site: null,
       resourceId: null,
+    }),
+  );
+  return { identityId, connectionId };
+}
+
+export async function seedJiraConnection(
+  userId: string,
+  email: string,
+): Promise<{ identityId: string; connectionId: string }> {
+  const identityId = randomUUID();
+  const connectionId = randomUUID();
+  const now = dayjs().toISOString();
+  await db.insert(schema.identity).values({
+    id: identityId,
+    userId,
+    googleSub: `sub-${identityId}`,
+    email,
+    displayName: null,
+    avatarUrl: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+  await db.insert(schema.connection).values(
+    buildOAuthConnectionRow({
+      id: connectionId,
+      identityId,
+      provider: EProvider.JIRA,
+      refreshToken: JIRA_REFRESH_TOKEN,
+      tokens: {
+        accessToken: "jira-access-1",
+        refreshToken: JIRA_REFRESH_TOKEN,
+        expiresInSeconds: DEFAULT_TOKEN_EXPIRY_SECONDS,
+        scopes: ["read:jira-user", "read:jira-work", "offline_access"],
+      },
+      account: { accountId: `jira-${identityId}`, accountEmail: email },
+      site: JIRA_SITE,
+      resourceId: JIRA_CLOUD_ID,
     }),
   );
   return { identityId, connectionId };

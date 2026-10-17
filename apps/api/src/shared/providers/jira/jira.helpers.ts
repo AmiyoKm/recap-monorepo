@@ -1,7 +1,16 @@
 import type { AccessibleResource, OAuth2TokenResponse } from "jira.js";
 
-import { JIRA_SITE_PATTERN, JIRA_WORK_SCOPE } from "#api/shared/providers/jira/jira.constants";
-import { EJiraMessages } from "#api/shared/providers/jira/jira.enums";
+import { dayjs } from "#api/shared/date/date.helpers";
+import { toStringRecord } from "#api/shared/json/json.helpers";
+import {
+  JIRA_ADF_BLOCK_SEPARATOR,
+  JIRA_JQL_DATE_FORMAT,
+  JIRA_JQL_MARGIN_DAYS,
+  JIRA_SITE_PATTERN,
+  JIRA_WHITESPACE_PATTERN,
+  JIRA_WORK_SCOPE,
+} from "#api/shared/providers/jira/jira.constants";
+import { EJiraAdfNode, EJiraMessages } from "#api/shared/providers/jira/jira.enums";
 import type { IJiraSite } from "#api/shared/providers/jira/jira.interfaces";
 import { OAUTH_SCOPE_SEPARATOR } from "#api/shared/providers/providers.constants";
 import type { IProviderAccount, IProviderTokens } from "#api/shared/providers/providers.interfaces";
@@ -45,4 +54,47 @@ export function toJiraTokens(tokens: OAuth2TokenResponse): IProviderTokens {
     expiresInSeconds: tokens.expiresIn,
     scopes: tokens.scope.split(OAUTH_SCOPE_SEPARATOR).filter((scope) => scope.length > 0),
   };
+}
+
+export function buildJiraJql(since: string): string {
+  const bound = dayjs.utc(since).subtract(JIRA_JQL_MARGIN_DAYS, "day").format(JIRA_JQL_DATE_FORMAT);
+  return `(assignee = currentUser() OR reporter = currentUser() OR watcher = currentUser()) AND updated >= "${bound}" ORDER BY updated ASC`;
+}
+
+function adfLeafText(record: Record<string, unknown>): string | null {
+  const { type, text, attrs } = record;
+  if (type === EJiraAdfNode.TEXT && typeof text === "string") {
+    return text;
+  }
+  if (type === EJiraAdfNode.HARD_BREAK) {
+    return JIRA_ADF_BLOCK_SEPARATOR;
+  }
+  if (type !== EJiraAdfNode.MENTION) {
+    return null;
+  }
+  const { text: mention } = toStringRecord(attrs) ?? {};
+  if (typeof mention !== "string") {
+    return "";
+  }
+  return mention;
+}
+
+function adfNodeText(node: unknown): string {
+  const record = toStringRecord(node);
+  if (!record) {
+    return "";
+  }
+  const leaf = adfLeafText(record);
+  if (leaf !== null) {
+    return leaf;
+  }
+  const { content } = record;
+  if (!Array.isArray(content)) {
+    return "";
+  }
+  return `${content.map(adfNodeText).join("")}${JIRA_ADF_BLOCK_SEPARATOR}`;
+}
+
+export function adfToText(body: unknown): string {
+  return adfNodeText(body).replace(JIRA_WHITESPACE_PATTERN, JIRA_ADF_BLOCK_SEPARATOR).trim();
 }

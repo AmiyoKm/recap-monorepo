@@ -4,6 +4,7 @@ import {
   mapChatMessages,
   mapDriveActivities,
   mapGmailMessages,
+  mapJiraIssues,
 } from "#api/modules/activity/activity.helpers";
 import type { IActivityBatch } from "#api/modules/activity/activity.interfaces";
 import { ActivityRepository } from "#api/modules/activity/activity.repository";
@@ -31,11 +32,13 @@ import {
   nextDriveCursor,
   nextGmailBackfillStep,
   nextGmailHistoryStep,
+  nextJiraCursor,
   parseCalendarCursor,
   parseChatCursor,
   parseCursorMap,
   parseDriveCursor,
   parseGmailCursor,
+  parseJiraCursor,
   readableSources,
   readConnectionId,
   remainingSources,
@@ -57,7 +60,7 @@ import { chunk } from "#api/shared/array/array.helpers";
 import { bindings } from "#api/shared/bindings/bindings.client";
 import type { IPullMessage } from "#api/shared/bindings/bindings.interfaces";
 import { CacheService } from "#api/shared/cache/cache.service";
-import { decryptSecret } from "#api/shared/crypto/crypto.helpers";
+import { decryptSecret, encryptSecret } from "#api/shared/crypto/crypto.helpers";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { ENV } from "#api/shared/env/env.constants";
 import { describeError, logError } from "#api/shared/logger/logger.helpers";
@@ -229,6 +232,7 @@ export abstract class PullService {
       case ESource.CHAT:
         return PullService.readChatPage(input);
       case ESource.JIRA:
+        return PullService.readJiraPage(input);
       case ESource.LINEAR:
         throw new Error(EPullMessages.SOURCE_UNSUPPORTED, { cause: source });
     }
@@ -376,6 +380,33 @@ export abstract class PullService {
     };
   }
 
+  private static async readJiraPage(input: ISourceReadInput): Promise<ISourcePage | null> {
+    const { providerSite, providerResourceId } = input.target.connection;
+    if (!(providerSite && providerResourceId)) {
+      throw new Error(EPullMessages.JIRA_SITE_MISSING);
+    }
+    const cursor = parseJiraCursor(input.cursor, input.now);
+    const page = await providers.jira.searchIssues({
+      accessToken: input.accessToken,
+      cloudId: providerResourceId,
+      since: cursor.since,
+      pageToken: cursor.pageToken,
+    });
+    if (!page) {
+      return null;
+    }
+    const { overflow, ...batch } = mapJiraIssues(page.issues, {
+      site: providerSite,
+      since: cursor.since,
+      offset: cursor.offset,
+    });
+    return {
+      batch,
+      nextCursor: nextJiraCursor(cursor, page, overflow),
+      hasMore: overflow || page.nextPageToken !== null,
+    };
+  }
+
   private static async resolveAccessToken(
     connection: TConnectionRow,
   ): Promise<IAccessToken | null> {
@@ -392,11 +423,31 @@ export abstract class PullService {
   }
 
   private static refreshAccessToken(connection: TConnectionRow): Promise<IProviderTokens | null> {
+    if (connection.provider === EProvider.JIRA) {
+      const jiraToken = decryptSecret(ENV.connectionEncryptionKey, connection.refreshTokenEnc);
+      return PullService.refreshJiraToken(connection.id, jiraToken);
+    }
     if (connection.provider !== EProvider.GOOGLE) {
       throw new Error(EPullMessages.PROVIDER_UNSUPPORTED, { cause: connection.provider });
     }
     const refreshToken = decryptSecret(ENV.connectionEncryptionKey, connection.refreshTokenEnc);
     return providers.google.refreshAccessToken(refreshToken);
+  }
+
+  private static async refreshJiraToken(
+    connectionId: string,
+    refreshToken: string,
+  ): Promise<IProviderTokens | null> {
+    const tokens = await providers.jira.refreshAccessToken(refreshToken);
+    if (!tokens?.refreshToken) {
+      return tokens;
+    }
+    await PullRepository.saveRefreshToken(
+      connectionId,
+      encryptSecret(ENV.connectionEncryptionKey, tokens.refreshToken),
+      dayjs().toISOString(),
+    );
+    return tokens;
   }
 
   private static async cacheToken(

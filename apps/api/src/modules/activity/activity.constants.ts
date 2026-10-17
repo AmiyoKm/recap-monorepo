@@ -50,3 +50,4 @@ export const DRIVE_FILE_PREFIX: Record<
   [EActivityKind.DRIVE_FILE_CREATED]: EDriveExternalIdPrefix.CREATE,
   [EActivityKind.DRIVE_FILE_EDITED]: EDriveExternalIdPrefix.EDIT,
 };
+export const JIRA_STATUS_CHANGE_DETAIL_SEPARATOR = " to ";

@@ -50,6 +50,17 @@ export abstract class PullRepository {
       .where(eq(schema.connection.id, connectionId));
   }
 
+  static async saveRefreshToken(
+    connectionId: string,
+    refreshTokenEnc: string,
+    now: string,
+  ): Promise<void> {
+    await db
+      .update(schema.connection)
+      .set({ refreshTokenEnc, updatedAt: now })
+      .where(eq(schema.connection.id, connectionId));
+  }
+
   static async markNeedsReconnect(
     connectionId: string,
     now: string,

@@ -10,6 +10,7 @@ import {
   GOOGLE_GMAIL_PAGE_SIZE,
 } from "#api/shared/providers/google/google.constants";
 import { EGmailLabel, EGoogleSource } from "#api/shared/providers/google/google.enums";
+import { JIRA_MAX_ACTIVITIES_PER_PAGE } from "#api/shared/providers/jira/jira.constants";
 import { EProvider } from "#api/shared/providers/providers.enums";
 
 export const PULL_MAX_PAGES_PER_MESSAGE = 1;
@@ -21,14 +22,15 @@ export const DRIVE_CURSOR_OVERLAP_MINUTES = 60;
 export const QUEUE_SEND_BATCH_MAX = 100;
 export const ACCESS_TOKEN_EXPIRY_MARGIN_SECONDS = 120;
 export const PULL_ERROR_MAX_LENGTH = 500;
-export const PULLABLE_PROVIDERS: EProvider[] = [EProvider.GOOGLE];
+export const GMAIL_BACKFILL_LABELS: EGmailLabel[] = [EGmailLabel.SENT, EGmailLabel.INBOX];
+export const PULLABLE_PROVIDERS: EProvider[] = [EProvider.GOOGLE, EProvider.JIRA];
 export const READABLE_SOURCES: ESource[] = [
   ESource.CALENDAR,
   ESource.GMAIL,
   ESource.CHAT,
   ESource.DRIVE,
+  ESource.JIRA,
 ];
-export const GMAIL_BACKFILL_LABELS: EGmailLabel[] = [EGmailLabel.SENT, EGmailLabel.INBOX];
 
 export const GOOGLE_SOURCE_TO_SOURCE: Record<EGoogleSource, ESource> = {
   [EGoogleSource.CALENDAR]: ESource.CALENDAR,
@@ -48,6 +50,9 @@ const DRIVE_COMMENTED_FILES_READS = 1;
 const DRIVE_D1_STATEMENTS_PER_PAGE =
   Math.ceil(GOOGLE_DRIVE_PAGE_SIZE / ACTIVITY_INSERT_ROWS) + DRIVE_COMMENTED_FILES_READS;
 const GMAIL_D1_STATEMENTS_PER_PAGE = Math.ceil(GOOGLE_GMAIL_PAGE_SIZE / ACTIVITY_INSERT_ROWS);
+const JIRA_D1_STATEMENTS_PER_PAGE =
+  Math.ceil(JIRA_MAX_ACTIVITIES_PER_PAGE / ACTIVITY_INSERT_ROWS) +
+  Math.ceil(JIRA_MAX_ACTIVITIES_PER_PAGE / ACTIVITY_DELETE_CHUNK);
 export const PULL_D1_STATEMENTS_PER_MESSAGE_BOUND =
   PULL_MAX_PAGES_PER_MESSAGE *
     Math.max(
@@ -55,5 +60,6 @@ export const PULL_D1_STATEMENTS_PER_MESSAGE_BOUND =
       CHAT_D1_STATEMENTS_PER_PAGE,
       DRIVE_D1_STATEMENTS_PER_PAGE,
       GMAIL_D1_STATEMENTS_PER_PAGE,
+      JIRA_D1_STATEMENTS_PER_PAGE,
     ) +
   PULL_FIXED_D1_STATEMENTS;

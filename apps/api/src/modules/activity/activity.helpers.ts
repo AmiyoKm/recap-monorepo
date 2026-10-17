@@ -15,6 +15,7 @@ import {
   DRIVE_UNKNOWN_ACTOR,
   GMAIL_EXCLUDED_LABELS,
   GMAIL_RECIPIENT_SEPARATOR,
+  JIRA_STATUS_CHANGE_DETAIL_SEPARATOR,
   LIKE_ESCAPE_CHARACTER,
   LIKE_WILDCARDS,
 } from "#api/modules/activity/activity.constants";
@@ -38,11 +39,16 @@ import type {
   IChatMapContext,
   IDriveMapContext,
   IGmailMapContext,
+  IJiraAuthor,
+  IJiraBatch,
+  IJiraIssueBase,
+  IJiraMapContext,
 } from "#api/modules/activity/activity.interfaces";
 import type {
   TActivityInsert,
   TActivityListRow,
   TActivityResponse,
+  TDateInput,
 } from "#api/modules/activity/activity.types";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { logError } from "#api/shared/logger/logger.helpers";
@@ -62,6 +68,14 @@ import type {
   TGoogleDriveUser,
   TGoogleGmailMessage,
 } from "#api/shared/providers/google/google.types";
+import {
+  JIRA_MAX_ACTIVITIES_PER_PAGE,
+  JIRA_OVERLAP_MINUTES,
+  JIRA_UNASSIGNED_LABEL,
+} from "#api/shared/providers/jira/jira.constants";
+import { EJiraChangeField } from "#api/shared/providers/jira/jira.enums";
+import { adfToText } from "#api/shared/providers/jira/jira.helpers";
+import type { TJiraHistory, TJiraIssue } from "#api/shared/providers/jira/jira.types";
 import { ROUTES } from "#api/shared/routes/routes.constants";
 
 export function withAuthUser(link: string | null | undefined, email: string): string | null {
@@ -542,4 +556,176 @@ export function toIsoBound(value: string | undefined): string | undefined {
     return undefined;
   }
   return dayjs(value).toISOString();
+}
+
+function toOptionalIso(value: TDateInput): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const parsed = dayjs(value);
+  if (!parsed.isValid()) {
+    return null;
+  }
+  return parsed.toISOString();
+}
+
+function jiraActor(author: IJiraAuthor | null | undefined): string | null {
+  return author?.emailAddress ?? author?.displayName ?? null;
+}
+
+function jiraChangeDraft(
+  issue: IJiraIssueBase,
+  change: { externalId: string; kind: EActivityKind; occurredAt: string; detail: string | null },
+  actor: string | null,
+): IActivityDraft {
+  return {
+    source: ESource.JIRA,
+    kind: change.kind,
+    externalId: change.externalId,
+    occurredAt: change.occurredAt,
+    endsAt: null,
+    title: issue.title,
+    url: ROUTES.JIRA.ISSUE(issue.context.site, issue.key),
+    actor,
+    detail: change.detail,
+  };
+}
+
+function jiraHistoryItemDrafts(history: TJiraHistory, base: IJiraIssueBase): IActivityDraft[] {
+  const occurredAt = toOptionalIso(history.created);
+  if (!(history.id && occurredAt)) {
+    return [];
+  }
+  return (history.items ?? []).flatMap((item) => {
+    const kind = jiraChangeKind(item.field);
+    if (!kind) {
+      return [];
+    }
+    return [
+      jiraChangeDraft(
+        base,
+        {
+          externalId: `${history.id}:${item.field}`,
+          kind,
+          occurredAt,
+          detail: jiraChangeDetail(kind, item),
+        },
+        jiraActor(history.author),
+      ),
+    ];
+  });
+}
+
+function jiraHistoryDrafts(issue: TJiraIssue, base: IJiraIssueBase): IActivityDraft[] {
+  return (issue.changelog?.histories ?? []).flatMap((history) =>
+    jiraHistoryItemDrafts(history, base),
+  );
+}
+
+function jiraChangeKind(field: string | undefined): EActivityKind | null {
+  if (field === EJiraChangeField.STATUS) {
+    return EActivityKind.ISSUE_STATUS_CHANGED;
+  }
+  if (field === EJiraChangeField.ASSIGNEE) {
+    return EActivityKind.ISSUE_ASSIGNED;
+  }
+  return null;
+}
+
+function ownString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  return value;
+}
+
+function jiraChangeDetail(
+  kind: EActivityKind,
+  item: { fromString?: string | null; toString?: string | null },
+): string | null {
+  const to = ownString(item.toString);
+  if (kind === EActivityKind.ISSUE_ASSIGNED) {
+    return to ?? JIRA_UNASSIGNED_LABEL;
+  }
+  return [ownString(item.fromString), to].filter(Boolean).join(JIRA_STATUS_CHANGE_DETAIL_SEPARATOR);
+}
+
+function jiraCommentDrafts(issue: TJiraIssue, base: IJiraIssueBase): IActivityDraft[] {
+  const drafts: IActivityDraft[] = [];
+  for (const comment of issue.fields?.comment?.comments ?? []) {
+    const occurredAt = toOptionalIso(comment.created);
+    if (!(comment.id && occurredAt)) {
+      continue;
+    }
+    drafts.push({
+      ...jiraChangeDraft(
+        base,
+        {
+          externalId: comment.id,
+          kind: EActivityKind.ISSUE_COMMENTED,
+          occurredAt,
+          detail: adfToText(comment.body).slice(0, ACTIVITY_DETAIL_MAX_LENGTH),
+        },
+        jiraActor(comment.author),
+      ),
+      url: ROUTES.JIRA.COMMENT(base.context.site, base.key, comment.id),
+    });
+  }
+  return drafts;
+}
+
+function jiraCreatedDraft(issue: TJiraIssue, base: IJiraIssueBase): IActivityDraft[] {
+  const occurredAt = toOptionalIso(issue.fields?.created);
+  if (!(issue.id && occurredAt)) {
+    return [];
+  }
+  return [
+    jiraChangeDraft(
+      base,
+      {
+        externalId: `created:${issue.id}`,
+        kind: EActivityKind.ISSUE_CREATED,
+        occurredAt,
+        detail: null,
+      },
+      jiraActor(issue.fields?.reporter),
+    ),
+  ];
+}
+
+function mapJiraIssue(issue: TJiraIssue, context: IJiraMapContext): IActivityDraft[] {
+  if (!(issue.id && issue.key)) {
+    logError(
+      EActivityMessages.JIRA_ISSUE_INCOMPLETE,
+      new Error(EActivityMessages.JIRA_ISSUE_INCOMPLETE, {
+        cause: { id: issue.id, key: issue.key },
+      }),
+    );
+    return [];
+  }
+  const summary = issue.fields?.summary ?? ACTIVITY_NO_TITLE;
+  const base = { key: issue.key, title: `${issue.key}: ${summary}`, context };
+  const floor = dayjs(context.since).subtract(JIRA_OVERLAP_MINUTES, "minute");
+  return [
+    ...jiraCreatedDraft(issue, base),
+    ...jiraHistoryDrafts(issue, base),
+    ...jiraCommentDrafts(issue, base),
+  ].filter((draft) => !dayjs(draft.occurredAt).isBefore(floor));
+}
+
+function compareNewestFirst(left: IActivityDraft, right: IActivityDraft): number {
+  return (
+    right.occurredAt.localeCompare(left.occurredAt) ||
+    left.externalId.localeCompare(right.externalId)
+  );
+}
+
+export function mapJiraIssues(issues: TJiraIssue[], context: IJiraMapContext): IJiraBatch {
+  const sorted = issues.flatMap((issue) => mapJiraIssue(issue, context)).sort(compareNewestFirst);
+  const end = context.offset + JIRA_MAX_ACTIVITIES_PER_PAGE;
+  return {
+    drafts: sorted.slice(context.offset, end),
+    removedExternalIds: [],
+    overflow: sorted.length > end,
+  };
 }

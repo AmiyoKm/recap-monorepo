@@ -60,3 +60,6 @@ export const LINEAR_GRANT: IProviderGrant = {
   site: null,
   resourceId: null,
 };
+export const JIRA_SITE = "acme.atlassian.net";
+export const JIRA_CLOUD_ID = "cloud-1";
+export const JIRA_REFRESH_TOKEN = "jira-refresh-1";

@@ -16,6 +16,7 @@ import {
   EChatCursorKey,
   EDriveCursorKey,
   EGmailCursorKey,
+  EJiraCursorKey,
   EPullMessageKey,
 } from "#api/modules/pull/pull.enums";
 import type {
@@ -24,6 +25,7 @@ import type {
   IDriveCursor,
   IGmailCursor,
   IGmailStep,
+  IJiraCursor,
   ISourceCursor,
   ISourcePage,
 } from "#api/modules/pull/pull.interfaces";
@@ -39,6 +41,8 @@ import type {
   IGoogleGmailPage,
 } from "#api/shared/providers/google/google.interfaces";
 import type { TGoogleGmailMessage } from "#api/shared/providers/google/google.types";
+import { JIRA_MAX_ACTIVITIES_PER_PAGE } from "#api/shared/providers/jira/jira.constants";
+import type { IJiraIssuePage } from "#api/shared/providers/jira/jira.interfaces";
 import { OAUTH_SCOPE_SEPARATOR } from "#api/shared/providers/providers.constants";
 import { EProvider } from "#api/shared/providers/providers.enums";
 
@@ -47,6 +51,9 @@ export function isPullableProvider(provider: string): boolean {
 }
 
 export function readableSources(connection: TConnectionRow): ESource[] {
+  if (connection.provider === EProvider.JIRA) {
+    return [ESource.JIRA].filter((source) => READABLE_SOURCES.includes(source));
+  }
   if (connection.provider !== EProvider.GOOGLE || !connection.scopes) {
     return [];
   }
@@ -310,6 +317,42 @@ function readChatCursor(stored: string): IChatCursor | null {
   }
 }
 
+function freshJiraCursor(now: string): IJiraCursor {
+  return {
+    since: dayjs(now).subtract(PULL_FIRST_LOOKBACK_DAYS, "day").toISOString(),
+    startedAt: now,
+    pageToken: null,
+    offset: 0,
+  };
+}
+
+function nonNegativeIntegerOrZero(value: unknown): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    return 0;
+  }
+  return value;
+}
+
+function readJiraCursor(stored: string): IJiraCursor | null {
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    const record = toStringRecord(parsed);
+    const since = record?.[EJiraCursorKey.SINCE];
+    const startedAt = record?.[EJiraCursorKey.STARTED_AT];
+    if (typeof since !== "string" || typeof startedAt !== "string") {
+      return null;
+    }
+    return {
+      since,
+      startedAt,
+      pageToken: stringOrNull(record?.[EJiraCursorKey.PAGE_TOKEN]),
+      offset: nonNegativeIntegerOrZero(record?.[EJiraCursorKey.OFFSET]),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function parseGmailCursor(stored: string | null, now: string): IGmailCursor {
   if (!stored) {
     return freshGmailCursor(now);
@@ -433,4 +476,29 @@ export function nextChatSpacesPageCursor(
 
 export function chatSpaceId(spaceName: string): string {
   return spaceName.split(CHAT_RESOURCE_SEPARATOR).at(-1) ?? spaceName;
+}
+
+export function parseJiraCursor(stored: string | null, now: string): IJiraCursor {
+  if (!stored) {
+    return freshJiraCursor(now);
+  }
+  const cursor = readJiraCursor(stored);
+  if (!cursor) {
+    return freshJiraCursor(now);
+  }
+  if (cursor.pageToken || cursor.offset > 0) {
+    return cursor;
+  }
+  return { since: cursor.startedAt, startedAt: now, pageToken: null, offset: 0 };
+}
+
+export function nextJiraCursor(
+  cursor: IJiraCursor,
+  page: IJiraIssuePage,
+  overflow: boolean,
+): string {
+  if (overflow) {
+    return JSON.stringify({ ...cursor, offset: cursor.offset + JIRA_MAX_ACTIVITIES_PER_PAGE });
+  }
+  return JSON.stringify({ ...cursor, pageToken: page.nextPageToken, offset: 0 });
 }
