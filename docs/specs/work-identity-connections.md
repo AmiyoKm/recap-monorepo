@@ -1,3 +1,5 @@
+> The Google parts of this spec are replaced by `google-connection-sources.md`: one `google` Connection with Sources (Calendar, Gmail, Drive and Chat) replaces `google-calendar` and `google-chat`.
+
 > Spec location: `docs/specs/`. This spec was originally published as issue #6 (child tickets #7, #8, #9) before specs moved into the repo; the file is now the source of truth.
 
 ## Problem Statement
@@ -53,7 +55,7 @@ Users get a Settings page where they build a list of Work Identities. Each Work 
   - `POST /identities/:identityId/connections`: with `{ provider }` returns `{ authorizeUrl }` (OAuth providers); with `{ provider, apiKey }` validates the key with a cheap provider call and connects immediately (Jira additionally requires `{ email, site }` for Basic auth).
   - `DELETE /connections/:connectionId`: disconnects.
   - `GET /api/connect/google/callback`: the single registered Google redirect URI serving both identity-creation and per-source consents, disambiguated by state. Redirects to the web origin's settings page with `?connected=<provider>&email=...` on success or `?error=...` on failure. The web app never sees tokens.
-- Providers, first cut: wired are google-calendar (OAuth), jira and linear (API key). Registered but unwired: slack, google-chat, github.
+- Providers, first cut: wired are google (OAuth, see `google-connection-sources.md`), jira and linear. Registered but unwired: slack, github.
 - Web: a `/settings` route renders one SettingsContainer. Identity cards show avatar and email with per-card connect actions; connections show status chips and a disconnect action. The "Add Google account" dialog shows the authorize URL with a copy button and an "Open Google" button, because the cross-profile flow is the point. Completion is picked up by refetchOnWindowFocus on the identities query; no polling. Domain code follows the api/identity layout (keys factory, queries, mutations); routes import only the container; types flow from the Eden contract.
 
 ## Testing Decisions
@@ -71,7 +73,7 @@ Users get a Settings page where they build a list of Work Identities. Each Work 
 - Connectors: any actual data pulling, digest building or scheduling.
 - Background or scheduled token refresh (lazy refresh at first need only).
 - `needs_reconnect` transitions caused by failed refreshes (the status value exists now; the pull phase will set it).
-- Wiring slack, google-chat and github beyond registry entries.
+- Wiring slack and github beyond registry entries.
 - `pending_approval` and any approval flow.
 - Credential rotation beyond the key-version prefix on ciphertext.
 - Changes to sign-in or Better Auth session handling.
