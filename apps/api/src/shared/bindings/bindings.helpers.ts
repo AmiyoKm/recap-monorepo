@@ -19,5 +19,8 @@ export function readBindings(env: Cloudflare.Env): IBindings {
     get PULL_QUEUE() {
       return requireBinding(EBinding.PULL_QUEUE, env.PULL_QUEUE);
     },
+    get DIGEST_WORKFLOW() {
+      return requireBinding(EBinding.DIGEST_WORKFLOW, env.DIGEST_WORKFLOW);
+    },
   };
 }

@@ -15,6 +15,7 @@ const COMPLETE_ENV_SOURCE: IEnvSource = {
   JIRA_CLIENT_SECRET: "jira-secret",
   LINEAR_CLIENT_ID: "linear-id",
   LINEAR_CLIENT_SECRET: "linear-secret",
+  GOOGLE_GENERATIVE_AI_API_KEY: "gemini-key",
 };
 
 describe("requireEnv", () => {
@@ -44,6 +45,7 @@ describe("loadEnv", () => {
     expect(env.auth.google).toEqual({ clientId: "google-id", clientSecret: "google-secret" });
     expect(env.jira).toEqual({ clientId: "jira-id", clientSecret: "jira-secret" });
     expect(env.linear).toEqual({ clientId: "linear-id", clientSecret: "linear-secret" });
+    expect(env.ai).toEqual({ googleApiKey: "gemini-key" });
   });
 
   test.each(Object.keys(COMPLETE_ENV_SOURCE))("throws without %s", (name) => {

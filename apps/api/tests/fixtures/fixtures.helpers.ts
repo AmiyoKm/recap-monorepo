@@ -4,6 +4,8 @@ import { schema } from "@recap/db";
 
 import { buildOAuthConnectionRow } from "#api/modules/identity/identity.helpers";
 import { auth } from "#api/shared/auth/auth.client";
+import { bindings } from "#api/shared/bindings/bindings.client";
+import type { IDigestWorkflowParams } from "#api/shared/bindings/bindings.interfaces";
 import { cache } from "#api/shared/cache/cache.client";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { db } from "#api/shared/db/db.client";
@@ -42,6 +44,7 @@ export async function createUser(email: string): Promise<string> {
 export async function wipeDatabase(): Promise<void> {
   await db.batch([
     db.delete(schema.activity),
+    db.delete(schema.digest),
     db.delete(schema.digestSetting),
     db.delete(schema.pendingGrant),
     db.delete(schema.rateLimit),
@@ -161,4 +164,58 @@ export async function signUpTestUser(email: string): Promise<{ cookie: string; u
     throw new Error(ETestMessages.SIGN_UP_SET_NO_SESSION_COOKIE);
   }
   return { cookie, userId: response.user.id };
+}
+
+export interface ISeedActivityInput {
+  identityId: string;
+  connectionId: string;
+  title: string;
+  occurredAt: string;
+  source?: string;
+  kind?: string;
+}
+
+export async function seedActivity(input: ISeedActivityInput): Promise<string> {
+  const id = randomUUID();
+  const now = dayjs().toISOString();
+  await db.insert(schema.activity).values({
+    id,
+    identityId: input.identityId,
+    connectionId: input.connectionId,
+    source: input.source ?? "calendar",
+    kind: input.kind ?? "calendar_event",
+    externalId: id,
+    occurredAt: input.occurredAt,
+    endsAt: null,
+    title: input.title,
+    url: `https://items.test/${id}`,
+    actor: null,
+    detail: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return id;
+}
+
+export function installFakeDigestWorkflow(): {
+  created: IDigestWorkflowParams[];
+  restore: () => void;
+} {
+  const created: IDigestWorkflowParams[] = [];
+  const workflow = {
+    create: (options: { params: IDigestWorkflowParams }) => {
+      created.push(options.params);
+      return Promise.resolve();
+    },
+    createBatch: (options: { params: IDigestWorkflowParams }[]) => {
+      created.push(...options.map((entry) => entry.params));
+      return Promise.resolve();
+    },
+  };
+  const original = Object.getOwnPropertyDescriptor(bindings, "DIGEST_WORKFLOW") ?? {};
+  Object.defineProperty(bindings, "DIGEST_WORKFLOW", { get: () => workflow, configurable: true });
+  return {
+    created,
+    restore: () => Object.defineProperty(bindings, "DIGEST_WORKFLOW", original),
+  };
 }

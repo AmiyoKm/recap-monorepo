@@ -8,5 +8,4 @@ export enum ESetupStep {
   ACCOUNT = "account",
   IDENTITY = "identity",
   CONNECTION = "connection",
-  AI_KEY = "ai-key",
 }

@@ -36,5 +36,11 @@ export function loadEnv(source: IEnvSource): IEnv {
       clientId: requireEnv("LINEAR_CLIENT_ID", source["LINEAR_CLIENT_ID"]),
       clientSecret: requireEnv("LINEAR_CLIENT_SECRET", source["LINEAR_CLIENT_SECRET"]),
     },
+    ai: {
+      googleApiKey: requireEnv(
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        source["GOOGLE_GENERATIVE_AI_API_KEY"],
+      ),
+    },
   };
 }

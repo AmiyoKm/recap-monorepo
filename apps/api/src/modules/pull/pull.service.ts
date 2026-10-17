@@ -109,15 +109,23 @@ export abstract class PullService {
   }
 
   static async pullConnection(connectionId: string): Promise<void> {
+    const outcome = await PullService.pullConnectionUpTo(connectionId, PULL_MAX_PAGES_PER_MESSAGE);
+    if (outcome !== EPullOutcome.MORE_PAGES) {
+      return;
+    }
+    await bindings.PULL_QUEUE.send({ connectionId } satisfies IPullMessage);
+  }
+
+  static async pullConnectionUpTo(connectionId: string, maxPages: number): Promise<EPullOutcome> {
     const target = await PullRepository.findPullTarget(connectionId);
     if (!target || target.connection.status !== EConnectionStatus.ACTIVE) {
-      return;
+      return EPullOutcome.COMPLETE;
     }
     if (!isPullableProvider(target.connection.provider)) {
-      return;
+      return EPullOutcome.COMPLETE;
     }
     try {
-      await PullService.pull(target);
+      return await PullService.pull(target, maxPages);
     } catch (error) {
       await PullRepository.saveError(
         connectionId,
@@ -127,18 +135,18 @@ export abstract class PullService {
     }
   }
 
-  private static async pull(target: IPullTarget): Promise<void> {
+  private static async pull(target: IPullTarget, maxPages: number): Promise<EPullOutcome> {
     const { connection } = target;
     const sources = readableSources(connection);
     const hasSources = sources.length > 0;
     if (!hasSources) {
       await PullRepository.saveComplete(connection.id, dayjs().toISOString());
-      return;
+      return EPullOutcome.COMPLETE;
     }
     const token = await PullService.resolveAccessToken(connection);
     if (!token) {
       await PullService.markRejected(connection.id);
-      return;
+      return EPullOutcome.REJECTED;
     }
     const cursors = parseCursorMap(connection.pullCursor);
     const outcome = await PullService.pullPages({
@@ -147,9 +155,10 @@ export abstract class PullService {
       now: dayjs().toISOString(),
       cursors,
       queue: startCycle(sources, cursors),
-      pagesLeft: PULL_MAX_PAGES_PER_MESSAGE,
+      pagesLeft: maxPages,
     });
     await PullService.finish(connection.id, outcome, token);
+    return outcome;
   }
 
   private static async finish(
@@ -162,7 +171,6 @@ export abstract class PullService {
         await PullRepository.saveComplete(connectionId, dayjs().toISOString());
         return;
       case EPullOutcome.MORE_PAGES:
-        await bindings.PULL_QUEUE.send({ connectionId } satisfies IPullMessage);
         return;
       case EPullOutcome.REJECTED:
         await PullService.handleRejected(connectionId, token);

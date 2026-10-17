@@ -20,7 +20,7 @@ const IDENTITY: TIdentity = {
 describe("buildSetupSteps", () => {
   test("marks only the account step done for a new user", () => {
     const steps = buildSetupSteps([]);
-    expect(steps.map((step) => step.done)).toEqual([true, false, false, false]);
+    expect(steps.map((step) => step.done)).toEqual([true, false, false]);
     expect(steps.find((step) => step.step === ESetupStep.CONNECTION)?.available).toBe(false);
   });
 
@@ -29,19 +29,14 @@ describe("buildSetupSteps", () => {
     expect(steps.find((step) => step.step === ESetupStep.IDENTITY)?.done).toBe(true);
     expect(steps.find((step) => step.step === ESetupStep.CONNECTION)?.available).toBe(true);
   });
-
-  test("never marks the AI key step available", () => {
-    const steps = buildSetupSteps([IDENTITY]);
-    expect(steps.find((step) => step.step === ESetupStep.AI_KEY)?.available).toBe(false);
-  });
 });
 
 describe("completedPercent", () => {
   test("rounds the share of done steps", () => {
-    const oneOfFour = 25;
-    const twoOfFour = 50;
-    expect(completedPercent(buildSetupSteps([]))).toBe(oneOfFour);
-    expect(completedPercent(buildSetupSteps([IDENTITY]))).toBe(twoOfFour);
+    const oneOfThree = 33;
+    const twoOfThree = 67;
+    expect(completedPercent(buildSetupSteps([]))).toBe(oneOfThree);
+    expect(completedPercent(buildSetupSteps([IDENTITY]))).toBe(twoOfThree);
     expect(completedPercent([])).toBe(0);
   });
 });

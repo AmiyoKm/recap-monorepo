@@ -1,6 +1,7 @@
 {
   "name": "@recap/api",
   "dependencies": {
+    "@ai-sdk/google": "^4.0.99",
     "@better-auth/drizzle-adapter": "^1.7.7",
     "@elysiajs/cors": "^1.4.2",
     "@elysiajs/openapi": "^1.4.16",
@@ -10,13 +11,15 @@
     "@googleapis/driveactivity": "^11.0.1",
     "@linear/sdk": "^97.1.0",
     "@recap/db": "workspace:*",
+    "ai": "^7.0.143",
     "arctic": "^3.7.0",
     "better-auth": "catalog:",
     "dayjs": "catalog:",
     "drizzle-orm": "catalog:",
     "elysia": "catalog:",
     "google-auth-library": "^11.2.0",
-    "jira.js": "^6.3.0"
+    "jira.js": "^6.3.0",
+    "zod": "^4.6.7"
   },
   "exports": {
     ".": "./src/app.types.ts"

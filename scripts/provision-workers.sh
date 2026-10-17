@@ -193,6 +193,7 @@ build_env_file() {
   [[ -n "$JIRA_CLIENT_SECRET" ]] && printf 'JIRA_CLIENT_SECRET=%s\n' "$JIRA_CLIENT_SECRET"
   [[ -n "$LINEAR_CLIENT_ID" ]] && printf 'LINEAR_CLIENT_ID=%s\n' "$LINEAR_CLIENT_ID"
   [[ -n "$LINEAR_CLIENT_SECRET" ]] && printf 'LINEAR_CLIENT_SECRET=%s\n' "$LINEAR_CLIENT_SECRET"
+  [[ -n "$GOOGLE_GENERATIVE_AI_API_KEY" ]] && printf 'GOOGLE_GENERATIVE_AI_API_KEY=%s\n' "$GOOGLE_GENERATIVE_AI_API_KEY"
   return 0
 }
 
@@ -361,6 +362,7 @@ else
   ask_secret JIRA_CLIENT_SECRET "Jira OAuth client secret (Enter to leave empty):" || JIRA_CLIENT_SECRET=""
   ask_secret LINEAR_CLIENT_ID "Linear OAuth client ID (Enter to leave empty):" || LINEAR_CLIENT_ID=""
   ask_secret LINEAR_CLIENT_SECRET "Linear OAuth client secret (Enter to leave empty):" || LINEAR_CLIENT_SECRET=""
+  ask_secret GOOGLE_GENERATIVE_AI_API_KEY "Gemini API key for the Digest (paid tier in prod, Enter to leave empty):" || GOOGLE_GENERATIVE_AI_API_KEY=""
   set_repo_var APP_DOMAIN "$APP_DOMAIN"
   set_repo_var CLOUDFLARE_ACCOUNT_ID "$CLOUDFLARE_ACCOUNT_ID"
   for deploy_env in dev prod; do

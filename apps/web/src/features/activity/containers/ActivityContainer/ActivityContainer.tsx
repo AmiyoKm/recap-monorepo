@@ -25,6 +25,8 @@ import { ActivityPagination } from "@/features/activity/components/ActivityPagin
 import { ActivityTable } from "@/features/activity/components/ActivityTable";
 import {
   ACTIVITY_CLEAR_FILTERS,
+  ACTIVITY_ITEM_FILTER,
+  ACTIVITY_ITEM_FILTER_CLEAR,
   ACTIVITY_LOAD_FAILED,
   ACTIVITY_LOADING,
   ACTIVITY_RETRY,
@@ -55,6 +57,16 @@ export function ActivityContainer({ search, onSearchChange }: IActivityContainer
           identities={identities.data ?? []}
           onChange={changeSearch}
         />
+        {search.id && (
+          <Alert>
+            <AlertTitle>{ACTIVITY_ITEM_FILTER}</AlertTitle>
+            <AlertAction>
+              <Button variant="outline" size="sm" onClick={() => changeSearch({ id: undefined })}>
+                {ACTIVITY_ITEM_FILTER_CLEAR}
+              </Button>
+            </AlertAction>
+          </Alert>
+        )}
         {activities.isPending && (
           <Skeleton aria-label={ACTIVITY_LOADING} className="h-24 w-full rounded-xl" />
         )}

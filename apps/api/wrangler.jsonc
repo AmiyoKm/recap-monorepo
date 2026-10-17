@@ -34,7 +34,10 @@
         "consumers": [
           { "queue": "recap-pull-dev", "max_batch_size": 1, "max_concurrency": 1, "max_retries": 3 }
         ]
-      }
+      },
+      "workflows": [
+        { "name": "recap-digest-dev", "binding": "DIGEST_WORKFLOW", "class_name": "DigestWorkflow" }
+      ]
     },
     "prod": {
       "name": "recap-api-prod",
@@ -62,7 +65,14 @@
             "max_retries": 3
           }
         ]
-      }
+      },
+      "workflows": [
+        {
+          "name": "recap-digest-prod",
+          "binding": "DIGEST_WORKFLOW",
+          "class_name": "DigestWorkflow"
+        }
+      ]
     }
   }
 }

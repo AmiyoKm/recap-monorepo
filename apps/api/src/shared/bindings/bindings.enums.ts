@@ -6,4 +6,5 @@ export enum EBinding {
   DB = "DB",
   CACHE = "CACHE",
   PULL_QUEUE = "PULL_QUEUE",
+  DIGEST_WORKFLOW = "DIGEST_WORKFLOW",
 }
