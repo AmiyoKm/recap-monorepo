@@ -2,6 +2,7 @@ import type { EGmailLabel, EGoogleSource } from "#api/shared/providers/google/go
 import type {
   TGoogleCalendarEvent,
   TGoogleChatMessage,
+  TGoogleDriveActivity,
   TGoogleGmailMessage,
 } from "#api/shared/providers/google/google.types";
 import type { IProviderTokens } from "#api/shared/providers/providers.interfaces";
@@ -99,5 +100,16 @@ export interface IGoogleChatMessagesInput {
 
 export interface IGoogleChatMessagesPage {
   messages: TGoogleChatMessage[];
+  nextPageToken: string | null;
+}
+
+export interface IGoogleDriveReadInput {
+  accessToken: string;
+  timeMin: string;
+  pageToken: string | null;
+}
+
+export interface IGoogleDrivePage {
+  activities: TGoogleDriveActivity[];
   nextPageToken: string | null;
 }

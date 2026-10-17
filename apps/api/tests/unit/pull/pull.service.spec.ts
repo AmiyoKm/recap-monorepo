@@ -19,12 +19,15 @@ import type {
   IGoogleChatMessagesPage,
   IGoogleChatSpace,
   IGoogleChatSpacesPage,
+  IGoogleDrivePage,
+  IGoogleDriveReadInput,
   IGoogleGmailPage,
 } from "#api/shared/providers/google/google.interfaces";
 import { GoogleService } from "#api/shared/providers/google/google.service";
 import type {
   TGoogleCalendarEvent,
   TGoogleChatMessage,
+  TGoogleDriveActivity,
   TGoogleGmailMessage,
 } from "#api/shared/providers/google/google.types";
 import {
@@ -32,6 +35,7 @@ import {
   CALENDAR_READ_SCOPE,
   CHAT_MESSAGES_SCOPE,
   CHAT_SPACES_SCOPE,
+  DRIVE_ACTIVITY_SCOPE,
   GMAIL_METADATA_SCOPE,
 } from "#api-tests/fixtures/fixtures.constants";
 import {
@@ -391,6 +395,103 @@ describe("PullService.pullConnection for Gmail", () => {
     expect((await connectionRow(seeded.connectionId))?.status).toBe(
       EConnectionStatus.NEEDS_RECONNECT,
     );
+  });
+});
+
+const DRIVE_ME = { user: { knownUser: { isCurrentUser: true, personName: "people/me" } } };
+
+function driveCreated(fileId: string, timestamp: string): TGoogleDriveActivity {
+  return {
+    timestamp,
+    actors: [DRIVE_ME],
+    targets: [{ driveItem: { name: `items/${fileId}`, title: fileId, owner: DRIVE_ME } }],
+    primaryActionDetail: { create: { new: {} } },
+  };
+}
+
+function drivePage(
+  activities: TGoogleDriveActivity[],
+  nextPageToken: string | null = null,
+): IGoogleDrivePage {
+  return { activities, nextPageToken };
+}
+
+describe("PullService.pullConnection for Drive", () => {
+  beforeEach(async () => {
+    await grantOnly(seeded.connectionId, DRIVE_ACTIVITY_SCOPE);
+  });
+
+  test("first pull reads 7 days back and saves the files with authuser links", async () => {
+    const list = spyOn(GoogleService, "listDriveActivity").mockResolvedValue(
+      drivePage([driveCreated("f1", dayjs().subtract(1, "day").toISOString())]),
+    );
+
+    await PullService.pullConnection(seeded.connectionId);
+
+    const input: IGoogleDriveReadInput | undefined = list.mock.calls[0]?.[0];
+    expect(input?.pageToken).toBeNull();
+    expect(input?.accessToken).toBe("fresh-access");
+    expect(
+      dayjs().subtract(LOOKBACK_DAYS, "day").diff(dayjs(input?.timeMin), "minute"),
+    ).toBeLessThan(MINUTES_TOLERANCE);
+    const rows = await activityRows(seeded.connectionId);
+    expect(rows.length).toBe(1);
+    expect(rows[0]?.source).toBe("drive");
+    expect(rows[0]?.url).toContain(`authuser=${encodeURIComponent(CALENDAR_EMAIL)}`);
+    expect((await connectionRow(seeded.connectionId))?.lastPulledAt).not.toBeNull();
+  });
+
+  test("reads from just before the last pull started on the next pull", async () => {
+    const list = spyOn(GoogleService, "listDriveActivity").mockResolvedValue(drivePage([]));
+
+    await PullService.pullConnection(seeded.connectionId);
+    await PullService.pullConnection(seeded.connectionId);
+
+    const first = dayjs(list.mock.calls[0]?.[0].timeMin);
+    const second = dayjs(list.mock.calls[1]?.[0].timeMin);
+    expect(second.isAfter(first)).toBe(true);
+  });
+
+  test("keeps the page token and the start time across messages, then upserts", async () => {
+    const stamp = dayjs().subtract(1, "day").toISOString();
+    const list = spyOn(GoogleService, "listDriveActivity")
+      .mockResolvedValueOnce(drivePage([driveCreated("f1", stamp)], "page-2"))
+      .mockResolvedValueOnce(drivePage([driveCreated("f1", stamp), driveCreated("f2", stamp)]));
+
+    await PullService.pullConnection(seeded.connectionId);
+    expect(queue.sent).toEqual([{ connectionId: seeded.connectionId }]);
+    await PullService.pullConnection(seeded.connectionId);
+
+    expect(list.mock.calls[1]?.[0].pageToken).toBe("page-2");
+    expect(list.mock.calls[1]?.[0].timeMin).toBe(list.mock.calls[0]?.[0].timeMin);
+    expect((await activityRows(seeded.connectionId)).length).toBe(2);
+  });
+
+  test("marks the Connection needs_reconnect when Google rejects the access token", async () => {
+    spyOn(GoogleService, "listDriveActivity").mockResolvedValue(null);
+
+    await PullService.pullConnection(seeded.connectionId);
+
+    expect((await connectionRow(seeded.connectionId))?.status).toBe(
+      EConnectionStatus.NEEDS_RECONNECT,
+    );
+  });
+});
+
+describe("PullService.pullConnection with Calendar and Drive", () => {
+  test("reads each Source in its own message, then stops", async () => {
+    await grantOnly(seeded.connectionId, [CALENDAR_READ_SCOPE, DRIVE_ACTIVITY_SCOPE].join(" "));
+    const calendar = spyOn(GoogleService, "listCalendarEvents").mockResolvedValue(page([]));
+    const drive = spyOn(GoogleService, "listDriveActivity").mockResolvedValue(drivePage([]));
+
+    await PullService.pullConnection(seeded.connectionId);
+    expect(queue.sent).toEqual([{ connectionId: seeded.connectionId }]);
+    await PullService.pullConnection(seeded.connectionId);
+
+    expect(calendar).toHaveBeenCalledTimes(1);
+    expect(drive).toHaveBeenCalledTimes(1);
+    expect(queue.sent.length).toBe(1);
+    expect((await connectionRow(seeded.connectionId))?.lastPulledAt).not.toBeNull();
   });
 });
 

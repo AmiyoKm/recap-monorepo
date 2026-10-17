@@ -9,6 +9,10 @@ import {
   CALENDAR_FALLBACK_TIME_ZONE,
   CHAT_RESOURCE_SEPARATOR,
   CHAT_USER_PREFIX,
+  DRIVE_COMMENT_SUBTYPE_DETAIL,
+  DRIVE_EXTERNAL_ID_SEPARATOR,
+  DRIVE_FILE_PREFIX,
+  DRIVE_UNKNOWN_ACTOR,
   GMAIL_EXCLUDED_LABELS,
   GMAIL_RECIPIENT_SEPARATOR,
   LIKE_ESCAPE_CHARACTER,
@@ -22,6 +26,8 @@ import {
   EChatAnnotationType,
   EChatMentionType,
   EChatWebPath,
+  EDriveCommentDetail,
+  EDriveExternalIdPrefix,
   ESource,
 } from "#api/modules/activity/activity.enums";
 import type {
@@ -30,6 +36,7 @@ import type {
   IActivityWriteInput,
   ICalendarMapContext,
   IChatMapContext,
+  IDriveMapContext,
   IGmailMapContext,
 } from "#api/modules/activity/activity.interfaces";
 import type {
@@ -39,14 +46,20 @@ import type {
 } from "#api/modules/activity/activity.types";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { logError } from "#api/shared/logger/logger.helpers";
+import { GOOGLE_DRIVE_ITEM_PREFIX } from "#api/shared/providers/google/google.constants";
 import {
   EGmailHeader,
   EGmailLabel,
+  EGoogleDriveCommentSubtype,
   EGoogleUrlParam,
 } from "#api/shared/providers/google/google.enums";
 import type {
   TGoogleCalendarEvent,
   TGoogleChatMessage,
+  TGoogleDriveActivity,
+  TGoogleDriveActor,
+  TGoogleDriveItem,
+  TGoogleDriveUser,
   TGoogleGmailMessage,
 } from "#api/shared/providers/google/google.types";
 import { ROUTES } from "#api/shared/routes/routes.constants";
@@ -285,12 +298,169 @@ function toChatDraft(message: TGoogleChatMessage, context: IChatMapContext): IAc
   };
 }
 
+function isCurrentUserRef(user: TGoogleDriveUser | undefined): boolean {
+  return user?.knownUser?.isCurrentUser === true;
+}
+
+function isCurrentUser(actor: TGoogleDriveActor | undefined): boolean {
+  return isCurrentUserRef(actor?.user);
+}
+
+function isOwnedByCurrentUser(item: TGoogleDriveItem | undefined): boolean {
+  return isCurrentUserRef(item?.owner?.user);
+}
+
+function driveActorId(actor: TGoogleDriveActor | undefined): string {
+  return actor?.user?.knownUser?.personName ?? DRIVE_UNKNOWN_ACTOR;
+}
+
+function driveFileId(item: TGoogleDriveItem | undefined): string | null {
+  const name = item?.name;
+  if (!name?.startsWith(GOOGLE_DRIVE_ITEM_PREFIX)) {
+    return null;
+  }
+  return name.slice(GOOGLE_DRIVE_ITEM_PREFIX.length);
+}
+
+function driveExternalId(prefix: EDriveExternalIdPrefix, parts: string[]): string {
+  return [prefix, ...parts].join(DRIVE_EXTERNAL_ID_SEPARATOR);
+}
+
+function driveActorEmail(
+  actor: TGoogleDriveActor | undefined,
+  context: IDriveMapContext,
+): string | null {
+  if (!isCurrentUser(actor)) {
+    return null;
+  }
+  return context.identityEmail;
+}
+
+function toDriveFileDraft(
+  activity: TGoogleDriveActivity,
+  context: IDriveMapContext,
+  kind: EActivityKind.DRIVE_FILE_CREATED | EActivityKind.DRIVE_FILE_EDITED,
+): IActivityDraft | null {
+  const item = activity.targets?.[0]?.driveItem;
+  const actor = activity.actors?.[0];
+  const fileId = driveFileId(item);
+  const isCreated = kind === EActivityKind.DRIVE_FILE_CREATED;
+  if (!(fileId && activity.timestamp && isOwnedByCurrentUser(item))) {
+    return null;
+  }
+  if (isCreated !== isCurrentUser(actor)) {
+    return null;
+  }
+  const url = withAuthUser(ROUTES.GOOGLE.DRIVE_OPEN(fileId), context.identityEmail);
+  if (!url) {
+    return null;
+  }
+  const prefix = DRIVE_FILE_PREFIX[kind];
+  return {
+    source: ESource.DRIVE,
+    kind,
+    externalId: driveExternalId(prefix, [fileId, activity.timestamp, driveActorId(actor)]),
+    occurredAt: dayjs.utc(activity.timestamp).toISOString(),
+    endsAt: null,
+    title: item?.title ?? ACTIVITY_NO_TITLE,
+    url,
+    actor: driveActorEmail(actor, context),
+    detail: null,
+  };
+}
+
 export function mapChatMessages(
   messages: TGoogleChatMessage[],
   context: IChatMapContext,
 ): IActivityBatch {
   const drafts = messages.flatMap((message) => toChatDraft(message, context) ?? []);
   return { drafts, removedExternalIds: [] };
+}
+
+function driveCommentDetail(
+  activity: TGoogleDriveActivity,
+  subtype: EGoogleDriveCommentSubtype,
+): EDriveCommentDetail {
+  const mentioned = activity.primaryActionDetail?.comment?.mentionedUsers ?? [];
+  if (mentioned.some(isCurrentUserRef)) {
+    return EDriveCommentDetail.MENTION;
+  }
+  return DRIVE_COMMENT_SUBTYPE_DETAIL[subtype];
+}
+
+function toDriveCommentDraft(
+  activity: TGoogleDriveActivity,
+  context: IDriveMapContext,
+): IActivityDraft | null {
+  const comment = activity.primaryActionDetail?.comment;
+  const subtype = Object.values(EGoogleDriveCommentSubtype).find(
+    (entry) => entry === comment?.post?.subtype,
+  );
+  const target = activity.targets?.[0]?.fileComment;
+  const actor = activity.actors?.[0];
+  const fileId = driveFileId(target?.parent);
+  if (!(subtype && fileId && activity.timestamp)) {
+    return null;
+  }
+  const detail = driveCommentDetail(activity, subtype);
+  const isRelevant =
+    detail === EDriveCommentDetail.MENTION ||
+    isCurrentUser(actor) ||
+    isOwnedByCurrentUser(target?.parent);
+  if (!isRelevant) {
+    return null;
+  }
+  const url = withAuthUser(target?.linkToDiscussion, context.identityEmail);
+  if (!url) {
+    logError(EActivityMessages.ITEM_WITHOUT_URL_DROPPED, new Error(fileId));
+    return null;
+  }
+  return {
+    source: ESource.DRIVE,
+    kind: EActivityKind.DRIVE_COMMENT,
+    externalId: driveExternalId(EDriveExternalIdPrefix.COMMENT, [
+      fileId,
+      activity.timestamp,
+      driveActorId(actor),
+    ]),
+    occurredAt: dayjs.utc(activity.timestamp).toISOString(),
+    endsAt: null,
+    title: target?.parent?.title ?? ACTIVITY_NO_TITLE,
+    url,
+    actor: driveActorEmail(actor, context),
+    detail,
+  };
+}
+
+function toDriveDraft(
+  activity: TGoogleDriveActivity,
+  context: IDriveMapContext,
+): IActivityDraft | null {
+  const detail = activity.primaryActionDetail;
+  if (detail?.create) {
+    return toDriveFileDraft(activity, context, EActivityKind.DRIVE_FILE_CREATED);
+  }
+  if (detail?.edit) {
+    return toDriveFileDraft(activity, context, EActivityKind.DRIVE_FILE_EDITED);
+  }
+  if (detail?.comment) {
+    return toDriveCommentDraft(activity, context);
+  }
+  return null;
+}
+
+export function mapDriveActivities(
+  activities: TGoogleDriveActivity[],
+  context: IDriveMapContext,
+): IActivityBatch {
+  const drafts = new Map<string, IActivityDraft>();
+  for (const activity of activities) {
+    const draft = toDriveDraft(activity, context);
+    if (draft) {
+      drafts.set(draft.externalId, draft);
+    }
+  }
+  return { drafts: [...drafts.values()], removedExternalIds: [] };
 }
 
 function toKnownValue<TValue extends string>(values: TValue[], value: string): TValue {

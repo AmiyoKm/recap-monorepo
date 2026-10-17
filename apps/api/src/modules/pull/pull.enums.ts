@@ -21,6 +21,12 @@ export enum ECalendarCursorKey {
   STARTED_AT = "startedAt",
 }
 
+export enum EDriveCursorKey {
+  TIME_MIN = "timeMin",
+  PAGE_TOKEN = "pageToken",
+  STARTED_AT = "startedAt",
+}
+
 export enum EPullOutcome {
   COMPLETE = "complete",
   MORE_PAGES = "more_pages",

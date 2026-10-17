@@ -34,6 +34,10 @@ export interface IActivityListFilters {
   pageSize: number;
 }
 
+export interface IDriveMapContext {
+  identityEmail: string;
+}
+
 export interface ICalendarMapContext {
   identityEmail: string;
   timeZone: string | null;

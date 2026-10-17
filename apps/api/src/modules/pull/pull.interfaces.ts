@@ -34,6 +34,12 @@ export interface ICalendarCursor {
   startedAt: string;
 }
 
+export interface IDriveCursor {
+  timeMin: string;
+  pageToken: string | null;
+  startedAt: string;
+}
+
 export interface IPullState {
   target: IPullTarget;
   accessToken: string;

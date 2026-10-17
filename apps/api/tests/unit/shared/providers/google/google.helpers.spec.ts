@@ -6,6 +6,7 @@ import {
   calendarRange,
   chatMessageFilter,
   deniedSources,
+  driveActivityFilter,
   grantedSources,
   hasStatus,
   historyMessageIds,
@@ -198,6 +199,14 @@ describe("chatMessageFilter", () => {
   test("filters messages created after the time", () => {
     expect(chatMessageFilter("2026-10-10T00:00:00.000Z")).toBe(
       'createTime > "2026-10-10T00:00:00.000Z"',
+    );
+  });
+});
+
+describe("driveActivityFilter", () => {
+  test("filters by time and the create, edit and comment actions", () => {
+    expect(driveActivityFilter("2026-10-10T00:00:00.000Z")).toBe(
+      'time >= "2026-10-10T00:00:00.000Z" AND detail.action_detail_case:(CREATE EDIT COMMENT)',
     );
   });
 });

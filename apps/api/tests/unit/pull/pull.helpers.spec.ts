@@ -9,12 +9,14 @@ import {
   isPullableProvider,
   nextCalendarCursor,
   nextChatSpacesPageCursor,
+  nextDriveCursor,
   nextGmailBackfillStep,
   nextGmailHistoryStep,
   orderSources,
   parseCalendarCursor,
   parseChatCursor,
   parseCursorMap,
+  parseDriveCursor,
   parseGmailCursor,
   readableSources,
   remainingSources,
@@ -140,6 +142,7 @@ describe("source selection", () => {
     expect(readableSources(connection({}))).toEqual([
       ESource.CALENDAR,
       ESource.GMAIL,
+      ESource.DRIVE,
       ESource.CHAT,
     ]);
     expect(readableSources(connection({ scopes: "openid email" }))).toEqual([]);
@@ -378,5 +381,67 @@ describe("chat cursor", () => {
     expect(
       chatSpacesToRead(spaces, { ...fresh, resumeSpace: "spaces/b", pageToken: "t" })[0]?.id,
     ).toBe("spaces/b");
+  });
+});
+
+describe("drive cursor", () => {
+  const FIRST_TIME_MIN = "2026-10-10T08:00:00.000Z";
+
+  test.each([
+    ["no stored cursor", null],
+    ["a stored cursor that is not json", "not-json"],
+    ["a stored cursor with no time", JSON.stringify({ pageToken: "p" })],
+  ])("starts from 7 days back for %s", (_label, stored) => {
+    expect(parseDriveCursor(stored, NOW)).toEqual({
+      timeMin: FIRST_TIME_MIN,
+      pageToken: null,
+      startedAt: NOW,
+    });
+  });
+
+  test("keeps the time and start of a run that has a page token", () => {
+    const stored = JSON.stringify({
+      timeMin: "2026-10-16T00:00:00.000Z",
+      pageToken: "page-2",
+      startedAt: "2026-10-17T07:00:00.000Z",
+    });
+
+    expect(parseDriveCursor(stored, NOW)).toEqual({
+      timeMin: "2026-10-16T00:00:00.000Z",
+      pageToken: "page-2",
+      startedAt: "2026-10-17T07:00:00.000Z",
+    });
+  });
+
+  test("starts a new run from the saved time when there is no page token", () => {
+    const stored = JSON.stringify({
+      timeMin: "2026-10-16T00:00:00.000Z",
+      pageToken: null,
+      startedAt: "2026-10-17T07:00:00.000Z",
+    });
+
+    expect(parseDriveCursor(stored, NOW)).toEqual({
+      timeMin: "2026-10-16T00:00:00.000Z",
+      pageToken: null,
+      startedAt: NOW,
+    });
+  });
+
+  test("keeps the run open while the next page token exists", () => {
+    const cursor = { timeMin: FIRST_TIME_MIN, pageToken: null, startedAt: NOW };
+
+    expect(
+      JSON.parse(nextDriveCursor(cursor, { activities: [], nextPageToken: "page-2" })),
+    ).toEqual({ ...cursor, pageToken: "page-2" });
+  });
+
+  test("moves the time to 60 minutes before the run start on the last page", () => {
+    const cursor = { timeMin: FIRST_TIME_MIN, pageToken: "page-2", startedAt: NOW };
+
+    expect(JSON.parse(nextDriveCursor(cursor, { activities: [], nextPageToken: null }))).toEqual({
+      timeMin: "2026-10-17T07:00:00.000Z",
+      pageToken: null,
+      startedAt: NOW,
+    });
   });
 });
