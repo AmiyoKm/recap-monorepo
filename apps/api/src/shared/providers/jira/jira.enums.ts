@@ -13,3 +13,7 @@ export enum EJiraAdfNode {
   HARD_BREAK = "hardBreak",
   MENTION = "mention",
 }
+
+export enum EJiraCommentsOrder {
+  CREATED = "created",
+}

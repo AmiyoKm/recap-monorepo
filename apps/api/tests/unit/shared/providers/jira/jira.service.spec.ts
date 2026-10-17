@@ -5,6 +5,7 @@ import { EJiraMessages } from "#api/shared/providers/jira/jira.enums";
 import { JiraService } from "#api/shared/providers/jira/jira.service";
 import {
   HTTP_BAD_REQUEST,
+  HTTP_NOT_FOUND,
   HTTP_OK,
   HTTP_UNAUTHORIZED,
 } from "#api-tests/fixtures/fixtures.constants";
@@ -174,5 +175,65 @@ describe("JiraService.searchIssues", () => {
     stubFetch(HTTP_SERVER_ERROR, { message: "boom" });
 
     await expect(JiraService.searchIssues({ ...input, pageToken: null })).rejects.toThrow();
+  });
+});
+
+describe("JiraService.readIssuePages", () => {
+  const input = {
+    accessToken: "jira-access",
+    cloudId: "cloud-1",
+    issueKey: "ERP-1",
+    summary: "Sum",
+    commentsStartAt: 20 as number | null,
+    changelogStartAt: 100 as number | null,
+  };
+
+  test("reads the comment and changelog pages from their offsets", async () => {
+    stubFetchSequence([
+      { status: HTTP_OK, body: { startAt: 20, total: 90, comments: [{ id: "c-21" }] } },
+      {
+        status: HTTP_OK,
+        body: { startAt: 100, maxResults: 50, isLast: true, total: 101, values: [{ id: "h-101" }] },
+      },
+    ]);
+
+    const read = await JiraService.readIssuePages(input);
+
+    expect(read?.pages?.comments).toEqual({ items: [{ id: "c-21" }], nextStartAt: 21 });
+    expect(read?.pages?.histories).toEqual({ items: [{ id: "h-101" }], nextStartAt: null });
+    const urls = recordedRequests.map((request) => new URL(request.url));
+    const comments = urls.find((url) => url.pathname.endsWith("/issue/ERP-1/comment"));
+    const changelog = urls.find((url) => url.pathname.endsWith("/issue/ERP-1/changelog"));
+    expect(comments?.searchParams.get("startAt")).toBe("20");
+    expect(comments?.searchParams.get("maxResults")).toBe("50");
+    expect(changelog?.searchParams.get("startAt")).toBe("100");
+    expect(changelog?.searchParams.get("maxResults")).toBe("50");
+  });
+
+  test("skips a part that has no offset", async () => {
+    stubFetch(HTTP_OK, { startAt: 20, total: 20, comments: [] });
+
+    const read = await JiraService.readIssuePages({ ...input, changelogStartAt: null });
+
+    expect(read?.pages?.histories).toEqual({ items: [], nextStartAt: null });
+    expect(recordedRequests.length).toBe(1);
+  });
+
+  test("returns no pages when the issue is gone", async () => {
+    stubFetch(HTTP_NOT_FOUND, { errorMessages: ["Issue does not exist"] });
+
+    expect(await JiraService.readIssuePages(input)).toEqual({ pages: null });
+  });
+
+  test("returns null when Atlassian rejects the access token", async () => {
+    stubFetch(HTTP_UNAUTHORIZED, { message: "Unauthorized" });
+
+    expect(await JiraService.readIssuePages(input)).toBeNull();
+  });
+
+  test("throws on other failures", async () => {
+    stubFetch(HTTP_SERVER_ERROR, { message: "boom" });
+
+    await expect(JiraService.readIssuePages(input)).rejects.toThrow();
   });
 });

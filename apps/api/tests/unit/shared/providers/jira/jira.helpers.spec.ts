@@ -6,6 +6,8 @@ import { EJiraMessages } from "#api/shared/providers/jira/jira.enums";
 import {
   adfToText,
   buildJiraJql,
+  jiraPendingCursor,
+  nextJiraStartAt,
   normalizeJiraSite,
   toJiraAccount,
   toJiraSite,
@@ -126,5 +128,48 @@ describe("adfToText", () => {
 
   test.each([null, undefined, "text", {}])("returns an empty string for %p", (body) => {
     expect(adfToText(body)).toBe("");
+  });
+});
+
+describe("nextJiraStartAt", () => {
+  test.each([
+    { startAt: 0, returned: 20, total: 45, expected: 20 },
+    { startAt: 20, returned: 20, total: 45, expected: 40 },
+    { startAt: 40, returned: 5, total: 45, expected: null },
+    { startAt: 0, returned: 20, total: 20, expected: null },
+    { startAt: 0, returned: 20, total: undefined, expected: null },
+    { startAt: 20, returned: 0, total: 45, expected: null },
+  ])("starts at $expected after $returned of $total from $startAt", ({ expected, ...page }) => {
+    expect(nextJiraStartAt(page)).toBe(expected);
+  });
+});
+
+describe("jiraPendingCursor", () => {
+  test("queues the unread comments and changelog pages of an issue", () => {
+    const issue = {
+      id: "1",
+      key: "ERP-1",
+      fields: { summary: "Sum", comment: { comments: [{ id: "c" }], total: 30 } },
+      changelog: { histories: [{ id: "h" }, { id: "i" }], total: 150 },
+    };
+
+    expect(jiraPendingCursor(issue)).toEqual({
+      issueKey: "ERP-1",
+      summary: "Sum",
+      commentsStartAt: 1,
+      changelogStartAt: 2,
+    });
+  });
+
+  test("returns null when the search result holds every comment and history", () => {
+    const issue = {
+      id: "1",
+      key: "ERP-1",
+      fields: { comment: { comments: [{ id: "c" }], total: 1 } },
+      changelog: { histories: [{ id: "h" }], total: 1 },
+    };
+
+    expect(jiraPendingCursor(issue)).toBeNull();
+    expect(jiraPendingCursor({ id: "2" })).toBeNull();
   });
 });

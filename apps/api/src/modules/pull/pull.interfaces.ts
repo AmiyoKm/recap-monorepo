@@ -2,6 +2,7 @@ import type { ESource } from "#api/modules/activity/activity.enums";
 import type { IActivityBatch } from "#api/modules/activity/activity.interfaces";
 import type { TConnectionRow } from "#api/modules/pull/pull.types";
 import type { EGmailLabel } from "#api/shared/providers/google/google.enums";
+import type { IJiraPendingCursor } from "#api/shared/providers/jira/jira.interfaces";
 import type { ILinearNestedCursor } from "#api/shared/providers/linear/linear.interfaces";
 
 export interface IPullTarget {
@@ -46,6 +47,7 @@ export interface IJiraCursor {
   startedAt: string;
   pageToken: string | null;
   offset: number;
+  pending: IJiraPendingCursor[];
 }
 
 export interface ILinearCursor {
