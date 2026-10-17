@@ -10,7 +10,6 @@ import {
   CALENDAR_FALLBACK_TIME_ZONE,
   GMAIL_EXCLUDED_LABELS,
   GMAIL_RECIPIENT_SEPARATOR,
-  GMAIL_THREAD_HASH_PREFIX,
   LIKE_ESCAPE_CHARACTER,
   LIKE_WILDCARDS,
 } from "#api/modules/activity/activity.constants";
@@ -158,13 +157,6 @@ function gmailRecipients(message: TGoogleGmailMessage): string | null {
   return recipients.join(GMAIL_RECIPIENT_SEPARATOR).slice(0, ACTIVITY_DETAIL_MAX_LENGTH);
 }
 
-function gmailThreadUrl(email: string, threadId: string): string {
-  const url = new URL(ROUTES.GOOGLE.GMAIL_WEB);
-  url.searchParams.set(AUTHUSER_PARAM, email);
-  url.hash = `${GMAIL_THREAD_HASH_PREFIX}${threadId}`;
-  return url.toString();
-}
-
 function toGmailDraft(
   message: TGoogleGmailMessage,
   kind: EActivityKind,
@@ -183,7 +175,7 @@ function toGmailDraft(
       0,
       ACTIVITY_TITLE_MAX_LENGTH,
     ),
-    url: gmailThreadUrl(context.identityEmail, message.threadId),
+    url: ROUTES.GOOGLE.GMAIL_THREAD(context.identityEmail, message.threadId),
     actor: gmailHeader(message, EGmailHeader.FROM)?.slice(0, ACTIVITY_ACTOR_MAX_LENGTH) ?? null,
     detail: gmailRecipients(message),
   };
@@ -203,7 +195,9 @@ export function mapGmailMessages(
     if (!draft) {
       logError(
         EActivityMessages.ITEM_INCOMPLETE_DROPPED,
-        new Error(message.id ?? message.threadId ?? undefined),
+        new Error(EActivityMessages.ITEM_INCOMPLETE_DROPPED, {
+          cause: message.id ?? message.threadId ?? undefined,
+        }),
       );
       continue;
     }

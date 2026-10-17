@@ -15,6 +15,7 @@ import type {
   IGmailCursor,
   IGmailStep,
   ISourceCursor,
+  ISourcePage,
 } from "#api/modules/pull/pull.interfaces";
 import type { TConnectionRow } from "#api/modules/pull/pull.types";
 import { dayjs } from "#api/shared/date/date.helpers";
@@ -262,5 +263,13 @@ export function nextGmailHistoryStep(cursor: IGmailCursor, page: IGoogleGmailPag
   return {
     cursor: { ...cursor, historyId: page.historyId ?? cursor.historyId, pageToken: null },
     hasMore: false,
+  };
+}
+
+export function restartGmailPage(now: string): ISourcePage {
+  return {
+    batch: { drafts: [], removedExternalIds: [] },
+    nextCursor: JSON.stringify(freshGmailCursor(now)),
+    hasMore: true,
   };
 }

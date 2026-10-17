@@ -21,7 +21,6 @@ export const AUTHUSER_PARAM = "authuser";
 export const ACTIVITY_INSERT_ROWS = 7;
 export const ACTIVITY_DELETE_CHUNK = 90;
 export const ACTIVITY_NO_SUBJECT = "(No subject)";
-export const GMAIL_THREAD_HASH_PREFIX = "all/";
 export const GMAIL_RECIPIENT_SEPARATOR = ", ";
 export const GMAIL_EXCLUDED_LABELS: EGmailLabel[] = [
   EGmailLabel.SPAM,

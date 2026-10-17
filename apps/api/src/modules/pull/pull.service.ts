@@ -12,7 +12,6 @@ import {
 import { EPullMessages, EPullOutcome } from "#api/modules/pull/pull.enums";
 import {
   accessTokenTtlSeconds,
-  freshGmailCursor,
   gmailMessagesSince,
   isPullableProvider,
   nextCalendarCursor,
@@ -24,6 +23,7 @@ import {
   readableSources,
   readConnectionId,
   remainingSources,
+  restartGmailPage,
   serializeCursorMap,
   startCycle,
 } from "#api/modules/pull/pull.helpers";
@@ -253,21 +253,13 @@ export abstract class PullService {
       return null;
     }
     if (page.isHistoryExpired) {
-      return PullService.restartGmail(input.now);
+      return restartGmailPage(input.now);
     }
     const step = nextGmailHistoryStep(cursor, page);
     return {
       batch: mapGmailMessages(page.messages, { identityEmail: input.target.identityEmail }),
       nextCursor: JSON.stringify(step.cursor),
       hasMore: step.hasMore,
-    };
-  }
-
-  private static restartGmail(now: string): ISourcePage {
-    return {
-      batch: { drafts: [], removedExternalIds: [] },
-      nextCursor: JSON.stringify(freshGmailCursor(now)),
-      hasMore: true,
     };
   }
 

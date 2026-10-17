@@ -19,7 +19,8 @@ export const ROUTES = {
     DRIVE_ACTIVITY_READONLY_SCOPE: "https://www.googleapis.com/auth/drive.activity.readonly",
     CHAT_SPACES_READONLY_SCOPE: "https://www.googleapis.com/auth/chat.spaces.readonly",
     CHAT_MESSAGES_READONLY_SCOPE: "https://www.googleapis.com/auth/chat.messages.readonly",
-    GMAIL_WEB: "https://mail.google.com/mail/",
+    GMAIL_THREAD: (email: string, threadId: string): string =>
+      `https://mail.google.com/mail/?${new URLSearchParams({ authuser: email }).toString()}#all/${threadId}`,
   },
   LINEAR: {
     AUTHORIZE: "https://linear.app/oauth/authorize",
