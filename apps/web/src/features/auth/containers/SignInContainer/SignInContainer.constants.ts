@@ -10,5 +10,3 @@ export const SIGN_IN_DESCRIPTION: Record<EAuthMode, string> = {
 };
 export const SIGN_IN_SEPARATOR = "or";
 export const SIGN_IN_GOOGLE_FAILED = "Google sign-in did not finish. Try again.";
-export const SIGN_IN_NOTE =
-  "Sign-in does not connect a work account. You add work accounts in Settings, one at a time.";

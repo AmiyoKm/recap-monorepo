@@ -5,7 +5,8 @@ import { schema } from "@recap/db";
 
 import { CLIENT_IP_HEADERS } from "#api/shared/auth/auth.constants";
 import { EAuthDatabaseProvider } from "#api/shared/auth/auth.enums";
-import { crossSubDomainCookies, socialProviders } from "#api/shared/auth/auth.helpers";
+import { crossSubDomainCookies } from "#api/shared/auth/auth.helpers";
+import { AuthService } from "#api/shared/auth/auth.service";
 import { db } from "#api/shared/db/db.client";
 import { ENV } from "#api/shared/env/env.constants";
 
@@ -17,7 +18,10 @@ export const auth = betterAuth({
   session: { storeSessionInDatabase: true },
   rateLimit: { enabled: true, storage: "database" },
   emailAndPassword: { enabled: true },
-  socialProviders: socialProviders(ENV.auth.google),
+  socialProviders: { google: ENV.auth.google },
+  databaseHooks: {
+    account: { create: { after: (account) => AuthService.handleAccountCreated(account) } },
+  },
   advanced: {
     ipAddress: { ipAddressHeaders: CLIENT_IP_HEADERS },
     crossSubDomainCookies: crossSubDomainCookies(ENV.auth.cookieDomain),

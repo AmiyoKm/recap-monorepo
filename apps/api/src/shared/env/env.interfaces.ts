@@ -1,6 +1,6 @@
 export interface IGoogleAuthEnv {
-  clientId: string | undefined;
-  clientSecret: string | undefined;
+  clientId: string;
+  clientSecret: string;
 }
 
 export interface IAuthEnv {

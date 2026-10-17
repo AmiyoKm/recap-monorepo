@@ -12,7 +12,6 @@ import { GoogleSignInButton } from "@/features/auth/components/GoogleSignInButto
 import {
   SIGN_IN_DESCRIPTION,
   SIGN_IN_GOOGLE_FAILED,
-  SIGN_IN_NOTE,
   SIGN_IN_SEPARATOR,
   SIGN_IN_TITLE,
 } from "@/features/auth/containers/SignInContainer/SignInContainer.constants";
@@ -46,9 +45,6 @@ export function SignInContainer({ error, mode: initialMode }: ISignInContainerPr
         <FieldSeparator>{SIGN_IN_SEPARATOR}</FieldSeparator>
         <EmailAuthForm mode={mode} onModeChange={setMode} />
       </main>
-      <p className="max-w-sm text-center text-xs leading-relaxed text-muted-foreground">
-        {SIGN_IN_NOTE}
-      </p>
     </div>
   );
 }

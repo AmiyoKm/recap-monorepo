@@ -28,7 +28,7 @@ Activity is anchored to professional identities, not to a login. A user proves o
 ## Capabilities and Constraints
 
 - Binding terminology (GLOSSARY.md): Work Identity (professional identity anchored by one Google account; owns Connections), Connection (authorized grant to an external provider, holding credentials and scopes), Connector (code that pulls data through a Connection).
-- Sign-in (Better Auth, Google) never auto-creates a Work Identity. Identity creation is a separate, explicit consent that requests only the email scope and stores no token.
+- Google sign-up creates the user's first Work Identity from the Google account. Each further Work Identity is a separate, explicit consent that requests only the email scope and stores no token.
 - Credentials (refresh tokens, API keys) live server-side, encrypted with AES-256-GCM, and are never sent to the web app.
 - First cut of connectable sources: Google Calendar (OAuth), Jira and Linear (API key). Slack, Google Chat and GitHub are registered providers that are not wired yet.
 - Not built yet (as of 2026-10-11): data pulling, digest building, scheduling. Settings ships identities and connections only.

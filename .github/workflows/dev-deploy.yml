@@ -43,6 +43,10 @@ jobs:
           jq -r '.[] | select(. != "") | "::add-mask::" + .' "$RUNNER_TEMP/deploy-env.json"
           jq 'del(.CLOUDFLARE_API_TOKEN)' "$RUNNER_TEMP/deploy-env.json" > "$RUNNER_TEMP/api-secrets.json"
 
+      - name: Check required env
+        working-directory: apps/api
+        run: bun --env-file="$RUNNER_TEMP/deploy.env" run env:check
+
       - name: Migrate database
         working-directory: apps/api
         run: CLOUDFLARE_API_TOKEN=$(jq -r .CLOUDFLARE_API_TOKEN "$RUNNER_TEMP/deploy-env.json") bunx wrangler d1 migrations apply DB --remote --env "$DEPLOY_ENV"

@@ -68,6 +68,7 @@ ls:
     .*.ts: exists:0
     .module.ts: regex:${0}
     .service.ts: regex:${0}
+    .repository.ts: regex:${0}
     .client.ts: regex:${0}
     .model.ts: regex:${0}
     .types.ts: regex:${0}

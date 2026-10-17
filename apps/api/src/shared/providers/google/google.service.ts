@@ -20,7 +20,6 @@ export abstract class GoogleService {
   });
 
   static async createAuthorization(input: IGoogleAuthorizeInput): Promise<IGoogleAuthorization> {
-    GoogleService.requireClientId();
     const { codeVerifier, codeChallenge } = await GoogleService.client.generateCodeVerifierAsync();
     const authorizeUrl = GoogleService.client.generateAuthUrl({
       redirect_uri: input.redirectUri,
@@ -35,7 +34,6 @@ export abstract class GoogleService {
   }
 
   static async exchangeCode(input: IGoogleCodeExchangeInput): Promise<IGoogleGrant> {
-    const clientId = GoogleService.requireClientId();
     const { tokens } = await GoogleService.client.getToken({
       code: input.code,
       codeVerifier: input.codeVerifier,
@@ -44,20 +42,15 @@ export abstract class GoogleService {
     if (!(tokens.access_token && tokens.id_token)) {
       throw new Error(EGoogleMessages.ID_TOKEN_MISSING);
     }
-    const profile = await GoogleService.verifyProfile(tokens.id_token, clientId);
+    const profile = await GoogleService.verifyProfile(tokens.id_token);
     return { tokens: toGoogleTokens(tokens.access_token, tokens), profile };
   }
 
-  private static async verifyProfile(idToken: string, clientId: string): Promise<IGoogleProfile> {
-    const ticket = await GoogleService.client.verifyIdToken({ idToken, audience: clientId });
+  private static async verifyProfile(idToken: string): Promise<IGoogleProfile> {
+    const ticket = await GoogleService.client.verifyIdToken({
+      idToken,
+      audience: ENV.auth.google.clientId,
+    });
     return toGoogleProfile(ticket.getPayload());
-  }
-
-  private static requireClientId(): string {
-    const { clientId, clientSecret } = ENV.auth.google;
-    if (!(clientId && clientSecret)) {
-      throw new Error(EGoogleMessages.NOT_CONFIGURED);
-    }
-    return clientId;
   }
 }
