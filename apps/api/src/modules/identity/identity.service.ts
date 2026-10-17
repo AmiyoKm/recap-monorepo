@@ -53,7 +53,6 @@ import type {
 } from "#api/modules/identity/identity.types";
 import { CacheService } from "#api/shared/cache/cache.service";
 import { dayjs } from "#api/shared/date/date.helpers";
-import { ENV } from "#api/shared/env/env.constants";
 import { logError } from "#api/shared/logger/logger.helpers";
 import type { IGoogleGrant } from "#api/shared/providers/google/google.interfaces";
 import { providers } from "#api/shared/providers/providers.client";
@@ -170,9 +169,6 @@ export abstract class IdentityService {
           scopes: GOOGLE_CALENDAR_SCOPES,
         });
       case EProvider.JIRA:
-        if (!ENV.jira) {
-          throw IdentityService.unsupportedProvider();
-        }
         return Promise.resolve(
           providers.jira.createAuthorization({
             state,
@@ -180,9 +176,6 @@ export abstract class IdentityService {
           }),
         );
       case EProvider.LINEAR:
-        if (!ENV.linear) {
-          throw IdentityService.unsupportedProvider();
-        }
         return Promise.resolve(
           providers.linear.createAuthorization({
             state,

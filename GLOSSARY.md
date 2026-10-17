@@ -12,6 +12,10 @@ _Avoid_: integration, linked account, account
 The code that pulls data from an external provider through a Connection.
 _Avoid_: integration, sync, importer
 
+**Source**:
+One stream of activity that Recap reads, such as Gmail, Google Calendar or Jira. A Connection grants one or more Sources.
+_Avoid_: service, product, app, scope
+
 **Work Identity**:
 A person's professional identity anchored by one Google account. Owns Connections.
 _Avoid_: linked account, persona, account, integration account

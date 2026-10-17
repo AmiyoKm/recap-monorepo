@@ -14,6 +14,10 @@ export interface IEnv {
   webOrigin: string;
   connectionEncryptionKey: string;
   auth: IAuthEnv;
-  jira: IOAuthClientEnv | undefined;
-  linear: IOAuthClientEnv | undefined;
+  jira: IOAuthClientEnv;
+  linear: IOAuthClientEnv;
+}
+
+export interface IEnvSource {
+  [name: string]: string | undefined;
 }
