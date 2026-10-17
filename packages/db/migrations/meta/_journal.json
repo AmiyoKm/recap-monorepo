@@ -22,6 +22,13 @@
       "when": 1792235149483,
       "tag": "0002_google_connection_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792253692370,
+      "tag": "0003_activity_pull",
+      "breakpoints": true
     }
   ]
 }

@@ -28,7 +28,11 @@
           "id": "515fcf3e1e044a27968c641d712509bf",
           "remote": true
         }
-      ]
+      ],
+      "queues": {
+        "producers": [{ "binding": "PULL_QUEUE", "queue": "recap-pull-dev", "remote": true }],
+        "consumers": [{ "queue": "recap-pull-dev", "max_batch_size": 10, "max_retries": 3 }]
+      }
     },
     "prod": {
       "name": "recap-api-prod",
@@ -45,7 +49,11 @@
           "binding": "CACHE",
           "id": "6a7a19684be24057a4a9d1ea18832909"
         }
-      ]
+      ],
+      "queues": {
+        "producers": [{ "binding": "PULL_QUEUE", "queue": "recap-pull-prod" }],
+        "consumers": [{ "queue": "recap-pull-prod", "max_batch_size": 10, "max_retries": 3 }]
+      }
     }
   }
 }

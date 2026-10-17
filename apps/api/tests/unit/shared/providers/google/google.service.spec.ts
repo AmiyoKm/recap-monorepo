@@ -1,15 +1,20 @@
-import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 
 import { gaxios, OAuth2Client } from "google-auth-library";
 
+import { dayjs } from "#api/shared/date/date.helpers";
 import { ENV } from "#api/shared/env/env.constants";
 import { EGoogleMessages } from "#api/shared/providers/google/google.enums";
 import { GoogleService } from "#api/shared/providers/google/google.service";
 import {
   HTTP_BAD_REQUEST,
+  HTTP_GONE,
   HTTP_OK,
   HTTP_SERVER_ERROR,
+  HTTP_UNAUTHORIZED,
 } from "#api-tests/unit/shared/providers/providers.constants";
+
+const MIN_EXPECTED_LIFETIME_SECONDS = 3000;
 
 const REVOKE_URL = new URL("https://oauth2.googleapis.com/revoke");
 
@@ -93,5 +98,119 @@ describe("GoogleService.revokeToken", () => {
       throw await revokeError(status, oauthError);
     });
     await expect(GoogleService.revokeToken("refresh-1")).rejects.toThrow();
+  });
+});
+
+describe("GoogleService.refreshAccessToken", () => {
+  test("returns the new access token with its lifetime", async () => {
+    spyOn(OAuth2Client.prototype, "refreshAccessToken").mockImplementation(() =>
+      Promise.resolve({
+        credentials: { access_token: "new-access", expiry_date: dayjs().add(1, "hour").valueOf() },
+        res: null,
+      }),
+    );
+
+    const tokens = await GoogleService.refreshAccessToken("refresh-1");
+
+    expect(tokens?.accessToken).toBe("new-access");
+    expect(tokens?.expiresInSeconds).toBeGreaterThan(MIN_EXPECTED_LIFETIME_SECONDS);
+  });
+
+  test("returns null when google rejects the refresh token", async () => {
+    spyOn(OAuth2Client.prototype, "refreshAccessToken").mockImplementation(async () => {
+      throw await revokeError(HTTP_BAD_REQUEST, "invalid_grant");
+    });
+
+    expect(await GoogleService.refreshAccessToken("refresh-1")).toBeNull();
+  });
+
+  test("throws on other failures", async () => {
+    spyOn(OAuth2Client.prototype, "refreshAccessToken").mockImplementation(async () => {
+      throw await revokeError(HTTP_SERVER_ERROR, "server_error");
+    });
+
+    await expect(GoogleService.refreshAccessToken("refresh-1")).rejects.toThrow();
+  });
+});
+
+const originalCalendar = { ...(await import("@googleapis/calendar")) };
+
+describe("GoogleService.listCalendarEvents", () => {
+  const input = {
+    accessToken: "access-1",
+    syncToken: null,
+    pageToken: null,
+    timeMin: "2026-10-10T00:00:00.000Z",
+    timeMax: "2026-11-10T00:00:00.000Z",
+  };
+
+  const list = mock<(params: Record<string, unknown>) => Promise<{ data: object }>>();
+
+  afterAll(() => {
+    mock.module("@googleapis/calendar", () => originalCalendar);
+  });
+
+  beforeEach(() => {
+    list.mockReset();
+    mock.module("@googleapis/calendar", () => ({
+      calendar: () => ({ events: { list } }),
+    }));
+  });
+
+  test("returns the events with the next page and sync tokens", async () => {
+    list.mockResolvedValue({ data: { items: [{ id: "e1" }], nextSyncToken: "sync-1" } });
+
+    const page = await GoogleService.listCalendarEvents(input);
+
+    expect(page).toEqual({
+      events: [{ id: "e1" }],
+      nextPageToken: null,
+      nextSyncToken: "sync-1",
+      usedSyncToken: false,
+    });
+    expect(list.mock.calls[0]?.[0]).toMatchObject({
+      timeMin: input.timeMin,
+      timeMax: input.timeMax,
+      singleEvents: true,
+    });
+  });
+
+  test("sends only the sync token when it has one", async () => {
+    list.mockResolvedValue({ data: { items: [] } });
+
+    await GoogleService.listCalendarEvents({ ...input, syncToken: "sync-0" });
+
+    const params = list.mock.calls[0]?.[0];
+    expect(params?.["syncToken"]).toBe("sync-0");
+    expect(params).not.toHaveProperty("timeMin");
+  });
+
+  test("starts a full sync again when the sync token is gone", async () => {
+    list.mockImplementationOnce(async () => {
+      throw await revokeError(HTTP_GONE, "gone");
+    });
+    list.mockResolvedValueOnce({ data: { items: [], nextSyncToken: "sync-new" } });
+
+    const page = await GoogleService.listCalendarEvents({ ...input, syncToken: "sync-0" });
+
+    expect(page?.nextSyncToken).toBe("sync-new");
+    expect(page?.usedSyncToken).toBe(false);
+    expect(list.mock.calls[1]?.[0]).toMatchObject({ timeMin: input.timeMin });
+  });
+
+  test("returns null when google rejects the access token", async () => {
+    list.mockImplementation(async () => {
+      throw await revokeError(HTTP_UNAUTHORIZED, "unauthorized");
+    });
+
+    expect(await GoogleService.listCalendarEvents(input)).toBeNull();
+  });
+
+  test("throws on other failures", async () => {
+    list.mockImplementation(async () => {
+      throw await revokeError(HTTP_SERVER_ERROR, "server_error");
+    });
+
+    await expect(GoogleService.listCalendarEvents(input)).rejects.toThrow();
   });
 });

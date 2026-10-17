@@ -259,6 +259,23 @@ ensure_kv() {
   set_config "$path" "$id"
 }
 
+queue_exists() {
+  wr queues info "$1" >/dev/null 2>&1
+}
+
+ensure_queue() {
+  local name="$1"
+  if queue_exists "$name"; then
+    note "Queue $name already exists."
+    return 0
+  fi
+  if confirm "Create Queue $name?"; then
+    wr queues create "$name" </dev/null && return 0
+  fi
+  SKIPPED+=("Queue $name: run wrangler queues create $name")
+  warn "Queue $name is missing, so the hourly pull cannot send messages"
+}
+
 banner "Recap API: provision Cloudflare Workers (dev and prod)"
 
 stage "Sign in to Cloudflare"
@@ -281,7 +298,10 @@ ensure_d1 "recap-dev" '.env.dev.d1_databases[0].database_id'
 ensure_d1 "recap-prod" '.env.prod.d1_databases[0].database_id'
 pause
 
-stage "Create the KV namespaces"
+stage "Create the Queues and KV namespaces"
+say "Each environment gets a Queue for the hourly pull messages."
+ensure_queue "recap-pull-dev"
+ensure_queue "recap-pull-prod"
 say "Each environment gets its own KV namespace for the access-token cache."
 ensure_kv "recap-api-dev-cache" '.env.dev.kv_namespaces[0].id'
 ensure_kv "recap-api-prod-cache" '.env.prod.kv_namespaces[0].id'
@@ -316,6 +336,7 @@ step "Make sure it has these permissions, limited to the Recap account:"
 note "    Account · Workers Scripts · Edit"
 note "    Account · D1 · Edit"
 note "    Account · Workers KV Storage · Edit"
+note "    Account · Queues · Edit"
 note "    Zone · Workers Routes · Edit (the zone of APP_DOMAIN)"
 note "    Zone · DNS · Edit (the zone of APP_DOMAIN)"
 step "Save. The token value stays the same when you only change permissions."

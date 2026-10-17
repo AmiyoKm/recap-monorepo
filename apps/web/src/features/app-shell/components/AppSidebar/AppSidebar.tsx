@@ -1,4 +1,4 @@
-import { LayoutDashboardIcon, SettingsIcon } from "lucide-react";
+import { ActivityIcon, LayoutDashboardIcon, SettingsIcon } from "lucide-react";
 
 import {
   Sidebar,
@@ -11,6 +11,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import {
+  APP_SIDEBAR_ACTIVITY,
   APP_SIDEBAR_DASHBOARD,
   APP_SIDEBAR_NAV_LABEL,
   APP_SIDEBAR_SETTINGS,
@@ -35,6 +36,11 @@ export function AppSidebar({ user }: IAppSidebarProps) {
                   to="/dashboard"
                   label={APP_SIDEBAR_DASHBOARD}
                   icon={<LayoutDashboardIcon />}
+                />
+                <AppSidebarNavItem
+                  to="/activity"
+                  label={APP_SIDEBAR_ACTIVITY}
+                  icon={<ActivityIcon />}
                 />
                 <AppSidebarNavItem
                   to="/settings"

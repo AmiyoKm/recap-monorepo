@@ -5,4 +5,5 @@ export enum EBindingsMessages {
 export enum EBinding {
   DB = "DB",
   CACHE = "CACHE",
+  PULL_QUEUE = "PULL_QUEUE",
 }

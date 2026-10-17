@@ -1,8 +1,16 @@
+import { calendar } from "@googleapis/calendar";
 import { CodeChallengeMethod, gaxios, OAuth2Client } from "google-auth-library";
 
 import { ENV } from "#api/shared/env/env.constants";
 import { toStringRecord } from "#api/shared/json/json.helpers";
-import { GOOGLE_REQUEST_TIMEOUT_MS } from "#api/shared/providers/google/google.constants";
+import {
+  GOOGLE_CALENDAR_API_VERSION,
+  GOOGLE_CALENDAR_ID,
+  GOOGLE_CALENDAR_PAGE_SIZE,
+  GOOGLE_REQUEST_TIMEOUT_MS,
+  HTTP_GONE,
+  HTTP_UNAUTHORIZED,
+} from "#api/shared/providers/google/google.constants";
 import {
   EGoogleMessages,
   EGoogleOAuthError,
@@ -12,17 +20,16 @@ import { toGoogleProfile, toGoogleTokens } from "#api/shared/providers/google/go
 import type {
   IGoogleAuthorization,
   IGoogleAuthorizeInput,
+  IGoogleCalendarPage,
+  IGoogleCalendarReadInput,
   IGoogleCodeExchangeInput,
   IGoogleGrant,
   IGoogleProfile,
 } from "#api/shared/providers/google/google.interfaces";
+import type { IProviderTokens } from "#api/shared/providers/providers.interfaces";
 
 export abstract class GoogleService {
-  private static readonly client = new OAuth2Client({
-    clientId: ENV.auth.google.clientId,
-    clientSecret: ENV.auth.google.clientSecret,
-    transporterOptions: { timeout: GOOGLE_REQUEST_TIMEOUT_MS },
-  });
+  private static readonly client = GoogleService.createClient();
 
   static async createAuthorization(input: IGoogleAuthorizeInput): Promise<IGoogleAuthorization> {
     const { codeVerifier, codeChallenge } = await GoogleService.client.generateCodeVerifierAsync();
@@ -61,12 +68,101 @@ export abstract class GoogleService {
     }
   }
 
-  private static isInvalidTokenError(error: unknown): boolean {
+  static async refreshAccessToken(refreshToken: string): Promise<IProviderTokens | null> {
+    const client = GoogleService.createClient();
+    client.setCredentials({ refresh_token: refreshToken });
+    try {
+      const { credentials } = await client.refreshAccessToken();
+      if (!credentials.access_token) {
+        throw new Error(EGoogleMessages.ACCESS_TOKEN_MISSING);
+      }
+      return toGoogleTokens(credentials.access_token, credentials);
+    } catch (error) {
+      if (GoogleService.hasOAuthError(error, EGoogleOAuthError.INVALID_GRANT)) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  static async listCalendarEvents(
+    input: IGoogleCalendarReadInput,
+  ): Promise<IGoogleCalendarPage | null> {
+    try {
+      return await GoogleService.readCalendarPage(input);
+    } catch (error) {
+      if (GoogleService.hasStatus(error, HTTP_UNAUTHORIZED)) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  private static async readCalendarPage(
+    input: IGoogleCalendarReadInput,
+  ): Promise<IGoogleCalendarPage> {
+    try {
+      return await GoogleService.requestCalendarPage(input);
+    } catch (error) {
+      if (!(input.syncToken && GoogleService.hasStatus(error, HTTP_GONE))) {
+        throw error;
+      }
+      return GoogleService.requestCalendarPage({ ...input, syncToken: null, pageToken: null });
+    }
+  }
+
+  private static async requestCalendarPage(
+    input: IGoogleCalendarReadInput,
+  ): Promise<IGoogleCalendarPage> {
+    const client = GoogleService.createClient();
+    client.setCredentials({ access_token: input.accessToken });
+    const { data } = await calendar({
+      version: GOOGLE_CALENDAR_API_VERSION,
+      auth: client,
+    }).events.list({
+      calendarId: GOOGLE_CALENDAR_ID,
+      maxResults: GOOGLE_CALENDAR_PAGE_SIZE,
+      singleEvents: true,
+      pageToken: input.pageToken ?? undefined,
+      ...GoogleService.calendarRange(input),
+    });
+    return {
+      events: data.items ?? [],
+      nextPageToken: data.nextPageToken ?? null,
+      nextSyncToken: data.nextSyncToken ?? null,
+      usedSyncToken: input.syncToken !== null,
+    };
+  }
+
+  private static calendarRange(input: IGoogleCalendarReadInput) {
+    if (input.syncToken) {
+      return { syncToken: input.syncToken };
+    }
+    return { timeMin: input.timeMin, timeMax: input.timeMax };
+  }
+
+  private static createClient(): OAuth2Client {
+    return new OAuth2Client({
+      clientId: ENV.auth.google.clientId,
+      clientSecret: ENV.auth.google.clientSecret,
+      transporterOptions: { timeout: GOOGLE_REQUEST_TIMEOUT_MS },
+    });
+  }
+
+  private static hasStatus(error: unknown, status: number): boolean {
+    return error instanceof gaxios.GaxiosError && error.status === status;
+  }
+
+  private static hasOAuthError(error: unknown, code: EGoogleOAuthError): boolean {
     if (!(error instanceof gaxios.GaxiosError)) {
       return false;
     }
     const { error: oauthError } = toStringRecord(error.response?.data) ?? {};
-    return oauthError === EGoogleOAuthError.INVALID_TOKEN;
+    return oauthError === code;
+  }
+
+  private static isInvalidTokenError(error: unknown): boolean {
+    return GoogleService.hasOAuthError(error, EGoogleOAuthError.INVALID_TOKEN);
   }
 
   private static async verifyProfile(idToken: string): Promise<IGoogleProfile> {
