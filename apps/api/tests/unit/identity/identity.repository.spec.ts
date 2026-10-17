@@ -103,10 +103,10 @@ describe("identity rows", () => {
 describe("connection rows", () => {
   test("inserts and finds a connection by identity and provider", async () => {
     const { identityId } = await insertIdentityWithUser(`sub-conn-${randomUUID()}`);
-    const values = connectionValues(identityId, "google-calendar");
+    const values = connectionValues(identityId, "google");
     await IdentityRepository.replaceConnection(values);
 
-    const found = await IdentityRepository.findConnection(identityId, "google-calendar");
+    const found = await IdentityRepository.findConnection(identityId, "google");
     expect(found?.id).toBe(values.id);
     expect(await IdentityRepository.findConnection(identityId, "jira")).toBeUndefined();
   });
@@ -153,30 +153,18 @@ describe("connection rows", () => {
     ).toHaveLength(2);
   });
 
-  test("lists connection ids for an identity", async () => {
-    const { identityId } = await insertIdentityWithUser(`sub-conn-ids-${randomUUID()}`);
-    const first = connectionValues(identityId, "jira");
-    const second = connectionValues(identityId, "linear");
-    await IdentityRepository.replaceConnection(first);
-    await IdentityRepository.replaceConnection(second);
-
-    expect(await IdentityRepository.connectionIdsForIdentity(identityId)).toEqual([
-      first.id,
-      second.id,
-    ]);
-    expect(await IdentityRepository.connectionIdsForIdentity(randomUUID())).toEqual([]);
-  });
-
-  test("resolves the owning user for a connection", async () => {
+  test("finds a connection only for its owning user", async () => {
     const { userId, identityId } = await insertIdentityWithUser(`sub-owner-${randomUUID()}`);
     const values = connectionValues(identityId, "jira");
     await IdentityRepository.replaceConnection(values);
 
-    expect(await IdentityRepository.findConnectionOwner(values.id)).toEqual({
-      connectionId: values.id,
-      userId,
+    expect(await IdentityRepository.findOwnedConnection(userId, values.id)).toMatchObject({
+      id: values.id,
+      identityId,
+      provider: "jira",
     });
-    expect(await IdentityRepository.findConnectionOwner(randomUUID())).toBeUndefined();
+    expect(await IdentityRepository.findOwnedConnection(randomUUID(), values.id)).toBeUndefined();
+    expect(await IdentityRepository.findOwnedConnection(userId, randomUUID())).toBeUndefined();
   });
 
   test("deletes a connection row", async () => {

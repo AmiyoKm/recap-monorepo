@@ -1,10 +1,36 @@
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
 
-import { OAuth2Client } from "google-auth-library";
+import { gaxios, OAuth2Client } from "google-auth-library";
 
 import { ENV } from "#api/shared/env/env.constants";
 import { EGoogleMessages } from "#api/shared/providers/google/google.enums";
 import { GoogleService } from "#api/shared/providers/google/google.service";
+import {
+  HTTP_BAD_REQUEST,
+  HTTP_OK,
+  HTTP_SERVER_ERROR,
+} from "#api-tests/unit/shared/providers/providers.constants";
+
+const REVOKE_URL = new URL("https://oauth2.googleapis.com/revoke");
+
+const REVOKE_CONFIG = { url: REVOKE_URL, headers: new Headers() };
+
+async function revokeResponse<TData extends object>(status: number, data: TData) {
+  const response = new Response(JSON.stringify(data), { status });
+  await response.text();
+  return Object.assign(response, { config: REVOKE_CONFIG, data });
+}
+
+async function revokeError(
+  status?: number,
+  oauthError = "invalid_token",
+): Promise<InstanceType<typeof gaxios.GaxiosError>> {
+  if (status === undefined) {
+    return new gaxios.GaxiosError("network down", REVOKE_CONFIG);
+  }
+  const response = await revokeResponse(status, { error: oauthError });
+  return new gaxios.GaxiosError("revoke failed", REVOKE_CONFIG, response);
+}
 
 afterEach(() => {
   mock.restore();
@@ -39,5 +65,33 @@ describe("GoogleService.exchangeCode", () => {
       redirectUri: "http://localhost:3107/callback",
     });
     await expect(exchange).rejects.toThrow(EGoogleMessages.ID_TOKEN_MISSING);
+  });
+});
+
+describe("GoogleService.revokeToken", () => {
+  test("revokes the refresh token at google", async () => {
+    const revoke = spyOn(OAuth2Client.prototype, "revokeToken").mockImplementation(() =>
+      revokeResponse(HTTP_OK, { success: true }),
+    );
+    await GoogleService.revokeToken("refresh-1");
+    expect(revoke).toHaveBeenCalledWith("refresh-1");
+  });
+
+  test("resolves when google rejects the token as invalid or revoked", async () => {
+    spyOn(OAuth2Client.prototype, "revokeToken").mockImplementation(async () => {
+      throw await revokeError(HTTP_BAD_REQUEST);
+    });
+    await expect(GoogleService.revokeToken("refresh-1")).resolves.toBeUndefined();
+  });
+
+  test.each([
+    { name: "a server failure", status: HTTP_SERVER_ERROR, oauthError: "server_error" },
+    { name: "a bad request", status: HTTP_BAD_REQUEST, oauthError: "invalid_request" },
+    { name: "a network failure", status: undefined, oauthError: undefined },
+  ])("throws on $name", async ({ status, oauthError }) => {
+    spyOn(OAuth2Client.prototype, "revokeToken").mockImplementation(async () => {
+      throw await revokeError(status, oauthError);
+    });
+    await expect(GoogleService.revokeToken("refresh-1")).rejects.toThrow();
   });
 });

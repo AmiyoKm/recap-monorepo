@@ -3,10 +3,7 @@ import { and, eq, gt, inArray, lte } from "drizzle-orm";
 import { schema } from "@recap/db";
 
 import { isUniqueViolation } from "#api/modules/identity/identity.helpers";
-import type {
-  IConnectionOwnership,
-  ITakePendingGrantInput,
-} from "#api/modules/identity/identity.interfaces";
+import type { ITakePendingGrantInput } from "#api/modules/identity/identity.interfaces";
 import type {
   TConnectionInsert,
   TConnectionRow,
@@ -105,23 +102,16 @@ export abstract class IdentityRepository {
       .where(inArray(schema.connection.identityId, identityIds));
   }
 
-  static async connectionIdsForIdentity(identityId: string): Promise<string[]> {
-    const rows = await db
-      .select({ id: schema.connection.id })
-      .from(schema.connection)
-      .where(eq(schema.connection.identityId, identityId));
-    return rows.map((row) => row.id);
-  }
-
-  static async findConnectionOwner(
+  static async findOwnedConnection(
+    userId: string,
     connectionId: string,
-  ): Promise<IConnectionOwnership | undefined> {
+  ): Promise<TConnectionRow | undefined> {
     const rows = await db
-      .select({ connectionId: schema.connection.id, userId: schema.identity.userId })
+      .select({ connection: schema.connection })
       .from(schema.connection)
       .innerJoin(schema.identity, eq(schema.connection.identityId, schema.identity.id))
-      .where(eq(schema.connection.id, connectionId));
-    return rows[0];
+      .where(and(eq(schema.connection.id, connectionId), eq(schema.identity.userId, userId)));
+    return rows[0]?.connection;
   }
 
   static async deleteIdentityRow(identityId: string): Promise<void> {

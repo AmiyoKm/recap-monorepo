@@ -1,8 +1,13 @@
-import { CodeChallengeMethod, OAuth2Client } from "google-auth-library";
+import { CodeChallengeMethod, gaxios, OAuth2Client } from "google-auth-library";
 
 import { ENV } from "#api/shared/env/env.constants";
+import { toStringRecord } from "#api/shared/json/json.helpers";
 import { GOOGLE_REQUEST_TIMEOUT_MS } from "#api/shared/providers/google/google.constants";
-import { EGoogleMessages, EGoogleOAuthValue } from "#api/shared/providers/google/google.enums";
+import {
+  EGoogleMessages,
+  EGoogleOAuthError,
+  EGoogleOAuthValue,
+} from "#api/shared/providers/google/google.enums";
 import { toGoogleProfile, toGoogleTokens } from "#api/shared/providers/google/google.helpers";
 import type {
   IGoogleAuthorization,
@@ -44,6 +49,24 @@ export abstract class GoogleService {
     }
     const profile = await GoogleService.verifyProfile(tokens.id_token);
     return { tokens: toGoogleTokens(tokens.access_token, tokens), profile };
+  }
+
+  static async revokeToken(refreshToken: string): Promise<void> {
+    try {
+      await GoogleService.client.revokeToken(refreshToken);
+    } catch (error) {
+      if (!GoogleService.isInvalidTokenError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  private static isInvalidTokenError(error: unknown): boolean {
+    if (!(error instanceof gaxios.GaxiosError)) {
+      return false;
+    }
+    const { error: oauthError } = toStringRecord(error.response?.data) ?? {};
+    return oauthError === EGoogleOAuthError.INVALID_TOKEN;
   }
 
   private static async verifyProfile(idToken: string): Promise<IGoogleProfile> {

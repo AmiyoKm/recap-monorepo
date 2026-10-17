@@ -30,8 +30,7 @@ export const identityModule = new Elysia({ name: "identity" })
   })
   .post(
     "/identities/:identityId/connections",
-    ({ user, params, body }) =>
-      IdentityService.startConnection(user.id, params.identityId, body.provider),
+    ({ user, params, body }) => IdentityService.startConnection(user.id, params.identityId, body),
     {
       auth: true,
       params: identityIdParams,

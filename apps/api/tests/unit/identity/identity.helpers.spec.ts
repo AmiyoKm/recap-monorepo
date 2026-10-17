@@ -15,17 +15,17 @@ import {
   connectionTokenKey,
   createGrantState,
   grantCallback,
-  hasCalendarScope,
   isUniqueViolation,
   isWiredProvider,
   parsePendingGrant,
+  readRequestedSources,
   requireCodeVerifier,
   toConnectionView,
   toProvider,
 } from "#api/modules/identity/identity.helpers";
 import { dayjs } from "#api/shared/date/date.helpers";
+import { EGoogleSource } from "#api/shared/providers/google/google.enums";
 import { EProvider } from "#api/shared/providers/providers.enums";
-import { ROUTES } from "#api/shared/routes/routes.constants";
 
 const TEN_MINUTES_IN_SECONDS = 600;
 const STATE_BYTES = 32;
@@ -87,7 +87,8 @@ describe("parsePendingGrant", () => {
         userId: "user-1",
         purpose: "connection",
         identityId: "identity-1",
-        provider: "google-calendar",
+        provider: "google",
+        sources: ["gmail", "calendar"],
         codeVerifier: "verifier-1",
       }),
     );
@@ -95,9 +96,27 @@ describe("parsePendingGrant", () => {
       userId: "user-1",
       purpose: EGrantPurpose.CONNECTION,
       identityId: "identity-1",
-      provider: EProvider.GOOGLE_CALENDAR,
+      provider: EProvider.GOOGLE,
+      sources: [EGoogleSource.CALENDAR, EGoogleSource.GMAIL],
       codeVerifier: "verifier-1",
     });
+  });
+
+  test.each([
+    { name: "no sources", sources: undefined },
+    { name: "an unknown source", sources: ["calendar", "photos"] },
+  ])("rejects a connection grant with $name", ({ sources }) => {
+    const grant = parsePendingGrant(
+      JSON.stringify({
+        userId: "user-1",
+        purpose: "connection",
+        identityId: "identity-1",
+        provider: "google",
+        sources,
+        codeVerifier: "verifier-1",
+      }),
+    );
+    expect(grant).toBeNull();
   });
 
   test("reads a connection grant without a code verifier", () => {
@@ -107,6 +126,7 @@ describe("parsePendingGrant", () => {
         purpose: "connection",
         identityId: "identity-1",
         provider: "jira",
+        sources: [],
         codeVerifier: null,
       }),
     );
@@ -115,6 +135,7 @@ describe("parsePendingGrant", () => {
       purpose: EGrantPurpose.CONNECTION,
       identityId: "identity-1",
       provider: EProvider.JIRA,
+      sources: [],
       codeVerifier: null,
     });
   });
@@ -126,6 +147,7 @@ describe("parsePendingGrant", () => {
         purpose: "connection",
         identityId: "identity-1",
         provider: "zoom",
+        sources: [],
         codeVerifier: null,
       }),
     );
@@ -179,7 +201,7 @@ describe("isUniqueViolation", () => {
 
 describe("isWiredProvider", () => {
   test.each([
-    { provider: EProvider.GOOGLE_CALENDAR, isWired: true },
+    { provider: EProvider.GOOGLE, isWired: true },
     { provider: EProvider.JIRA, isWired: true },
     { provider: EProvider.LINEAR, isWired: true },
     { provider: EProvider.SLACK, isWired: false },
@@ -209,7 +231,17 @@ describe("toConnectionView", () => {
     const view = toConnectionView(row);
     expect(view.provider).toBe("jira");
     expect(view.status).toBe("active");
+    expect(view.sources).toEqual([]);
     expect(Object.keys(view)).not.toContain("refreshTokenEnc");
+  });
+
+  test("reads the granted sources of a google connection", () => {
+    const view = toConnectionView({
+      ...row,
+      provider: "google",
+      scopes: "openid email https://www.googleapis.com/auth/drive.activity.readonly",
+    });
+    expect(view.sources).toEqual([EGoogleSource.DRIVE]);
   });
 
   test("throws on a value outside the known set", () => {
@@ -228,7 +260,7 @@ describe("toProvider", () => {
 
 describe("grantCallback", () => {
   test.each([
-    { provider: EProvider.GOOGLE_CALENDAR, callback: EOAuthCallback.GOOGLE },
+    { provider: EProvider.GOOGLE, callback: EOAuthCallback.GOOGLE },
     { provider: EProvider.JIRA, callback: EOAuthCallback.JIRA },
     { provider: EProvider.LINEAR, callback: EOAuthCallback.LINEAR },
     { provider: EProvider.SLACK, callback: null },
@@ -239,6 +271,7 @@ describe("grantCallback", () => {
         purpose: EGrantPurpose.CONNECTION,
         identityId: "identity-1",
         provider,
+        sources: [],
         codeVerifier: null,
       }),
     ).toBe(callback);
@@ -262,9 +295,19 @@ describe("requireCodeVerifier", () => {
   });
 });
 
-describe("hasCalendarScope", () => {
-  test("requires the calendar read scope", () => {
-    expect(hasCalendarScope(["openid", ROUTES.GOOGLE.CALENDAR_READONLY_SCOPE])).toBe(true);
-    expect(hasCalendarScope(["openid", "email"])).toBe(false);
+describe("readRequestedSources", () => {
+  test.each([
+    {
+      provider: EProvider.GOOGLE,
+      sources: ["chat", "gmail"],
+      result: [EGoogleSource.GMAIL, EGoogleSource.CHAT],
+    },
+    { provider: EProvider.GOOGLE, sources: undefined, result: null },
+    { provider: EProvider.GOOGLE, sources: [], result: null },
+    { provider: EProvider.GOOGLE, sources: ["gmail", "gmail"], result: null },
+    { provider: EProvider.JIRA, sources: undefined, result: [] },
+    { provider: EProvider.JIRA, sources: ["gmail"], result: null },
+  ])("reads $sources for $provider as $result", ({ provider, sources, result }) => {
+    expect(readRequestedSources(provider, sources?.slice())).toEqual(result?.slice() ?? null);
   });
 });

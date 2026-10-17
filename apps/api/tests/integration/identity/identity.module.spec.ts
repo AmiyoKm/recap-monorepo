@@ -40,10 +40,14 @@ import type {
   IProviderGrant,
 } from "#api/shared/providers/providers.interfaces";
 import {
+  ALL_SOURCES,
+  ALL_SOURCES_GRANTED_SCOPES,
   CALENDAR_EMAIL,
-  CALENDAR_GRANTED_SCOPES,
   CALENDAR_READ_SCOPE,
+  CHAT_MESSAGES_SCOPE,
+  CHAT_SPACES_SCOPE,
   DEFAULT_TOKEN_EXPIRY_SECONDS,
+  GMAIL_METADATA_SCOPE,
   GOOGLE_ACCESS_DENIED,
   GOOGLE_PROFILE,
   HTTP_BAD_REQUEST,
@@ -59,7 +63,8 @@ import {
 import { ETestMessages } from "#api-tests/fixtures/fixtures.enums";
 import { uniqueEmail, wipeCache, wipeDatabase } from "#api-tests/fixtures/fixtures.helpers";
 import type {
-  ICalendarConnectCodes,
+  IGoogleConnectCodes,
+  IInvalidSourcesCase,
   IProviderCallbackCase,
 } from "#api-tests/integration/identity/identity.interfaces";
 
@@ -79,8 +84,23 @@ class FakeGoogleClient {
   readonly refreshTokens = new Map<string, string | undefined>();
   readonly tokenExpiries = new Map<string, number | undefined>();
   readonly grantedScopes = new Map<string, string[]>();
+  readonly revokedTokens: string[] = [];
+  isRevokeDown = false;
   lastAuthorizeInput: IGoogleAuthorizeInput | undefined;
   lastCodeVerifier: string | undefined;
+
+  revokeToken(refreshToken: string): Promise<void> {
+    this.revokedTokens.push(refreshToken);
+    if (this.isRevokeDown) {
+      return Promise.reject(new Error(ETestMessages.GOOGLE_REVOKE_IS_DOWN));
+    }
+    return Promise.resolve();
+  }
+
+  reset(): void {
+    this.revokedTokens.length = 0;
+    this.isRevokeDown = false;
+  }
 
   createAuthorization(input: IGoogleAuthorizeInput): Promise<IGoogleAuthorization> {
     this.lastAuthorizeInput = input;
@@ -102,7 +122,7 @@ class FakeGoogleClient {
       input.code,
       DEFAULT_TOKEN_EXPIRY_SECONDS,
     );
-    const scopes = this.grantedScopes.get(input.code) ?? [...CALENDAR_GRANTED_SCOPES];
+    const scopes = this.grantedScopes.get(input.code) ?? [...ALL_SOURCES_GRANTED_SCOPES];
     return Promise.resolve({
       tokens: { accessToken: input.code, refreshToken, expiresInSeconds, scopes },
       profile,
@@ -152,6 +172,9 @@ class FakeProviderClients {
     spyOn(GoogleService, "exchangeCode").mockImplementation((input) =>
       this.google.exchangeCode(input),
     );
+    spyOn(GoogleService, "revokeToken").mockImplementation((refreshToken) =>
+      this.google.revokeToken(refreshToken),
+    );
     spyOn(JiraService, "createAuthorization").mockImplementation((input) =>
       this.jira.createAuthorization(input, false),
     );
@@ -199,6 +222,14 @@ async function cachedTokenTtlSeconds(connectionId: string): Promise<number> {
 
 function connectedUrl(connected: string, email: string): string {
   return `${ENV.webOrigin}/connected?connected=${connected}&email=${encodeURIComponent(email)}`;
+}
+
+function identityConnectedUrl(email: string): string {
+  return connectedUrl("identity", email);
+}
+
+function googleConnectedUrl(email: string, denied = ""): string {
+  return `${connectedUrl("google", email)}&denied=${encodeURIComponent(denied)}`;
 }
 
 function errorUrl(error: string): string {
@@ -277,18 +308,22 @@ function connect(cookie: string, identityId: string, body: TConnectConnectionBod
   return api.identities({ identityId }).connections.post(body, withCookie(cookie));
 }
 
-function startCalendarConnect(
+function startGoogleConnect(
   cookie: string,
   identityId: string,
-  providerName: TConnectConnectionBody["provider"] = "google-calendar",
+  sources: TConnectConnectionBody["sources"] = [...ALL_SOURCES],
 ) {
-  return connect(cookie, identityId, { provider: providerName });
+  return connect(cookie, identityId, { provider: "google", sources });
 }
 
-async function startCalendarState(cookie: string, identityId: string): Promise<string> {
-  const { data, status } = await startCalendarConnect(cookie, identityId);
+async function startGoogleState(
+  cookie: string,
+  identityId: string,
+  sources: TConnectConnectionBody["sources"] = [...ALL_SOURCES],
+): Promise<string> {
+  const { data, status } = await startGoogleConnect(cookie, identityId, sources);
   if (status !== HTTP_OK) {
-    throw new Error(ETestMessages.CALENDAR_CONNECT_START_FAILED);
+    throw new Error(ETestMessages.GOOGLE_CONNECT_START_FAILED);
   }
   return readState(readAuthorizeUrl(data));
 }
@@ -347,17 +382,17 @@ function setCalendarProfile(code: string, sub: string, email = CALENDAR_EMAIL): 
   provider.google.profiles.set(code, { sub, email, name: "Work User", picture: undefined });
 }
 
-async function connectCalendar(
+async function connectGoogle(
   cookie: string,
-  { identityCode, identitySub, calendarCode }: ICalendarConnectCodes,
+  { identityCode, identitySub, googleCode }: IGoogleConnectCodes,
 ) {
   provider.google.profiles.set(identityCode, { ...GOOGLE_PROFILE, sub: identitySub });
   const identityId = await createIdentity(cookie, identityCode);
-  const state = await startCalendarState(cookie, identityId);
-  setCalendarProfile(calendarCode, identitySub);
-  const completed = await completeCallback(calendarCode, state);
-  if (readLocation(completed) !== connectedUrl("google-calendar", CALENDAR_EMAIL)) {
-    throw new Error(ETestMessages.CALENDAR_CONNECT_CALLBACK_FAILED);
+  const state = await startGoogleState(cookie, identityId);
+  setCalendarProfile(googleCode, identitySub);
+  const completed = await completeCallback(googleCode, state);
+  if (readLocation(completed) !== googleConnectedUrl(CALENDAR_EMAIL)) {
+    throw new Error(ETestMessages.GOOGLE_CONNECT_CALLBACK_FAILED);
   }
   const row = await readOnlyConnectionRow();
   return { identityId, connectionId: row.id };
@@ -414,6 +449,7 @@ beforeAll(() => {
 });
 
 beforeEach(async () => {
+  provider.google.reset();
   await wipeDatabase();
   await wipeCache();
 });
@@ -468,7 +504,7 @@ describe("work identities", () => {
     const completed = await completeCallback("code-1", state);
     expect(completed.status).toBe(HTTP_FOUND);
     expect(provider.google.lastCodeVerifier).toBe(`verifier-${state}`);
-    expect(readLocation(completed)).toBe(connectedUrl("google", GOOGLE_PROFILE.email));
+    expect(readLocation(completed)).toBe(identityConnectedUrl(GOOGLE_PROFILE.email));
     expect(await findPendingGrantRow(state)).toBeUndefined();
 
     const { status, data } = await listIdentities(cookie);
@@ -514,13 +550,13 @@ describe("work identities", () => {
 
     const firstState = await startConnect(first.cookie);
     expect(readLocation(await completeCallback("code-shared-a", firstState))).toContain(
-      "connected=google",
+      "connected=identity",
     );
 
     const secondState = await startConnect(second.cookie);
     const completed = await completeCallback("code-shared-b", secondState);
     expect(completed.status).toBe(HTTP_FOUND);
-    expect(readLocation(completed)).toContain("connected=google");
+    expect(readLocation(completed)).toContain("connected=identity");
 
     expect((await db.select().from(schema.identity)).length).toBe(2);
   });
@@ -604,31 +640,45 @@ describe("work identities", () => {
   });
 });
 
-describe("calendar connections", () => {
+const INVALID_SOURCES_CASES: IInvalidSourcesCase[] = [
+  { name: "google without sources", body: { provider: "google" } },
+  { name: "google with an empty source list", body: { provider: "google", sources: [] } },
+  {
+    name: "google with a duplicate source",
+    body: { provider: "google", sources: ["gmail", "gmail"] },
+  },
+  { name: "jira with sources", body: { provider: "jira", sources: ["calendar"] } },
+];
+
+describe("google connections", () => {
   test("rejects unauthenticated connection start", async () => {
     const { status } = await api
       .identities({ identityId: "some-id" })
-      .connections.post({ provider: "google-calendar" });
+      .connections.post({ provider: "google", sources: [...ALL_SOURCES] });
     expect(status).toBe(HTTP_UNAUTHORIZED);
   });
 
-  test("starts calendar connect with calendar scopes and a pending connection grant", async () => {
+  test("starts google connect with the scopes of the picked sources", async () => {
     const { cookie, userId } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-cal-start", {
-      ...GOOGLE_PROFILE,
-      sub: "google-sub-cal-start",
-    });
-    const identityId = await createIdentity(cookie, "code-cal-start");
+    provider.google.profiles.set("code-g-start", { ...GOOGLE_PROFILE, sub: "google-sub-g-start" });
+    const identityId = await createIdentity(cookie, "code-g-start");
 
-    const { status, data } = await startCalendarConnect(cookie, identityId);
+    const { status, data } = await startGoogleConnect(cookie, identityId, ["gmail", "chat"]);
     expect(status).toBe(HTTP_OK);
-    expect(provider.google.lastAuthorizeInput?.scopes).toContain(CALENDAR_READ_SCOPE);
+    expect(provider.google.lastAuthorizeInput?.scopes).toEqual([
+      "openid",
+      "email",
+      GMAIL_METADATA_SCOPE,
+      CHAT_SPACES_SCOPE,
+      CHAT_MESSAGES_SCOPE,
+    ]);
     const state = readState(readAuthorizeUrl(data));
     expect(await readPendingGrant(state)).toEqual({
       userId,
       purpose: EGrantPurpose.CONNECTION,
       identityId,
-      provider: "google-calendar",
+      provider: "google",
+      sources: ["gmail", "chat"],
       codeVerifier: `verifier-${state}`,
     });
     const ttl = await pendingGrantTtlSeconds(state);
@@ -638,59 +688,67 @@ describe("calendar connections", () => {
     expect(await db.select().from(schema.connection)).toEqual([]);
   });
 
+  test.each(INVALID_SOURCES_CASES)("refuses connection start for $name", async ({ body }) => {
+    const { cookie } = await signUp(uniqueEmail());
+    provider.google.profiles.set("code-g-bad", { ...GOOGLE_PROFILE, sub: "google-sub-g-bad" });
+    const identityId = await createIdentity(cookie, "code-g-bad");
+
+    const { status, error } = await connect(cookie, identityId, body);
+    expect(status).toBe(HTTP_BAD_REQUEST);
+    expect(error?.value).toEqual({ message: EIdentityMessages.SOURCES_INVALID });
+    expect(await db.select().from(schema.pendingGrant)).toEqual([]);
+  });
+
   test("refuses connection start for another user's work identity", async () => {
     const first = await signUp(uniqueEmail());
     const second = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-cal-owned", {
+    provider.google.profiles.set("code-g-owned", {
       ...GOOGLE_PROFILE,
-      sub: "google-sub-cal-owned",
+      sub: "google-sub-g-owned",
     });
-    const identityId = await createIdentity(first.cookie, "code-cal-owned");
+    const identityId = await createIdentity(first.cookie, "code-g-owned");
 
-    const { status } = await startCalendarConnect(second.cookie, identityId);
+    const { status } = await startGoogleConnect(second.cookie, identityId);
     expect(status).toBe(HTTP_NOT_FOUND);
   });
 
   test("refuses connection start for an unwired provider", async () => {
     const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-cal-unwired", {
+    provider.google.profiles.set("code-g-unwired", {
       ...GOOGLE_PROFILE,
-      sub: "google-sub-cal-unwired",
+      sub: "google-sub-g-unwired",
     });
-    const identityId = await createIdentity(cookie, "code-cal-unwired");
+    const identityId = await createIdentity(cookie, "code-g-unwired");
 
-    const { status } = await startCalendarConnect(cookie, identityId, "slack");
+    const { status } = await connect(cookie, identityId, { provider: "slack" });
     expect(status).toBe(HTTP_BAD_REQUEST);
   });
 
-  test("connects a calendar under the matching work identity", async () => {
+  test("connects google with every source under the matching work identity", async () => {
     const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-cal-id", { ...GOOGLE_PROFILE, sub: "google-sub-cal-ok" });
-    const identityId = await createIdentity(cookie, "code-cal-id");
-    const state = await startCalendarState(cookie, identityId);
+    provider.google.profiles.set("code-g-id", { ...GOOGLE_PROFILE, sub: "google-sub-g-ok" });
+    const identityId = await createIdentity(cookie, "code-g-id");
+    const state = await startGoogleState(cookie, identityId);
 
-    setCalendarProfile("code-cal-ok", "google-sub-cal-ok");
-    const completed = await completeCallback("code-cal-ok", state);
+    setCalendarProfile("code-g-ok", "google-sub-g-ok");
+    const completed = await completeCallback("code-g-ok", state);
     expect(completed.status).toBe(HTTP_FOUND);
-    expect(readLocation(completed)).toBe(connectedUrl("google-calendar", CALENDAR_EMAIL));
+    expect(readLocation(completed)).toBe(googleConnectedUrl(CALENDAR_EMAIL));
 
     const row = await readOnlyConnectionRow();
     expect(row.identityId).toBe(identityId);
-    expect(row.provider).toBe("google-calendar");
+    expect(row.provider).toBe("google");
     expect(row.status).toBe("active");
     expect(row.scopes ?? "").toContain(CALENDAR_READ_SCOPE);
-    expect(row.providerAccountId).toBe("google-sub-cal-ok");
+    expect(row.providerAccountId).toBe("google-sub-g-ok");
     expect(row.providerAccountEmail).toBe(CALENDAR_EMAIL);
-    if (typeof row.refreshTokenEnc !== "string") {
-      throw new Error(ETestMessages.CONNECTION_ROW_HAS_NO_ENCRYPTED_REFRESH_TOKEN);
-    }
     expect(row.refreshTokenEnc.startsWith("v1.")).toBe(true);
-    expect(row.refreshTokenEnc).not.toContain("refresh-code-cal-ok");
+    expect(row.refreshTokenEnc).not.toContain("refresh-code-g-ok");
     expect(decryptSecret(ENV.connectionEncryptionKey, row.refreshTokenEnc)).toBe(
-      "refresh-code-cal-ok",
+      "refresh-code-g-ok",
     );
 
-    expect(await cache.get(connectionTokenKey(row.id))).toBe("code-cal-ok");
+    expect(await cache.get(connectionTokenKey(row.id))).toBe("code-g-ok");
     const ttl = await cachedTokenTtlSeconds(row.id);
     expect(ttl).toBeGreaterThan(0);
     expect(ttl).toBeLessThanOrEqual(DEFAULT_TOKEN_EXPIRY_SECONDS);
@@ -699,14 +757,15 @@ describe("calendar connections", () => {
     expect(status).toBe(HTTP_OK);
     const serialized = JSON.stringify(data);
     expect(serialized).not.toContain("refreshTokenEnc");
-    expect(serialized).not.toContain("refresh-code-cal-ok");
+    expect(serialized).not.toContain("refresh-code-g-ok");
     expect(data?.[0]?.connections).toEqual([
       {
         id: row.id,
-        provider: "google-calendar",
+        provider: "google",
         status: "active",
         scopes: row.scopes,
-        providerAccountId: "google-sub-cal-ok",
+        sources: ["calendar", "gmail", "drive", "chat"],
+        providerAccountId: "google-sub-g-ok",
         providerAccountEmail: CALENDAR_EMAIL,
         providerSite: null,
         createdAt: expect.any(String),
@@ -715,40 +774,60 @@ describe("calendar connections", () => {
     ]);
   });
 
-  test("rejects a calendar consent that leaves out the calendar scope", async () => {
+  test("saves a partial grant and reports the denied sources", async () => {
     const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-cal-noscope", {
-      ...GOOGLE_PROFILE,
-      sub: "google-sub-cal-noscope",
-    });
-    const identityId = await createIdentity(cookie, "code-cal-noscope");
-    const state = await startCalendarState(cookie, identityId);
+    provider.google.profiles.set("code-g-part", { ...GOOGLE_PROFILE, sub: "google-sub-g-part" });
+    const identityId = await createIdentity(cookie, "code-g-part");
+    const state = await startGoogleState(cookie, identityId, ["calendar", "gmail", "chat"]);
 
-    setCalendarProfile("code-cal-noscope-2", "google-sub-cal-noscope");
-    provider.google.grantedScopes.set("code-cal-noscope-2", ["openid", "email"]);
-    const completed = await completeCallback("code-cal-noscope-2", state);
+    setCalendarProfile("code-g-part-2", "google-sub-g-part");
+    provider.google.grantedScopes.set("code-g-part-2", [
+      "openid",
+      "email",
+      CALENDAR_READ_SCOPE,
+      CHAT_SPACES_SCOPE,
+    ]);
+    const completed = await completeCallback("code-g-part-2", state);
+    expect(readLocation(completed)).toBe(googleConnectedUrl(CALENDAR_EMAIL, "gmail,chat"));
+
+    const { data } = await listIdentities(cookie);
+    expect(data?.[0]?.connections[0]?.sources).toEqual(["calendar"]);
+  });
+
+  test("rejects a google consent that grants no source", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    provider.google.profiles.set("code-g-noscope", {
+      ...GOOGLE_PROFILE,
+      sub: "google-sub-g-noscope",
+    });
+    const identityId = await createIdentity(cookie, "code-g-noscope");
+    const state = await startGoogleState(cookie, identityId);
+
+    setCalendarProfile("code-g-noscope-2", "google-sub-g-noscope");
+    provider.google.grantedScopes.set("code-g-noscope-2", ["openid", "email"]);
+    const completed = await completeCallback("code-g-noscope-2", state);
     expect(completed.status).toBe(HTTP_FOUND);
     expect(readLocation(completed)).toBe(errorUrl("scope_denied"));
 
     expect(await db.select().from(schema.connection)).toEqual([]);
   });
 
-  test("keeps a saved calendar connection when the token cache write fails", async () => {
+  test("keeps a saved google connection when the token cache write fails", async () => {
     const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-cal-cache", {
+    provider.google.profiles.set("code-g-cache", {
       ...GOOGLE_PROFILE,
-      sub: "google-sub-cal-cache",
+      sub: "google-sub-g-cache",
     });
-    const identityId = await createIdentity(cookie, "code-cal-cache");
-    const state = await startCalendarState(cookie, identityId);
-    setCalendarProfile("code-cal-cache-2", "google-sub-cal-cache");
+    const identityId = await createIdentity(cookie, "code-g-cache");
+    const state = await startGoogleState(cookie, identityId);
+    setCalendarProfile("code-g-cache-2", "google-sub-g-cache");
 
     const cacheSpy = spyOn(CacheService, "put").mockRejectedValue(
       new Error(ETestMessages.CACHE_IS_DOWN),
     );
     try {
-      const completed = await completeCallback("code-cal-cache-2", state);
-      expect(readLocation(completed)).toBe(connectedUrl("google-calendar", CALENDAR_EMAIL));
+      const completed = await completeCallback("code-g-cache-2", state);
+      expect(readLocation(completed)).toBe(googleConnectedUrl(CALENDAR_EMAIL));
     } finally {
       cacheSpy.mockRestore();
     }
@@ -757,97 +836,104 @@ describe("calendar connections", () => {
     expect(row.status).toBe(EConnectionStatus.ACTIVE);
   });
 
-  test("rejects a calendar consent completed with a different google account", async () => {
+  test("rejects a google consent completed with a different google account", async () => {
     const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-cal-mid", { ...GOOGLE_PROFILE, sub: "google-sub-cal-mid" });
-    const identityId = await createIdentity(cookie, "code-cal-mid");
-    const state = await startCalendarState(cookie, identityId);
+    provider.google.profiles.set("code-g-mid", { ...GOOGLE_PROFILE, sub: "google-sub-g-mid" });
+    const identityId = await createIdentity(cookie, "code-g-mid");
+    const state = await startGoogleState(cookie, identityId);
 
-    setCalendarProfile("code-cal-wrong", "google-sub-cal-other", "other@employer.example");
-    const completed = await completeCallback("code-cal-wrong", state);
+    setCalendarProfile("code-g-wrong", "google-sub-g-other", "other@employer.example");
+    provider.google.grantedScopes.set("code-g-wrong", ["openid", "email"]);
+    const completed = await completeCallback("code-g-wrong", state);
     expect(completed.status).toBe(HTTP_FOUND);
     expect(readLocation(completed)).toBe(errorUrl("sub_mismatch"));
 
     expect(await db.select().from(schema.connection)).toEqual([]);
   });
 
-  test("refuses a second calendar under the same work identity", async () => {
+  test("replaces an active google connection on reconnect without a revoke", async () => {
     const { cookie } = await signUp(uniqueEmail());
-    const { identityId } = await connectCalendar(cookie, {
-      identityCode: "code-cal-dup-id",
-      identitySub: "google-sub-cal-dup",
-      calendarCode: "code-cal-dup-first",
+    const { identityId, connectionId } = await connectGoogle(cookie, {
+      identityCode: "code-g-re-id",
+      identitySub: "google-sub-g-re",
+      googleCode: "code-g-re-first",
     });
-    const state = await startCalendarState(cookie, identityId);
+    const state = await startGoogleState(cookie, identityId, ["calendar", "drive"]);
 
-    setCalendarProfile("code-cal-dup-second", "google-sub-cal-dup");
-    const completed = await completeCallback("code-cal-dup-second", state);
-    expect(completed.status).toBe(HTTP_FOUND);
-    expect(readLocation(completed)).toBe(errorUrl("already_connected"));
+    setCalendarProfile("code-g-re-second", "google-sub-g-re");
+    provider.google.grantedScopes.set("code-g-re-second", [CALENDAR_READ_SCOPE]);
+    const completed = await completeCallback("code-g-re-second", state);
+    expect(readLocation(completed)).toBe(googleConnectedUrl(CALENDAR_EMAIL, "drive"));
 
-    expect((await db.select().from(schema.connection)).length).toBe(1);
+    const row = await readOnlyConnectionRow();
+    expect(row.id).not.toBe(connectionId);
+    expect(row.status).toBe(EConnectionStatus.ACTIVE);
+    expect(await cache.get(connectionTokenKey(connectionId))).toBeNull();
+    expect(provider.google.revokedTokens).toEqual([]);
+
+    const { data } = await listIdentities(cookie);
+    expect(data?.[0]?.connections[0]?.sources).toEqual(["calendar"]);
   });
 
-  test("replaces a calendar connection that needs a reconnect", async () => {
+  test("replaces a google connection that needs a reconnect", async () => {
     const { cookie } = await signUp(uniqueEmail());
-    const { identityId, connectionId } = await connectCalendar(cookie, {
-      identityCode: "code-cal-re-id",
-      identitySub: "google-sub-cal-re",
-      calendarCode: "code-cal-re-first",
+    const { identityId, connectionId } = await connectGoogle(cookie, {
+      identityCode: "code-g-nr-id",
+      identitySub: "google-sub-g-nr",
+      googleCode: "code-g-nr-first",
     });
     await markNeedsReconnect(connectionId);
-    const state = await startCalendarState(cookie, identityId);
+    const state = await startGoogleState(cookie, identityId);
 
-    setCalendarProfile("code-cal-re-second", "google-sub-cal-re");
-    const completed = await completeCallback("code-cal-re-second", state);
-    expect(completed.status).toBe(HTTP_FOUND);
-    expect(readLocation(completed)).toBe(connectedUrl("google-calendar", CALENDAR_EMAIL));
+    setCalendarProfile("code-g-nr-second", "google-sub-g-nr");
+    const completed = await completeCallback("code-g-nr-second", state);
+    expect(readLocation(completed)).toBe(googleConnectedUrl(CALENDAR_EMAIL));
 
     const row = await readOnlyConnectionRow();
     expect(row.id).not.toBe(connectionId);
     expect(row.status).toBe(EConnectionStatus.ACTIVE);
   });
 
-  test("keeps a calendar connection that needs a reconnect when the code exchange fails", async () => {
+  test("keeps the active google connection when the reconnect exchange fails", async () => {
     const { cookie } = await signUp(uniqueEmail());
-    const { identityId, connectionId } = await connectCalendar(cookie, {
-      identityCode: "code-cal-keep-id",
-      identitySub: "google-sub-cal-keep",
-      calendarCode: "code-cal-keep-first",
+    const { identityId, connectionId } = await connectGoogle(cookie, {
+      identityCode: "code-g-keep-id",
+      identitySub: "google-sub-g-keep",
+      googleCode: "code-g-keep-first",
     });
-    await markNeedsReconnect(connectionId);
-    const state = await startCalendarState(cookie, identityId);
+    const state = await startGoogleState(cookie, identityId);
 
-    const completed = await completeCallback("unknown-calendar-code", state);
+    const completed = await completeCallback("unknown-google-code", state);
     expect(readLocation(completed)).toBe(errorUrl("failed"));
 
     const row = await readOnlyConnectionRow();
     expect(row.id).toBe(connectionId);
-    expect(row.status).toBe(EConnectionStatus.NEEDS_RECONNECT);
+    expect(row.status).toBe(EConnectionStatus.ACTIVE);
   });
 
-  test("redirects to an error when calendar code exchange fails", async () => {
+  test("redirects to an error when google code exchange fails", async () => {
     const { cookie } = await signUp(uniqueEmail());
-    provider.google.profiles.set("code-cal-ex", { ...GOOGLE_PROFILE, sub: "google-sub-cal-ex" });
-    const identityId = await createIdentity(cookie, "code-cal-ex");
-    const state = await startCalendarState(cookie, identityId);
+    provider.google.profiles.set("code-g-ex", { ...GOOGLE_PROFILE, sub: "google-sub-g-ex" });
+    const identityId = await createIdentity(cookie, "code-g-ex");
+    const state = await startGoogleState(cookie, identityId);
 
-    const completed = await completeCallback("unknown-calendar-code", state);
+    const completed = await completeCallback("unknown-google-code", state);
     expect(completed.status).toBe(HTTP_FOUND);
     expect(readLocation(completed)).toBe(errorUrl("failed"));
 
     expect(await db.select().from(schema.connection)).toEqual([]);
   });
 
-  test("disconnect removes the calendar connection", async () => {
+  test("disconnect revokes the google grant and removes the connection", async () => {
     const { cookie } = await signUp(uniqueEmail());
-    const { connectionId } = await connectCalendar(cookie, {
-      identityCode: "code-cal-del-id",
-      identitySub: "google-sub-cal-del",
-      calendarCode: "code-cal-del-cal",
+    const { connectionId } = await connectGoogle(cookie, {
+      identityCode: "code-g-del-id",
+      identitySub: "google-sub-g-del",
+      googleCode: "code-g-del-cal",
     });
 
     expect((await deleteConnection(cookie, connectionId)).status).toBe(HTTP_OK);
+    expect(provider.google.revokedTokens).toEqual(["refresh-code-g-del-cal"]);
     expect(await db.select().from(schema.connection)).toEqual([]);
 
     const { status, data } = await listIdentities(cookie);
@@ -856,12 +942,54 @@ describe("calendar connections", () => {
     expect(data?.[0]?.connections).toEqual([]);
   });
 
+  test("disconnect finishes when the google revoke fails", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    const { connectionId } = await connectGoogle(cookie, {
+      identityCode: "code-g-rf-id",
+      identitySub: "google-sub-g-rf",
+      googleCode: "code-g-rf-cal",
+    });
+    provider.google.isRevokeDown = true;
+
+    const { status, data } = await deleteConnection(cookie, connectionId);
+    expect(status).toBe(HTTP_OK);
+    expect(data).toEqual({ deleted: true });
+    expect(await db.select().from(schema.connection)).toEqual([]);
+  });
+
+  test("work identity delete revokes its google grant", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    const { identityId } = await connectGoogle(cookie, {
+      identityCode: "code-g-wid-id",
+      identitySub: "google-sub-g-wid",
+      googleCode: "code-g-wid-cal",
+    });
+
+    expect((await deleteIdentity(cookie, identityId)).status).toBe(HTTP_OK);
+    expect(provider.google.revokedTokens).toEqual(["refresh-code-g-wid-cal"]);
+    expect(await db.select().from(schema.identity)).toEqual([]);
+  });
+
+  test("work identity delete finishes when the google revoke fails", async () => {
+    const { cookie } = await signUp(uniqueEmail());
+    const { identityId } = await connectGoogle(cookie, {
+      identityCode: "code-g-wrf-id",
+      identitySub: "google-sub-g-wrf",
+      googleCode: "code-g-wrf-cal",
+    });
+    provider.google.isRevokeDown = true;
+
+    expect((await deleteIdentity(cookie, identityId)).status).toBe(HTTP_OK);
+    expect(await db.select().from(schema.identity)).toEqual([]);
+    expect(await db.select().from(schema.connection)).toEqual([]);
+  });
+
   test("clears the cached access token on disconnect", async () => {
     const { cookie } = await signUp(uniqueEmail());
-    const { connectionId } = await connectCalendar(cookie, {
-      identityCode: "code-cal-token-id",
-      identitySub: "google-sub-cal-token",
-      calendarCode: "code-cal-token-cal",
+    const { connectionId } = await connectGoogle(cookie, {
+      identityCode: "code-g-token-id",
+      identitySub: "google-sub-g-token",
+      googleCode: "code-g-token-cal",
     });
     expect(await cache.get(connectionTokenKey(connectionId))).not.toBeNull();
 
@@ -885,6 +1013,7 @@ describe("jira and linear connections", () => {
       purpose: EGrantPurpose.CONNECTION,
       identityId,
       provider: "jira",
+      sources: [],
       codeVerifier: null,
     });
     expect(await db.select().from(schema.connection)).toEqual([]);
@@ -946,6 +1075,7 @@ describe("jira and linear connections", () => {
       expect(data?.[0]?.connections[0]).toMatchObject({
         provider: providerName,
         providerSite: grant.site,
+        sources: [],
       });
     },
   );
@@ -1040,6 +1170,7 @@ describe("jira and linear connections", () => {
     expect((await deleteConnection(cookie, row.id)).status).toBe(HTTP_OK);
     expect(await db.select().from(schema.connection)).toEqual([]);
     expect(await cache.get(connectionTokenKey(row.id))).toBeNull();
+    expect(provider.google.revokedTokens).toEqual([]);
   });
 
   test("rejects an unwired provider", async () => {

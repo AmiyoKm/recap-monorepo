@@ -26,10 +26,11 @@ import { encryptSecret } from "#api/shared/crypto/crypto.helpers";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { ENV } from "#api/shared/env/env.constants";
 import { toStringRecord } from "#api/shared/json/json.helpers";
+import type { EGoogleSource } from "#api/shared/providers/google/google.enums";
+import { grantedSources, parseSources } from "#api/shared/providers/google/google.helpers";
 import type { IGoogleProfile } from "#api/shared/providers/google/google.interfaces";
 import { OAUTH_SCOPE_SEPARATOR } from "#api/shared/providers/providers.constants";
 import { EProvider } from "#api/shared/providers/providers.enums";
-import { ROUTES } from "#api/shared/routes/routes.constants";
 
 export function createGrantState(): string {
   return randomBytes(GRANT_STATE_BYTES).toString("base64url");
@@ -103,15 +104,46 @@ function readPendingGrant(stored: string): TPendingGrant | null {
   if (purpose !== EGrantPurpose.CONNECTION) {
     return null;
   }
-  const { identityId, provider: providerName } = record;
+  const { identityId, provider: providerName, sources: storedSources } = record;
   if (typeof identityId !== "string" || typeof providerName !== "string") {
     return null;
   }
   const provider = toProvider(providerName);
-  if (!provider) {
+  if (!(provider && Array.isArray(storedSources))) {
     return null;
   }
-  return { userId, purpose, identityId, provider, codeVerifier };
+  const sources = parseSources(storedSources);
+  if (!sources) {
+    return null;
+  }
+  return { userId, purpose, identityId, provider, sources, codeVerifier };
+}
+
+export function readRequestedSources(
+  provider: EProvider,
+  sources: string[] | undefined,
+): EGoogleSource[] | null {
+  if (provider === EProvider.GOOGLE) {
+    return readGoogleSources(sources);
+  }
+  if (sources !== undefined) {
+    return null;
+  }
+  return [];
+}
+
+function readGoogleSources(sources: string[] | undefined): EGoogleSource[] | null {
+  if (!sources || sources.length === 0) {
+    return null;
+  }
+  return parseSources(sources);
+}
+
+function connectionSources(provider: EProvider, scopes: string | null): EGoogleSource[] {
+  if (provider !== EProvider.GOOGLE || !scopes) {
+    return [];
+  }
+  return grantedSources(scopes.split(OAUTH_SCOPE_SEPARATOR));
 }
 
 function errorMessages(error: unknown): string[] {
@@ -134,11 +166,13 @@ function toKnownValue<TValue extends string>(values: TValue[], value: string): T
 }
 
 export function toConnectionView(row: TConnectionRow): TConnectionResponse {
+  const provider = toKnownValue(Object.values(EProvider), row.provider);
   return {
     id: row.id,
-    provider: toKnownValue(Object.values(EProvider), row.provider),
+    provider,
     status: toKnownValue(Object.values(EConnectionStatus), row.status),
     scopes: row.scopes,
+    sources: connectionSources(provider, row.scopes),
     providerAccountId: row.providerAccountId,
     providerAccountEmail: row.providerAccountEmail,
     providerSite: row.providerSite,
@@ -209,8 +243,4 @@ export function buildOAuthConnectionRow(input: IOAuthConnectionInput): TConnecti
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
-}
-
-export function hasCalendarScope(scopes: string[]): boolean {
-  return scopes.includes(ROUTES.GOOGLE.CALENDAR_READONLY_SCOPE);
 }

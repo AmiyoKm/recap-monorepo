@@ -1,5 +1,6 @@
 import type { EGrantPurpose } from "#api/modules/identity/identity.enums";
 import type { TIdentityRow } from "#api/modules/identity/identity.types";
+import type { EGoogleSource } from "#api/shared/providers/google/google.enums";
 import type { IGoogleGrant } from "#api/shared/providers/google/google.interfaces";
 import type { EProvider } from "#api/shared/providers/providers.enums";
 import type {
@@ -18,6 +19,7 @@ export interface IConnectionGrant {
   purpose: EGrantPurpose.CONNECTION;
   identityId: string;
   provider: EProvider;
+  sources: EGoogleSource[];
 }
 
 export interface IGrantVerifier {
@@ -32,15 +34,11 @@ export interface IConnectionTarget {
 
 export interface IGoogleConnectionSave extends IConnectionTarget {
   grant: IGoogleGrant;
+  requestedSources: EGoogleSource[];
 }
 
 export interface IProviderConnectionSave extends IConnectionTarget {
   grant: IProviderGrant;
-}
-
-export interface IConnectionOwnership {
-  connectionId: string;
-  userId: string;
 }
 
 export interface IProviderSlot {
