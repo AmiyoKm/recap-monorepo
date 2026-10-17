@@ -399,6 +399,7 @@ describe("PullService.pullConnection for Gmail", () => {
 });
 
 const DRIVE_ME = { user: { knownUser: { isCurrentUser: true, personName: "people/me" } } };
+const DRIVE_OTHER = { user: { knownUser: { isCurrentUser: false, personName: "people/other" } } };
 
 function driveCreated(fileId: string, timestamp: string): TGoogleDriveActivity {
   return {
@@ -465,6 +466,33 @@ describe("PullService.pullConnection for Drive", () => {
     expect(list.mock.calls[1]?.[0].pageToken).toBe("page-2");
     expect(list.mock.calls[1]?.[0].timeMin).toBe(list.mock.calls[0]?.[0].timeMin);
     expect((await activityRows(seeded.connectionId)).length).toBe(2);
+  });
+
+  test("keeps a reply on a foreign file that the user commented on in an earlier pull", async () => {
+    const stamp = dayjs().subtract(1, "day").toISOString();
+    const foreign = {
+      fileComment: {
+        linkToDiscussion: "https://docs.google.com/document/d/f9/edit?disco=AAA",
+        parent: { name: "items/f9", title: "Shared", owner: DRIVE_OTHER },
+      },
+    };
+    const comment = (actor: object, subtype: string, timestamp: string): TGoogleDriveActivity => ({
+      timestamp,
+      actors: [actor],
+      targets: [foreign],
+      primaryActionDetail: { comment: { post: { subtype } } },
+    });
+    spyOn(GoogleService, "listDriveActivity")
+      .mockResolvedValueOnce(drivePage([comment(DRIVE_ME, "ADDED", stamp)]))
+      .mockResolvedValueOnce(
+        drivePage([comment(DRIVE_OTHER, "REPLY_ADDED", dayjs().toISOString())]),
+      );
+
+    await PullService.pullConnection(seeded.connectionId);
+    await PullService.pullConnection(seeded.connectionId);
+
+    const details = (await activityRows(seeded.connectionId)).map((row) => row.detail).sort();
+    expect(details).toEqual(["Comment", "Reply"]);
   });
 
   test("marks the Connection needs_reconnect when Google rejects the access token", async () => {

@@ -1,11 +1,11 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
 
-import { EActivityKind, ESource } from "#api/modules/activity/activity.enums";
+import { EActivityKind, EActivityMessages, ESource } from "#api/modules/activity/activity.enums";
 import { mapDriveActivities } from "#api/modules/activity/activity.helpers";
 import type { TGoogleDriveActivity } from "#api/shared/providers/google/google.types";
 import { CALENDAR_EMAIL } from "#api-tests/fixtures/fixtures.constants";
 
-const CONTEXT = { identityEmail: CALENDAR_EMAIL };
+const CONTEXT = { identityEmail: CALENDAR_EMAIL, commentedFileIds: new Set<string>() };
 const ME = { user: { knownUser: { isCurrentUser: true, personName: "people/me" } } };
 const OTHER = { user: { knownUser: { isCurrentUser: false, personName: "people/other" } } };
 const DISCUSSION = "https://docs.google.com/document/d/file-1/edit?disco=AAA";
@@ -133,12 +133,20 @@ describe("mapDriveActivities", () => {
       [
         commented("ADDED", { actors: [ME], targets: foreign }),
         commented("ADDED", { targets: foreign, timestamp: "2026-10-16T07:00:00.000Z" }, [ME.user]),
-        commented("ADDED", { targets: foreign, timestamp: "2026-10-16T08:00:00.000Z" }),
       ],
       CONTEXT,
     );
 
     expect(drafts.length).toBe(2);
+  });
+
+  test("skips a comment by another person on a foreign file the user did not comment on", () => {
+    const { drafts } = mapDriveActivities(
+      [commented("ADDED", { targets: [commentTarget("other")] })],
+      CONTEXT,
+    );
+
+    expect(drafts).toEqual([]);
   });
 
   test("skips comment deletions, drops items with no link and de-duplicates", () => {
@@ -149,5 +157,84 @@ describe("mapDriveActivities", () => {
     );
 
     expect(drafts.length).toBe(1);
+  });
+
+  test("keeps a reply by another person on a foreign file the user commented on in the same page", () => {
+    const foreign = [commentTarget("other")];
+    const { drafts } = mapDriveActivities(
+      [
+        commented("REPLY_ADDED", { targets: foreign, timestamp: "2026-10-16T08:00:00.000Z" }),
+        commented("ADDED", { actors: [ME], targets: foreign }),
+      ],
+      CONTEXT,
+    );
+
+    expect(drafts.map((draft) => draft.detail)).toEqual(["Reply", "Comment"]);
+  });
+
+  test("keeps a reply on a foreign file that the user commented on in an earlier page", () => {
+    const foreign = [commentTarget("other")];
+    const context = { ...CONTEXT, commentedFileIds: new Set(["file-1"]) };
+
+    const { drafts } = mapDriveActivities(
+      [commented("REPLY_ADDED", { targets: foreign })],
+      context,
+    );
+
+    expect(drafts.map((draft) => draft.detail)).toEqual(["Reply"]);
+  });
+
+  test("does not count a deleted comment by the user as a comment on the file", () => {
+    const foreign = [commentTarget("other")];
+    const { drafts } = mapDriveActivities(
+      [
+        commented("DELETED", { actors: [ME], targets: foreign }),
+        commented("ADDED", { targets: foreign }),
+      ],
+      CONTEXT,
+    );
+
+    expect(drafts).toEqual([]);
+  });
+
+  test("reads the time of an edit and a comment from timeRange when there is no timestamp", () => {
+    const timeRange = {
+      startTime: "2026-10-16T01:00:00.000Z",
+      endTime: "2026-10-16T02:00:00.000Z",
+    };
+    const { drafts } = mapDriveActivities(
+      [
+        edited({ timestamp: undefined, timeRange }),
+        commented("ADDED", { timestamp: undefined, timeRange }),
+      ],
+      CONTEXT,
+    );
+
+    expect(drafts.map((draft) => draft.occurredAt)).toEqual([timeRange.endTime, timeRange.endTime]);
+    expect(drafts[0]?.externalId).toBe(`edit:file-1:${timeRange.endTime}:people/other`);
+  });
+
+  test("skips an activity with neither timestamp nor timeRange", () => {
+    const { drafts } = mapDriveActivities([edited({ timestamp: undefined })], CONTEXT);
+
+    expect(drafts).toEqual([]);
+  });
+
+  describe("when the discussion link is missing", () => {
+    afterEach(() => {
+      mock.restore();
+    });
+
+    test("logs the enum message with the file id in the cause", () => {
+      const logged = spyOn(console, "error").mockImplementation(() => undefined);
+      const noLink = [{ fileComment: { parent: item("me") } }];
+
+      mapDriveActivities([commented("ADDED", { targets: noLink })], CONTEXT);
+
+      expect(logged).toHaveBeenCalledWith(
+        EActivityMessages.ITEM_WITHOUT_URL_DROPPED,
+        `Error: ${EActivityMessages.ITEM_WITHOUT_URL_DROPPED} (file-1)`,
+      );
+    });
   });
 });

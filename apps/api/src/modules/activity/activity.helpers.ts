@@ -336,6 +336,15 @@ function driveActorEmail(
   return context.identityEmail;
 }
 
+function driveEventTime(activity: TGoogleDriveActivity): string | null {
+  return activity.timestamp ?? activity.timeRange?.endTime ?? null;
+}
+
+export function driveFileIdFromExternalId(externalId: string): string | null {
+  const [, fileId] = externalId.split(DRIVE_EXTERNAL_ID_SEPARATOR);
+  return fileId || null;
+}
+
 function toDriveFileDraft(
   activity: TGoogleDriveActivity,
   context: IDriveMapContext,
@@ -345,7 +354,8 @@ function toDriveFileDraft(
   const actor = activity.actors?.[0];
   const fileId = driveFileId(item);
   const isCreated = kind === EActivityKind.DRIVE_FILE_CREATED;
-  if (!(fileId && activity.timestamp && isOwnedByCurrentUser(item))) {
+  const eventTime = driveEventTime(activity);
+  if (!(fileId && eventTime && isOwnedByCurrentUser(item))) {
     return null;
   }
   if (isCreated !== isCurrentUser(actor)) {
@@ -359,8 +369,8 @@ function toDriveFileDraft(
   return {
     source: ESource.DRIVE,
     kind,
-    externalId: driveExternalId(prefix, [fileId, activity.timestamp, driveActorId(actor)]),
-    occurredAt: dayjs.utc(activity.timestamp).toISOString(),
+    externalId: driveExternalId(prefix, [fileId, eventTime, driveActorId(actor)]),
+    occurredAt: dayjs.utc(eventTime).toISOString(),
     endsAt: null,
     title: item?.title ?? ACTIVITY_NO_TITLE,
     url,
@@ -391,6 +401,7 @@ function driveCommentDetail(
 function toDriveCommentDraft(
   activity: TGoogleDriveActivity,
   context: IDriveMapContext,
+  commentedFileIds: Set<string>,
 ): IActivityDraft | null {
   const comment = activity.primaryActionDetail?.comment;
   const subtype = Object.values(EGoogleDriveCommentSubtype).find(
@@ -399,20 +410,25 @@ function toDriveCommentDraft(
   const target = activity.targets?.[0]?.fileComment;
   const actor = activity.actors?.[0];
   const fileId = driveFileId(target?.parent);
-  if (!(subtype && fileId && activity.timestamp)) {
+  const eventTime = driveEventTime(activity);
+  if (!(subtype && fileId && eventTime)) {
     return null;
   }
   const detail = driveCommentDetail(activity, subtype);
   const isRelevant =
     detail === EDriveCommentDetail.MENTION ||
     isCurrentUser(actor) ||
-    isOwnedByCurrentUser(target?.parent);
+    isOwnedByCurrentUser(target?.parent) ||
+    commentedFileIds.has(fileId);
   if (!isRelevant) {
     return null;
   }
   const url = withAuthUser(target?.linkToDiscussion, context.identityEmail);
   if (!url) {
-    logError(EActivityMessages.ITEM_WITHOUT_URL_DROPPED, new Error(fileId));
+    logError(
+      EActivityMessages.ITEM_WITHOUT_URL_DROPPED,
+      new Error(EActivityMessages.ITEM_WITHOUT_URL_DROPPED, { cause: fileId }),
+    );
     return null;
   }
   return {
@@ -420,10 +436,10 @@ function toDriveCommentDraft(
     kind: EActivityKind.DRIVE_COMMENT,
     externalId: driveExternalId(EDriveExternalIdPrefix.COMMENT, [
       fileId,
-      activity.timestamp,
+      eventTime,
       driveActorId(actor),
     ]),
-    occurredAt: dayjs.utc(activity.timestamp).toISOString(),
+    occurredAt: dayjs.utc(eventTime).toISOString(),
     endsAt: null,
     title: target?.parent?.title ?? ACTIVITY_NO_TITLE,
     url,
@@ -435,6 +451,7 @@ function toDriveCommentDraft(
 function toDriveDraft(
   activity: TGoogleDriveActivity,
   context: IDriveMapContext,
+  commentedFileIds: Set<string>,
 ): IActivityDraft | null {
   const detail = activity.primaryActionDetail;
   if (detail?.create) {
@@ -444,18 +461,36 @@ function toDriveDraft(
     return toDriveFileDraft(activity, context, EActivityKind.DRIVE_FILE_EDITED);
   }
   if (detail?.comment) {
-    return toDriveCommentDraft(activity, context);
+    return toDriveCommentDraft(activity, context, commentedFileIds);
   }
   return null;
+}
+
+function pageCommentedFileIds(activities: TGoogleDriveActivity[]): string[] {
+  return activities.flatMap((activity) => {
+    const comment = activity.primaryActionDetail?.comment;
+    const isPost = Object.values(EGoogleDriveCommentSubtype).some(
+      (subtype) => subtype === comment?.post?.subtype,
+    );
+    const fileId = driveFileId(activity.targets?.[0]?.fileComment?.parent);
+    if (!(isPost && fileId && isCurrentUser(activity.actors?.[0]))) {
+      return [];
+    }
+    return [fileId];
+  });
 }
 
 export function mapDriveActivities(
   activities: TGoogleDriveActivity[],
   context: IDriveMapContext,
 ): IActivityBatch {
+  const commentedFileIds = new Set([
+    ...context.commentedFileIds,
+    ...pageCommentedFileIds(activities),
+  ]);
   const drafts = new Map<string, IActivityDraft>();
   for (const activity of activities) {
-    const draft = toDriveDraft(activity, context);
+    const draft = toDriveDraft(activity, context, commentedFileIds);
     if (draft) {
       drafts.set(draft.externalId, draft);
     }

@@ -363,8 +363,14 @@ export abstract class PullService {
     if (!page) {
       return null;
     }
+    const commentedFileIds = await ActivityRepository.listCommentedDriveFileIds(
+      input.target.connection.id,
+    );
     return {
-      batch: mapDriveActivities(page.activities, { identityEmail: input.target.identityEmail }),
+      batch: mapDriveActivities(page.activities, {
+        identityEmail: input.target.identityEmail,
+        commentedFileIds: new Set(commentedFileIds),
+      }),
       nextCursor: nextDriveCursor(cursor, page),
       hasMore: page.nextPageToken !== null,
     };

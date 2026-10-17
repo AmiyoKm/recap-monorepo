@@ -82,3 +82,32 @@ describe("ActivityRepository.upsertAndRemove", () => {
     expect(await titles()).toEqual([]);
   });
 });
+
+function driveComment(externalId: string, actor: string | null): IActivityDraft {
+  return {
+    ...draft(0),
+    source: ESource.DRIVE,
+    kind: EActivityKind.DRIVE_COMMENT,
+    externalId,
+    actor,
+  };
+}
+
+describe("ActivityRepository.listCommentedDriveFileIds", () => {
+  test("returns the files where the user commented, not files where only others did", async () => {
+    await ActivityRepository.upsertAndRemove({
+      ...seeded,
+      drafts: [
+        driveComment("comment:file-1:2026-10-16T05:00:00.000Z:people/me", "me@example.com"),
+        driveComment("comment:file-1:2026-10-16T06:00:00.000Z:people/me", "me@example.com"),
+        driveComment("comment:file-2:2026-10-16T05:00:00.000Z:people/other", null),
+        { ...draft(0), externalId: "event-5", actor: "me@example.com" },
+      ],
+      removedExternalIds: [],
+    });
+
+    const ids = await ActivityRepository.listCommentedDriveFileIds(seeded.connectionId);
+
+    expect(ids).toEqual(["file-1"]);
+  });
+});

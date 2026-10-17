@@ -36,6 +36,7 @@ export interface IActivityListFilters {
 
 export interface IDriveMapContext {
   identityEmail: string;
+  commentedFileIds: Set<string>;
 }
 
 export interface ICalendarMapContext {

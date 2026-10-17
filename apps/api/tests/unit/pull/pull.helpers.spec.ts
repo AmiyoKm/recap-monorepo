@@ -430,15 +430,21 @@ describe("drive cursor", () => {
   test("keeps the run open while the next page token exists", () => {
     const cursor = { timeMin: FIRST_TIME_MIN, pageToken: null, startedAt: NOW };
 
-    expect(
-      JSON.parse(nextDriveCursor(cursor, { activities: [], nextPageToken: "page-2" })),
-    ).toEqual({ ...cursor, pageToken: "page-2" });
+    const next: unknown = JSON.parse(
+      nextDriveCursor(cursor, { activities: [], nextPageToken: "page-2" }),
+    );
+
+    expect(next).toEqual({ ...cursor, pageToken: "page-2" });
   });
 
   test("moves the time to 60 minutes before the run start on the last page", () => {
     const cursor = { timeMin: FIRST_TIME_MIN, pageToken: "page-2", startedAt: NOW };
 
-    expect(JSON.parse(nextDriveCursor(cursor, { activities: [], nextPageToken: null }))).toEqual({
+    const next: unknown = JSON.parse(
+      nextDriveCursor(cursor, { activities: [], nextPageToken: null }),
+    );
+
+    expect(next).toEqual({
       timeMin: "2026-10-17T07:00:00.000Z",
       pageToken: null,
       startedAt: NOW,
