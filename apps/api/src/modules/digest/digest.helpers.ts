@@ -302,6 +302,10 @@ export function requireDigest(row: TDigestRow | undefined, digestId: string): TD
   return row;
 }
 
-export function pullStepName(connectionId: string): string {
-  return `${EDigestStep.PULL_CONNECTION}:${connectionId}`;
+export function pullStepName(connectionId: string, stepIndex: number): string {
+  return `${EDigestStep.PULL_CONNECTION}:${connectionId}:${stepIndex}`;
+}
+
+export function missingSourceStepName(connectionId: string): string {
+  return `${EDigestStep.MISSING_SOURCE}:${connectionId}`;
 }

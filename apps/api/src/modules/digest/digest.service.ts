@@ -6,7 +6,8 @@ import {
   DEFAULT_DIGEST_TIME_ZONE,
   DIGEST_ACTIVITY_LIMIT,
   DIGEST_ERROR_MAX_LENGTH,
-  DIGEST_FINAL_PULL_MAX_PAGES,
+  DIGEST_FINAL_PULL_MAX_STEPS,
+  DIGEST_FINAL_PULL_PAGES_PER_STEP,
   DIGEST_LIST_MAX,
   DIGEST_MEETING_LIMIT,
   DIGEST_MODEL,
@@ -22,7 +23,9 @@ import {
   isDigestDue,
   isSupportedTimeZone,
   localDigestDate,
+  missingSourceStepName,
   nextDigestRunAt,
+  pullStepName,
   requireDigest,
   startOfNextLocalDay,
   toDigestContent,
@@ -30,7 +33,10 @@ import {
   toDigestView,
   toMissingSource,
 } from "#api/modules/digest/digest.helpers";
-import type { IDigestLaunchFailure } from "#api/modules/digest/digest.interfaces";
+import type {
+  IDigestLaunchFailure,
+  IDigestStepRunner,
+} from "#api/modules/digest/digest.interfaces";
 import { digestAiOutputSchema } from "#api/modules/digest/digest.model";
 import { DigestRepository } from "#api/modules/digest/digest.repository";
 import type {
@@ -57,25 +63,21 @@ import type { IDigestWorkflowParams } from "#api/shared/bindings/bindings.interf
 import { dayjs } from "#api/shared/date/date.helpers";
 import { describeError, logError } from "#api/shared/logger/logger.helpers";
 
-async function findMissingSource(target: IPullTarget): Promise<TDigestMissingSource | null> {
+async function pullOnePage(target: IPullTarget): Promise<EPullOutcome> {
   if (!isPullableProvider(target.connection.provider)) {
-    return null;
+    return EPullOutcome.COMPLETE;
   }
   if (target.connection.status !== EConnectionStatus.ACTIVE) {
-    return toMissingSource(target);
+    return EPullOutcome.REJECTED;
   }
   try {
-    const outcome = await PullService.pullConnectionUpTo(
+    return await PullService.pullConnectionUpTo(
       target.connection.id,
-      DIGEST_FINAL_PULL_MAX_PAGES,
+      DIGEST_FINAL_PULL_PAGES_PER_STEP,
     );
-    if (outcome !== EPullOutcome.COMPLETE) {
-      return toMissingSource(target);
-    }
-    return null;
   } catch (error) {
     logError(EDigestMessages.FINAL_PULL_FAILED, error);
-    return toMissingSource(target);
+    return EPullOutcome.REJECTED;
   }
 }
 
@@ -169,12 +171,41 @@ export abstract class DigestService {
     return targets.map((target) => target.connection.id);
   }
 
-  static async pullForDigest(connectionId: string): Promise<TDigestMissingSource | null> {
+  static async pullForDigest(
+    connectionId: string,
+    runner: IDigestStepRunner,
+  ): Promise<TDigestMissingSource | null> {
+    let outcome = EPullOutcome.MORE_PAGES;
+    for (let index = 0; index < DIGEST_FINAL_PULL_MAX_STEPS; index++) {
+      if (outcome !== EPullOutcome.MORE_PAGES) {
+        break;
+      }
+      outcome = await runner.pullOutcome(pullStepName(connectionId, index), () =>
+        DigestService.pullPage(connectionId),
+      );
+    }
+    if (outcome === EPullOutcome.COMPLETE) {
+      return null;
+    }
+    return await runner.missingSource(missingSourceStepName(connectionId), () =>
+      DigestService.describeMissingSource(connectionId),
+    );
+  }
+
+  static async pullPage(connectionId: string): Promise<EPullOutcome> {
+    const target = await PullRepository.findPullTarget(connectionId);
+    if (!target) {
+      return EPullOutcome.COMPLETE;
+    }
+    return await pullOnePage(target);
+  }
+
+  static async describeMissingSource(connectionId: string): Promise<TDigestMissingSource | null> {
     const target = await PullRepository.findPullTarget(connectionId);
     if (!target) {
       return null;
     }
-    return await findMissingSource(target);
+    return toMissingSource(target);
   }
 
   static async saveMissingSources(

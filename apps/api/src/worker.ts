@@ -5,7 +5,6 @@ import { CloudflareAdapter } from "elysia/adapter/cloudflare-worker";
 import { createApp } from "#api/app";
 import { DIGEST_WORKFLOW_STEP_CONFIG } from "#api/modules/digest/digest.constants";
 import { EDigestStep } from "#api/modules/digest/digest.enums";
-import { pullStepName } from "#api/modules/digest/digest.helpers";
 import { DigestService } from "#api/modules/digest/digest.service";
 import type { TDigestMissingSource } from "#api/modules/digest/digest.types";
 import { IdentityService } from "#api/modules/identity/identity.service";
@@ -28,9 +27,10 @@ export class DigestWorkflow extends WorkflowEntrypoint<Cloudflare.Env, IDigestWo
       );
       const missingSources: TDigestMissingSource[] = [];
       for (const connectionId of connectionIds) {
-        const missing = await step.do(pullStepName(connectionId), DIGEST_WORKFLOW_STEP_CONFIG, () =>
-          DigestService.pullForDigest(connectionId),
-        );
+        const missing = await DigestService.pullForDigest(connectionId, {
+          pullOutcome: (name, run) => step.do(name, DIGEST_WORKFLOW_STEP_CONFIG, run),
+          missingSource: (name, run) => step.do(name, DIGEST_WORKFLOW_STEP_CONFIG, run),
+        });
         if (missing) {
           missingSources.push(missing);
         }

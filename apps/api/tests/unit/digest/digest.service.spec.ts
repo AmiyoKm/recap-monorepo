@@ -7,11 +7,17 @@ import { schema } from "@recap/db";
 import { ESource } from "#api/modules/activity/activity.enums";
 import {
   DIGEST_ACTIVITY_LIMIT,
-  DIGEST_FINAL_PULL_MAX_PAGES,
+  DIGEST_FINAL_PULL_MAX_STEPS,
+  DIGEST_FINAL_PULL_PAGES_PER_STEP,
   DIGEST_MODEL,
 } from "#api/modules/digest/digest.constants";
 import { EDigestStatus } from "#api/modules/digest/digest.enums";
-import { parseDigestContent, parseMissingSources } from "#api/modules/digest/digest.helpers";
+import {
+  parseDigestContent,
+  parseMissingSources,
+  pullStepName,
+} from "#api/modules/digest/digest.helpers";
+import type { IDigestStepRunner } from "#api/modules/digest/digest.interfaces";
 import { DigestService } from "#api/modules/digest/digest.service";
 import { EConnectionStatus } from "#api/modules/identity/identity.enums";
 import { EPullOutcome } from "#api/modules/pull/pull.enums";
@@ -35,6 +41,7 @@ const WINDOW_START = "2026-10-13T02:00:00.000Z";
 const IN_WINDOW = "2026-10-13T10:00:00.000Z";
 const MEETING_TODAY = "2026-10-14T05:30:00.000Z";
 const MANY_USERS = 3;
+const PAGES_TO_COMPLETE = 4;
 const MEETING_TOMORROW = "2026-10-14T19:00:00.000Z";
 
 let userId: string;
@@ -133,37 +140,68 @@ describe("DigestService.preparePull", () => {
 });
 
 describe("DigestService.pullForDigest", () => {
-  test("pulls the Connection up to the page cap and records nothing when it completes", async () => {
-    const pull = spyOn(PullService, "pullConnectionUpTo").mockResolvedValue(EPullOutcome.COMPLETE);
+  const stepNames: string[] = [];
+  const runStep: IDigestStepRunner = {
+    pullOutcome: (name, run) => {
+      stepNames.push(name);
+      return run();
+    },
+    missingSource: (name, run) => {
+      stepNames.push(name);
+      return run();
+    },
+  };
 
-    const missing = await DigestService.pullForDigest(first.connectionId);
-
-    expect(missing).toBeNull();
-    expect(pull).toHaveBeenCalledWith(first.connectionId, DIGEST_FINAL_PULL_MAX_PAGES);
+  beforeEach(() => {
+    stepNames.length = 0;
   });
 
-  test("records a Connection that still has pages at the cap", async () => {
-    spyOn(PullService, "pullConnectionUpTo").mockResolvedValue(EPullOutcome.MORE_PAGES);
+  test("pulls one page per step until the Connection completes", async () => {
+    const pull = spyOn(PullService, "pullConnectionUpTo")
+      .mockResolvedValueOnce(EPullOutcome.MORE_PAGES)
+      .mockResolvedValueOnce(EPullOutcome.MORE_PAGES)
+      .mockResolvedValueOnce(EPullOutcome.MORE_PAGES)
+      .mockResolvedValueOnce(EPullOutcome.COMPLETE);
 
-    const missing = await DigestService.pullForDigest(first.connectionId);
+    const missing = await DigestService.pullForDigest(first.connectionId, runStep);
+
+    expect(missing).toBeNull();
+    expect(pull).toHaveBeenCalledTimes(PAGES_TO_COMPLETE);
+    expect(pull).toHaveBeenCalledWith(first.connectionId, DIGEST_FINAL_PULL_PAGES_PER_STEP);
+    expect(stepNames).toEqual(
+      Array.from({ length: PAGES_TO_COMPLETE }, (_, index) => index).map((index) =>
+        pullStepName(first.connectionId, index),
+      ),
+    );
+  });
+
+  test("records a Connection that still has pages after the step cap", async () => {
+    const pull = spyOn(PullService, "pullConnectionUpTo").mockResolvedValue(
+      EPullOutcome.MORE_PAGES,
+    );
+
+    const missing = await DigestService.pullForDigest(first.connectionId, runStep);
 
     expect(missing).toMatchObject({ connectionId: first.connectionId, provider: "google" });
     expect(missing?.sources).toContain("calendar");
+    expect(pull).toHaveBeenCalledTimes(DIGEST_FINAL_PULL_MAX_STEPS);
+    expect(stepNames).toHaveLength(DIGEST_FINAL_PULL_MAX_STEPS + 1);
   });
 
-  test("records a Connection that the provider rejects", async () => {
-    spyOn(PullService, "pullConnectionUpTo").mockResolvedValue(EPullOutcome.REJECTED);
+  test("records a Connection that the provider rejects and stops pulling", async () => {
+    const pull = spyOn(PullService, "pullConnectionUpTo").mockResolvedValue(EPullOutcome.REJECTED);
 
-    const missing = await DigestService.pullForDigest(first.connectionId);
+    const missing = await DigestService.pullForDigest(first.connectionId, runStep);
 
     expect(missing?.connectionId).toBe(first.connectionId);
+    expect(pull).toHaveBeenCalledTimes(1);
   });
 
   test("records a Connection whose pull throws", async () => {
     spyOn(PullService, "pullConnectionUpTo").mockRejectedValue(new Error("provider down"));
     spyOn(console, "error").mockImplementation(() => undefined);
 
-    const missing = await DigestService.pullForDigest(first.connectionId);
+    const missing = await DigestService.pullForDigest(first.connectionId, runStep);
 
     expect(missing?.connectionId).toBe(first.connectionId);
   });
@@ -175,7 +213,7 @@ describe("DigestService.pullForDigest", () => {
       .where(eq(schema.connection.id, first.connectionId));
     const pull = spyOn(PullService, "pullConnectionUpTo");
 
-    const missing = await DigestService.pullForDigest(first.connectionId);
+    const missing = await DigestService.pullForDigest(first.connectionId, runStep);
 
     expect(missing?.connectionId).toBe(first.connectionId);
     expect(pull).not.toHaveBeenCalled();

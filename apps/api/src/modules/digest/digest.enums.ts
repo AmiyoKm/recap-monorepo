@@ -16,6 +16,7 @@ export enum EDigestStatus {
 export enum EDigestStep {
   PREPARE_PULL = "prepare-pull",
   PULL_CONNECTION = "pull-connection",
+  MISSING_SOURCE = "missing-source",
   SAVE_MISSING_SOURCES = "save-missing-sources",
   WRITE_DIGEST = "write-digest",
   FAIL_DIGEST = "fail-digest",
