@@ -1,11 +1,13 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { activityKeys } from "@/api/activity/activity.keys";
 import { EAuthPath, ESocialProvider } from "@/api/auth/auth.enums";
 import { toAuthError, webUrl } from "@/api/auth/auth.helpers";
 import type { IEmailSignInInput, IEmailSignUpInput } from "@/api/auth/auth.interfaces";
 import { authKeys } from "@/api/auth/auth.keys";
 import { authClient } from "@/api/client";
 import type { ApiError } from "@/api/client/client.helpers";
+import { digestKeys } from "@/api/digest/digest.keys";
 import { identityKeys } from "@/api/identity/identity.keys";
 
 export function useGoogleSignInMutation() {
@@ -33,7 +35,7 @@ export function useEmailSignInMutation() {
       }
     },
     onSuccess: () => {
-      queryClient.removeQueries({ queryKey: identityKeys.all });
+      removeUserQueries(queryClient);
       return queryClient.invalidateQueries({ queryKey: authKeys.all });
     },
   });
@@ -49,7 +51,7 @@ export function useEmailSignUpMutation() {
       }
     },
     onSuccess: () => {
-      queryClient.removeQueries({ queryKey: identityKeys.all });
+      removeUserQueries(queryClient);
       return queryClient.invalidateQueries({ queryKey: authKeys.all });
     },
   });
@@ -65,8 +67,14 @@ export function useSignOutMutation() {
       }
     },
     onSuccess: () => {
-      queryClient.removeQueries({ queryKey: identityKeys.all });
+      removeUserQueries(queryClient);
       queryClient.setQueryData(authKeys.session(), null);
     },
   });
+}
+
+function removeUserQueries(queryClient: QueryClient) {
+  for (const queryKey of [identityKeys.all, activityKeys.all, digestKeys.all]) {
+    queryClient.removeQueries({ queryKey });
+  }
 }

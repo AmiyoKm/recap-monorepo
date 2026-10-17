@@ -2,7 +2,8 @@ import { useMemo } from "react";
 
 import { listTimeZones } from "@/api/digest/digest.helpers";
 import { useUpdateDigestSettingsMutation } from "@/api/digest/digest.mutations";
-import { Alert, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertAction, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import {
   Combobox,
   ComboboxContent,
@@ -15,7 +16,9 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import {
   DIGEST_NEXT_RUN_LABEL,
   DIGEST_SAVE_FAILED,
+  DIGEST_SAVE_RETRY,
   DIGEST_TIME_ZONE_EMPTY,
+  DIGEST_TIME_ZONE_INPUT_ID,
   DIGEST_TIME_ZONE_LABEL,
   DIGEST_TIME_ZONE_PLACEHOLDER,
 } from "@/features/settings/components/DigestCard/components/DigestSettingsForm/DigestSettingsForm.constants";
@@ -33,17 +36,28 @@ export function DigestSettingsForm({ settings }: IDigestSettingsFormProps) {
     update.mutate(timeZone);
   }
 
+  function handleRetry() {
+    if (!update.variables) {
+      return;
+    }
+    update.mutate(update.variables);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <Field>
-        <FieldLabel>{DIGEST_TIME_ZONE_LABEL}</FieldLabel>
+        <FieldLabel htmlFor={DIGEST_TIME_ZONE_INPUT_ID}>{DIGEST_TIME_ZONE_LABEL}</FieldLabel>
         <Combobox
           items={timeZones}
           value={settings.timeZone}
           onValueChange={handleChange}
           disabled={update.isPending}
         >
-          <ComboboxInput placeholder={DIGEST_TIME_ZONE_PLACEHOLDER} className="w-full max-w-sm" />
+          <ComboboxInput
+            id={DIGEST_TIME_ZONE_INPUT_ID}
+            placeholder={DIGEST_TIME_ZONE_PLACEHOLDER}
+            className="w-full max-w-sm"
+          />
           <ComboboxContent>
             <ComboboxEmpty>{DIGEST_TIME_ZONE_EMPTY}</ComboboxEmpty>
             <ComboboxList>
@@ -62,6 +76,11 @@ export function DigestSettingsForm({ settings }: IDigestSettingsFormProps) {
       {update.isError && (
         <Alert variant="destructive">
           <AlertTitle>{DIGEST_SAVE_FAILED}</AlertTitle>
+          <AlertAction>
+            <Button variant="outline" size="sm" onClick={handleRetry}>
+              {DIGEST_SAVE_RETRY}
+            </Button>
+          </AlertAction>
         </Alert>
       )}
     </div>
