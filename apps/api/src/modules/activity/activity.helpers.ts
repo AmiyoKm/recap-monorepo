@@ -6,7 +6,6 @@ import {
   ACTIVITY_NO_SUBJECT,
   ACTIVITY_NO_TITLE,
   ACTIVITY_TITLE_MAX_LENGTH,
-  AUTHUSER_PARAM,
   CALENDAR_FALLBACK_TIME_ZONE,
   GMAIL_EXCLUDED_LABELS,
   GMAIL_RECIPIENT_SEPARATOR,
@@ -34,7 +33,11 @@ import type {
 } from "#api/modules/activity/activity.types";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { logError } from "#api/shared/logger/logger.helpers";
-import { EGmailHeader, EGmailLabel } from "#api/shared/providers/google/google.enums";
+import {
+  EGmailHeader,
+  EGmailLabel,
+  EGoogleUrlParam,
+} from "#api/shared/providers/google/google.enums";
 import type {
   TGoogleCalendarEvent,
   TGoogleGmailMessage,
@@ -47,7 +50,7 @@ export function withAuthUser(link: string | null | undefined, email: string): st
   }
   try {
     const url = new URL(link);
-    url.searchParams.set(AUTHUSER_PARAM, email);
+    url.searchParams.set(EGoogleUrlParam.AUTHUSER, email);
     return url.toString();
   } catch {
     return null;

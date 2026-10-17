@@ -12,6 +12,7 @@ import {
   parseGmailCursor,
   readableSources,
   remainingSources,
+  restartGmailPage,
   serializeCursorMap,
   startCycle,
 } from "#api/modules/pull/pull.helpers";
@@ -256,5 +257,16 @@ describe("Gmail cursor", () => {
       cursor: { ...history, historyId: "h-2" },
       hasMore: false,
     });
+  });
+});
+
+describe("restartGmailPage", () => {
+  test("starts a new backfill from SENT with no rows", () => {
+    const page = restartGmailPage("2026-10-17T08:00:00.000Z");
+    const cursor: unknown = JSON.parse(page.nextCursor);
+
+    expect(page.batch).toEqual({ drafts: [], removedExternalIds: [] });
+    expect(page.hasMore).toBe(true);
+    expect(cursor).toMatchObject({ historyId: null, label: EGmailLabel.SENT, pageToken: null });
   });
 });

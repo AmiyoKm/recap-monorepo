@@ -44,3 +44,7 @@ export enum EGmailFormat {
 export enum EGmailHistoryType {
   MESSAGE_ADDED = "messageAdded",
 }
+
+export enum EGoogleUrlParam {
+  AUTHUSER = "authuser",
+}

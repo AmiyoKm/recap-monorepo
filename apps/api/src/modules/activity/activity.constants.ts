@@ -17,7 +17,6 @@ export const ACTIVITY_NO_TITLE = "(No title)";
 export const LIKE_ESCAPE_CHARACTER = "\\";
 export const LIKE_WILDCARDS = /[\\%_]/g;
 export const CALENDAR_FALLBACK_TIME_ZONE = "UTC";
-export const AUTHUSER_PARAM = "authuser";
 export const ACTIVITY_INSERT_ROWS = 7;
 export const ACTIVITY_DELETE_CHUNK = 90;
 export const ACTIVITY_NO_SUBJECT = "(No subject)";

@@ -1,4 +1,5 @@
 import { ENV } from "#api/shared/env/env.constants";
+import { EGoogleUrlParam } from "#api/shared/providers/google/google.enums";
 
 export const ROUTES = {
   API: {
@@ -20,7 +21,7 @@ export const ROUTES = {
     CHAT_SPACES_READONLY_SCOPE: "https://www.googleapis.com/auth/chat.spaces.readonly",
     CHAT_MESSAGES_READONLY_SCOPE: "https://www.googleapis.com/auth/chat.messages.readonly",
     GMAIL_THREAD: (email: string, threadId: string): string =>
-      `https://mail.google.com/mail/?${new URLSearchParams({ authuser: email }).toString()}#all/${threadId}`,
+      `https://mail.google.com/mail/?${new URLSearchParams({ [EGoogleUrlParam.AUTHUSER]: email }).toString()}#all/${threadId}`,
   },
   LINEAR: {
     AUTHORIZE: "https://linear.app/oauth/authorize",
