@@ -1,6 +1,5 @@
 import type { TActivityListRow } from "#api/modules/activity/activity.types";
-import type { TDigestItem, TDigestMissingSource } from "#api/modules/digest/digest.types";
-import type { EPullOutcome } from "#api/modules/pull/pull.enums";
+import type { TDigestItem } from "#api/modules/digest/digest.types";
 
 export interface IDigestCandidate {
   userId: string;
@@ -73,12 +72,4 @@ export interface IDigestSectionDraft {
 export interface IDigestWindowCap {
   windowRows: TActivityListRow[];
   isTruncated: boolean;
-}
-
-export interface IDigestStepRunner {
-  pullOutcome: (name: string, run: () => Promise<EPullOutcome>) => Promise<EPullOutcome>;
-  missingSource: (
-    name: string,
-    run: () => Promise<TDigestMissingSource | null>,
-  ) => Promise<TDigestMissingSource | null>;
 }

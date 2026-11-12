@@ -10,8 +10,6 @@ import {
   DIGEST_ACTIVITY_LIMIT,
   DIGEST_EMBEDDING_DIMENSIONS,
   DIGEST_EMBEDDING_MODEL,
-  DIGEST_FINAL_PULL_MAX_STEPS,
-  DIGEST_FINAL_PULL_PAGES_PER_STEP,
   DIGEST_MODEL,
 } from "#api/modules/digest/digest.constants";
 import { EDigestStatus } from "#api/modules/digest/digest.enums";
@@ -19,14 +17,11 @@ import {
   digestVectorId,
   parseDigestContent,
   parseMissingSources,
-  pullStepName,
 } from "#api/modules/digest/digest.helpers";
-import type { IDigestStepRunner } from "#api/modules/digest/digest.interfaces";
 import { DigestRepository } from "#api/modules/digest/digest.repository";
 import { DigestService } from "#api/modules/digest/digest.service";
 import type { TDigestSection } from "#api/modules/digest/digest.types";
 import { EConnectionStatus } from "#api/modules/identity/identity.enums";
-import { EPullOutcome } from "#api/modules/pull/pull.enums";
 import { PullService } from "#api/modules/pull/pull.service";
 import { AiService } from "#api/shared/ai/ai.service";
 import { bindings } from "#api/shared/bindings/bindings.client";
@@ -49,7 +44,6 @@ const WINDOW_START = "2026-10-13T02:00:00.000Z";
 const IN_WINDOW = "2026-10-13T10:00:00.000Z";
 const MEETING_TODAY = "2026-10-14T05:30:00.000Z";
 const MANY_USERS = 3;
-const PAGES_TO_COMPLETE = 4;
 const MEETING_TOMORROW = "2026-10-14T19:00:00.000Z";
 
 let userId: string;
@@ -140,112 +134,52 @@ describe("DigestService.startDigest", () => {
   });
 });
 
-describe("DigestService.preparePull", () => {
-  test("marks the Digest running and lists the Connection ids", async () => {
-    const second = await seedGoogleConnection(userId);
-    const id = await startedDigest();
+describe("DigestService.prepareDigest", () => {
+  const PULLED_AT = "2026-10-14T01:00:00.000Z";
 
-    const connectionIds = await DigestService.preparePull(userId, id);
-
-    expect((await digestRow(id)).status).toBe(EDigestStatus.RUNNING);
-    expect([...connectionIds].sort()).toEqual([first.connectionId, second.connectionId].sort());
-  });
-});
-
-describe("DigestService.pullForDigest", () => {
-  const stepNames: string[] = [];
-  const runStep: IDigestStepRunner = {
-    pullOutcome: (name, run) => {
-      stepNames.push(name);
-      return run();
-    },
-    missingSource: (name, run) => {
-      stepNames.push(name);
-      return run();
-    },
-  };
-
-  beforeEach(() => {
-    stepNames.length = 0;
-  });
-
-  test("pulls one page per step until the Connection completes", async () => {
-    const pull = spyOn(PullService, "pullConnectionUpTo")
-      .mockResolvedValueOnce(EPullOutcome.MORE_PAGES)
-      .mockResolvedValueOnce(EPullOutcome.MORE_PAGES)
-      .mockResolvedValueOnce(EPullOutcome.MORE_PAGES)
-      .mockResolvedValueOnce(EPullOutcome.COMPLETE);
-
-    const missing = await DigestService.pullForDigest(first.connectionId, runStep);
-
-    expect(missing).toBeNull();
-    expect(pull).toHaveBeenCalledTimes(PAGES_TO_COMPLETE);
-    expect(pull).toHaveBeenCalledWith(first.connectionId, DIGEST_FINAL_PULL_PAGES_PER_STEP);
-    expect(stepNames).toEqual(
-      Array.from({ length: PAGES_TO_COMPLETE }, (_, index) => index).map((index) =>
-        pullStepName(first.connectionId, index),
-      ),
-    );
-  });
-
-  test("records a Connection that still has pages after the step cap", async () => {
-    const pull = spyOn(PullService, "pullConnectionUpTo").mockResolvedValue(
-      EPullOutcome.MORE_PAGES,
-    );
-
-    const missing = await DigestService.pullForDigest(first.connectionId, runStep);
-
-    expect(missing).toMatchObject({ connectionId: first.connectionId, provider: "google" });
-    expect(missing?.sources).toContain("calendar");
-    expect(pull).toHaveBeenCalledTimes(DIGEST_FINAL_PULL_MAX_STEPS);
-    expect(stepNames).toHaveLength(DIGEST_FINAL_PULL_MAX_STEPS + 1);
-  });
-
-  test("records a Connection that the provider rejects and stops pulling", async () => {
-    const pull = spyOn(PullService, "pullConnectionUpTo").mockResolvedValue(EPullOutcome.REJECTED);
-
-    const missing = await DigestService.pullForDigest(first.connectionId, runStep);
-
-    expect(missing?.connectionId).toBe(first.connectionId);
-    expect(pull).toHaveBeenCalledTimes(1);
-  });
-
-  test("records a Connection whose pull throws", async () => {
-    spyOn(PullService, "pullConnectionUpTo").mockRejectedValue(new Error("provider down"));
-    spyOn(console, "error").mockImplementation(() => undefined);
-
-    const missing = await DigestService.pullForDigest(first.connectionId, runStep);
-
-    expect(missing?.connectionId).toBe(first.connectionId);
-  });
-
-  test("records a Connection that needs to reconnect without pulling", async () => {
+  async function setConnection(values: Partial<typeof schema.connection.$inferInsert>) {
     await db
       .update(schema.connection)
-      .set({ status: EConnectionStatus.NEEDS_RECONNECT })
+      .set(values)
       .where(eq(schema.connection.id, first.connectionId));
-    const pull = spyOn(PullService, "pullConnectionUpTo");
+  }
 
-    const missing = await DigestService.pullForDigest(first.connectionId, runStep);
-
-    expect(missing?.connectionId).toBe(first.connectionId);
-    expect(pull).not.toHaveBeenCalled();
-  });
-});
-
-describe("DigestService.saveMissingSources", () => {
-  test("saves the list on the Digest", async () => {
+  test("marks the Digest running and saves no missing Sources for a pulled Connection", async () => {
+    await setConnection({ lastPulledAt: PULLED_AT });
     const id = await startedDigest();
-    const entry = {
-      connectionId: first.connectionId,
-      identityEmail: "a@example.test",
-      provider: "google",
-      sources: [ESource.CALENDAR],
-    };
 
-    await DigestService.saveMissingSources(id, [entry]);
+    await DigestService.prepareDigest(userId, id);
 
-    expect(parseMissingSources((await digestRow(id)).missingSources)).toEqual([entry]);
+    const row = await digestRow(id);
+    expect(row.status).toBe(EDigestStatus.RUNNING);
+    expect(parseMissingSources(row.missingSources)).toEqual([]);
+  });
+
+  test.each([
+    { name: "has never completed a pull", values: { lastPulledAt: null } },
+    { name: "has a pull error", values: { lastPulledAt: PULLED_AT, lastPullError: "boom" } },
+    {
+      name: "needs to reconnect",
+      values: { lastPulledAt: PULLED_AT, status: EConnectionStatus.NEEDS_RECONNECT },
+    },
+  ])("saves a Connection that $name as missing", async ({ values }) => {
+    await setConnection(values);
+    const id = await startedDigest();
+
+    await DigestService.prepareDigest(userId, id);
+
+    const [missing] = parseMissingSources((await digestRow(id)).missingSources);
+    expect(missing).toMatchObject({ connectionId: first.connectionId, provider: "google" });
+    expect(missing?.sources).toContain(ESource.CALENDAR);
+  });
+
+  test("does not pull any Connection", async () => {
+    const pull = spyOn(PullService, "pullConnectionUpTo");
+    const id = await startedDigest();
+
+    await DigestService.prepareDigest(userId, id);
+
+    expect(pull).not.toHaveBeenCalled();
   });
 });
 

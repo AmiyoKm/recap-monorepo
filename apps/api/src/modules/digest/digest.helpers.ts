@@ -17,7 +17,7 @@ import {
   SATURDAY,
   SUNDAY,
 } from "#api/modules/digest/digest.constants";
-import { EDigestMessages, EDigestStatus, EDigestStep } from "#api/modules/digest/digest.enums";
+import { EDigestMessages, EDigestStatus } from "#api/modules/digest/digest.enums";
 import type {
   IDigestCandidate,
   IDigestContentInput,
@@ -42,7 +42,8 @@ import type {
   TDigestRow,
   TDigestSection,
 } from "#api/modules/digest/digest.types";
-import { readableSources } from "#api/modules/pull/pull.helpers";
+import { EConnectionStatus } from "#api/modules/identity/identity.enums";
+import { isPullableProvider, readableSources } from "#api/modules/pull/pull.helpers";
 import type { IPullTarget } from "#api/modules/pull/pull.interfaces";
 import { dayjs } from "#api/shared/date/date.helpers";
 
@@ -295,19 +296,24 @@ export function toMissingSource(target: IPullTarget): TDigestMissingSource {
   };
 }
 
+export function isUnreadTarget({ connection }: IPullTarget): boolean {
+  if (!isPullableProvider(connection.provider)) {
+    return false;
+  }
+  if (connection.status !== EConnectionStatus.ACTIVE) {
+    return true;
+  }
+  if (readableSources(connection).length === 0) {
+    return false;
+  }
+  return connection.lastPulledAt === null || connection.lastPullError !== null;
+}
+
 export function requireDigest(row: TDigestRow | undefined, digestId: string): TDigestRow {
   if (!row) {
     throw new Error(EDigestMessages.DIGEST_MISSING, { cause: digestId });
   }
   return row;
-}
-
-export function pullStepName(connectionId: string, stepIndex: number): string {
-  return `${EDigestStep.PULL_CONNECTION}:${connectionId}:${stepIndex}`;
-}
-
-export function missingSourceStepName(connectionId: string): string {
-  return `${EDigestStep.MISSING_SOURCE}:${connectionId}`;
 }
 
 export function digestVectorId(userId: string, digestDate: string, identityId: string): string {
