@@ -72,6 +72,7 @@ export abstract class GoogleService {
       redirect_uri: input.redirectUri,
       scope: input.scopes,
       state: input.state,
+      login_hint: input.loginHint,
       access_type: EGoogleOAuthValue.OFFLINE_ACCESS_TYPE,
       prompt: EGoogleOAuthValue.CONSENT_PROMPT,
       code_challenge_method: CodeChallengeMethod.S256,

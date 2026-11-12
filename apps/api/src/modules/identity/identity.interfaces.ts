@@ -26,6 +26,13 @@ export interface IGrantVerifier {
   codeVerifier: string | null;
 }
 
+export interface IConnectionAuthorizeInput {
+  provider: EProvider;
+  state: string;
+  sources: EGoogleSource[];
+  googleSub: string;
+}
+
 export interface IConnectionTarget {
   identity: TIdentityRow;
   provider: EProvider;

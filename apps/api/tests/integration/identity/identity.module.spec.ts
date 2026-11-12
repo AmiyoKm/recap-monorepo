@@ -672,6 +672,7 @@ describe("google connections", () => {
       CHAT_SPACES_SCOPE,
       CHAT_MESSAGES_SCOPE,
     ]);
+    expect(provider.google.lastAuthorizeInput?.loginHint).toBe("google-sub-g-start");
     const state = readState(readAuthorizeUrl(data));
     expect(await readPendingGrant(state)).toEqual({
       userId,

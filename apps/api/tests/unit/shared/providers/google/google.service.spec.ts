@@ -61,6 +61,16 @@ describe("GoogleService.createAuthorization", () => {
     expect(url.searchParams.get("code_challenge")?.length).toBeGreaterThan(0);
     expect(codeVerifier.length).toBeGreaterThan(0);
   });
+
+  test("selects the hinted google account", async () => {
+    const { authorizeUrl } = await GoogleService.createAuthorization({
+      state: "state-1",
+      redirectUri: "http://localhost:3107/callback",
+      scopes: ["openid", "email"],
+      loginHint: "google-sub-1",
+    });
+    expect(new URL(authorizeUrl).searchParams.get("login_hint")).toBe("google-sub-1");
+  });
 });
 
 describe("GoogleService.exchangeCode", () => {
