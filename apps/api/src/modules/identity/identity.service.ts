@@ -29,6 +29,7 @@ import {
   toProvider,
 } from "#api/modules/identity/identity.helpers";
 import type {
+  IConnectionAuthorizeInput,
   IConnectionGrant,
   IConnectionTarget,
   IGoogleConnectionSave,
@@ -57,7 +58,6 @@ import { decryptSecret } from "#api/shared/crypto/crypto.helpers";
 import { dayjs } from "#api/shared/date/date.helpers";
 import { ENV } from "#api/shared/env/env.constants";
 import { logError } from "#api/shared/logger/logger.helpers";
-import type { EGoogleSource } from "#api/shared/providers/google/google.enums";
 import {
   deniedSources,
   grantedSources,
@@ -101,7 +101,7 @@ export abstract class IdentityService {
     identityId: string,
     body: TConnectConnectionBody,
   ): Promise<TAuthorizeResponse> {
-    await IdentityService.requireOwnedIdentity(userId, identityId);
+    const identity = await IdentityService.requireOwnedIdentity(userId, identityId);
     const provider = toProvider(body.provider);
     if (!(provider && isWiredProvider(provider))) {
       throw IdentityService.unsupportedProvider();
@@ -113,7 +113,12 @@ export abstract class IdentityService {
       } satisfies TConnectBadRequestError);
     }
     const state = createGrantState();
-    const authorization = await IdentityService.createAuthorization(provider, state, sources);
+    const authorization = await IdentityService.createAuthorization({
+      provider,
+      state,
+      sources,
+      googleSub: identity.googleSub,
+    });
     return IdentityService.storeGrant(
       state,
       { userId, purpose: EGrantPurpose.CONNECTION, identityId, provider, sources },
@@ -174,17 +179,19 @@ export abstract class IdentityService {
     return { deleted: true };
   }
 
-  private static createAuthorization(
-    provider: EProvider,
-    state: string,
-    sources: EGoogleSource[],
-  ): Promise<IProviderAuthorization> {
+  private static createAuthorization({
+    provider,
+    state,
+    sources,
+    googleSub,
+  }: IConnectionAuthorizeInput): Promise<IProviderAuthorization> {
     switch (provider) {
       case EProvider.GOOGLE:
         return providers.google.createAuthorization({
           state,
           redirectUri: ROUTES.API.GOOGLE_CALLBACK_URL(),
           scopes: [...GOOGLE_ACCOUNT_SCOPES, ...sourceScopes(sources)],
+          loginHint: googleSub,
         });
       case EProvider.JIRA:
         return Promise.resolve(

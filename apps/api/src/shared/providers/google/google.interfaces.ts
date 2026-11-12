@@ -18,6 +18,7 @@ export interface IGoogleAuthorizeInput {
   state: string;
   redirectUri: string;
   scopes: string[];
+  loginHint?: string;
 }
 
 export interface IGoogleAuthorization {
